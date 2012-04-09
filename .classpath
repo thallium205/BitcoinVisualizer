@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="jar/commons-cli-1.2.jar"/>
+	<classpathentry kind="lib" path="jar/jsontools-core-1.7.jar"/>
+	<classpathentry kind="lib" path="jar/antlrworks-1.4.3.jar"/>
+	<classpathentry kind="lib" path="C:/Users/John/Eclipse/java-rest-binding/jar/jackson-all-1.9.6.jar"/>
+	<classpathentry kind="lib" path="C:/Users/John/Eclipse/java-rest-binding/jar/jersey-bundle-1.4.jar"/>
+	<classpathentry kind="lib" path="C:/Users/John/Eclipse/java-rest-binding/jar/jsr311-api-1.1.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/John/Eclipse/java-rest-binding/jar/neo4j-kernel-1.6.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/John/Eclipse/java-rest-binding/jar/neo4j-lucene-index-1.6.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/John/Eclipse/java-rest-binding/jar/server-api-1.6.1.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/java-rest-binding"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

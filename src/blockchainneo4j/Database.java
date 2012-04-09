@@ -3,9 +3,6 @@ package blockchainneo4j;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -13,15 +10,10 @@ import org.neo4j.rest.graphdb.RestAPI;
 import org.neo4j.rest.graphdb.entity.RestNode;
 
 import org.neo4j.graphdb.Direction;
-import org.neo4j.graphdb.DynamicRelationshipType;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Path;
 import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
-import org.neo4j.graphdb.ReturnableEvaluator;
-import org.neo4j.graphdb.StopEvaluator;
-import org.neo4j.graphdb.index.UniqueFactory;
-import org.neo4j.graphdb.traversal.Evaluator;
 import org.neo4j.graphdb.traversal.TraversalDescription;
 import org.neo4j.graphdb.traversal.Traverser;
 import org.neo4j.kernel.impl.traversal.TraversalDescriptionImpl;
@@ -33,12 +25,23 @@ import blockchainneo4j.domain.OutputType;
 import blockchainneo4j.domain.PrevOut;
 import blockchainneo4j.domain.TransactionType;
 
+/**
+ * Stores the basic underlying structure of the bitcoin blockchcain to neo4j. The relationships are:
+ * Blocks "succeed" one another.  Transaction are "from" blocks.  Transactions "send" money.  Transactions "receive" money.
+ * @author John
+ *
+ */
 public class Database
 {
 	private static final Logger LOG = Logger.getLogger(Database.class.getName());
 
 	RestAPI restApi;
 
+	/**
+	 * Represents the basic relationships of the model.
+	 * @author John
+	 *
+	 */
 	enum BitcoinRelationships implements RelationshipType
 	{
 		succeeds, from, received, sent
@@ -291,43 +294,4 @@ public class Database
 		}
 		return referenceNode;
 	}
-
-	/**
-	 * Creates relationships with all blocks that do not have one yet.
-	 * 
-	 * @param lastNode
-	 *            - the last node in the database that has a relationship.
-	 * @return Newest lastNode in the database. It will be the latest block in
-	 *         the blockchain.
-	 */
-	/*
-	 * private Node persistBlockEdges(Node lastNode) { Map<String, Object>
-	 * succeedsProps = new HashMap<String, Object>(); int lastIndex = (Integer)
-	 * lastNode.getProperty("block_index"); int currentIndex; boolean nodeFound
-	 * = true;
-	 * 
-	 * // Traverse all the nodes that have to_be_determined relationships to //
-	 * them. TraversalDescription td = new TraversalDescriptionImpl(); td =
-	 * td.depthFirst().relationships(BitcoinRelationships.to_be_determined);
-	 * 
-	 * while (nodeFound) { nodeFound = false; Iterable<Node> traverser =
-	 * td.traverse(restApi.getReferenceNode()).nodes(); for (Iterator<Node> iter
-	 * = traverser.iterator(); iter.hasNext();) { Node currentNode =
-	 * iter.next(); // Have we found a block node? if
-	 * (currentNode.hasProperty("block_index")) { currentIndex = (Integer)
-	 * currentNode.getProperty("block_index");
-	 * 
-	 * // If the block index is one greater than the last block's // index, then
-	 * we found the succeeding block if (currentIndex == lastIndex + 1) { // We
-	 * have found the block that succeeds this one, we // create // a
-	 * relationship succeedsProps.put("prev_block",
-	 * lastNode.getProperty("hash")); restApi.createRelationship(currentNode,
-	 * lastNode, BitcoinRelationships.succeeds, succeedsProps);
-	 * 
-	 * // We set the lastNode to the currentNode, and repeat // the // process
-	 * until there are no more nodes lastNode = currentNode; lastIndex =
-	 * currentIndex; succeedsProps.clear(); nodeFound = true; break; } } } }
-	 * 
-	 * return lastNode; }
-	 */
 }

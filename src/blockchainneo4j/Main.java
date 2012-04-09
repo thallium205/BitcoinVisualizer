@@ -1,6 +1,5 @@
 package blockchainneo4j;
 
-import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -12,11 +11,6 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
-
-import com.sdicons.json.mapper.MapperException;
-
-import antlr.RecognitionException;
-import antlr.TokenStreamException;
 
 public class Main
 {

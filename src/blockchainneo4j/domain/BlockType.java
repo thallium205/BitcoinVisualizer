@@ -2,6 +2,11 @@ package blockchainneo4j.domain;
 
 import java.util.ArrayList;
 
+/**
+ * The fundamental datastructure of bitcoin.
+ * @author John
+ *
+ */
 public class BlockType
 {
 	private String hash;
