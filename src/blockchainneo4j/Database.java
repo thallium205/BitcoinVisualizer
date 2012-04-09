@@ -262,7 +262,7 @@ public class Database
 			// A one second wait period for the API
 			try
 			{
-				Thread.sleep(1000);
+				Thread.sleep(2000);
 			}
 
 			catch (InterruptedException e)
