@@ -12,5 +12,6 @@
 	<classpathentry kind="lib" path="C:/Users/John/Eclipse/java-rest-binding/jar/neo4j-lucene-index-1.6.1.jar"/>
 	<classpathentry kind="lib" path="C:/Users/John/Eclipse/java-rest-binding/jar/server-api-1.6.1.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/java-rest-binding"/>
+	<classpathentry kind="lib" path="jar/commons-io-2.2.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
