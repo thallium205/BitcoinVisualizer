@@ -12,12 +12,14 @@ import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
+
 public class Main
 {
 	private static final Logger LOG = Logger.getLogger(Main.class.getName());
 	
 	public static void main(String[] args)
 	{
+		
 		// Print options
 		HelpFormatter formatter = new HelpFormatter();
 		formatter.printHelp("java -jar blockchainneo4j.jar", getOptions());
@@ -44,6 +46,8 @@ public class Main
 				Database db = new Database(path);
 				db.downloadBlockChain();
 			}
+			
+			LOG.info("Completed.");
 		}
 
 		catch (ParseException e)
@@ -71,5 +75,4 @@ public class Main
 		options.addOption(pass);
 		return options;
 	}
-
 }

@@ -3,6 +3,8 @@ package blockchainneo4j.domain;
 public class OutputType
 {
 	private String addr;
+	private String addr2;
+	private String addr3;
 	private Long value;
 	private Integer type;
 	
@@ -31,4 +33,21 @@ public class OutputType
 	{
 		this.type = type;
 	}
+	public String getAddr2()
+	{
+		return addr2;
+	}
+	public void setAddr2(String addr2)
+	{
+		this.addr2 = addr2;
+	}
+	public String getAddr3()
+	{
+		return addr3;
+	}
+	public void setAddr3(String addr3)
+	{
+		this.addr3 = addr3;
+	}
+
 }

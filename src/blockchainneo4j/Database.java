@@ -1,11 +1,16 @@
 package blockchainneo4j;
 
+import java.io.File;
+import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.apache.commons.io.FileUtils;
 import org.neo4j.rest.graphdb.RestAPI;
 import org.neo4j.rest.graphdb.entity.RestNode;
 
@@ -18,6 +23,7 @@ import org.neo4j.graphdb.traversal.TraversalDescription;
 import org.neo4j.graphdb.traversal.Traverser;
 import org.neo4j.kernel.impl.traversal.TraversalDescriptionImpl;
 
+import blockchainneo4j.domain.BlockJsonType;
 import blockchainneo4j.domain.BlockType;
 import blockchainneo4j.domain.InputType;
 import blockchainneo4j.domain.LatestBlock;
@@ -26,10 +32,12 @@ import blockchainneo4j.domain.PrevOut;
 import blockchainneo4j.domain.TransactionType;
 
 /**
- * Stores the basic underlying structure of the bitcoin blockchcain to neo4j. The relationships are:
- * Blocks "succeed" one another.  Transaction are "from" blocks.  Transactions "send" money.  Transactions "receive" money.
+ * Stores the basic underlying structure of the bitcoin blockchcain to neo4j.
+ * The relationships are: Blocks "succeed" one another. Transaction are "from"
+ * blocks. Transactions "send" money. Transactions "receive" money.
+ * 
  * @author John
- *
+ * 
  */
 public class Database
 {
@@ -39,8 +47,9 @@ public class Database
 
 	/**
 	 * Represents the basic relationships of the model.
+	 * 
 	 * @author John
-	 *
+	 * 
 	 */
 	enum BitcoinRelationships implements RelationshipType
 	{
@@ -90,15 +99,38 @@ public class Database
 		}
 		final int LATESTBLOCKINDEX = latestBlock.getBlock_index();
 
-		// Begin persistence
-		BlockType currentBlock = null;
-		RestNode currentBlockNode = null;
-		while (lastBlockIndex < LATESTBLOCKINDEX)
+		// Updates the JSON store with the latest blocks from the blockchain
+		downloadChain(lastBlockIndex, latestBlock);
+
+		// Ensures local blockchain integrity
+		if (isBlockchainComplete())
 		{
-			try
+			LOG.info("Begin persistance...");			
+			// Begin persistence
+			BlockType currentBlock = null;
+			RestNode currentBlockNode = null;
+			while (lastBlockIndex < LATESTBLOCKINDEX)
 			{
-				// Download the next block from the API
-				currentBlock = Fetcher.GetBlock(lastBlockIndex + 1);
+				// Load the next block from disk. Because indexes don't go in
+				// order, we need to find it from disk.
+				try
+				{
+					for (int i = lastBlockIndex; i < LATESTBLOCKINDEX; i++)
+					{
+						if (FileUtils.getFile((lastBlockIndex + 1) + ".json").exists())
+						{
+							currentBlock = Fetcher.GetBlock(FileUtils.getFile((lastBlockIndex + 1) + ".json")).getBlockType();
+							break;
+						}
+					}
+				}
+
+				catch (FetcherException e)
+				{
+					LOG.log(Level.SEVERE, "Corrupted block on disk.  Reason:  " + e.getMessage() + " Aborting...", e);
+					return;
+				}
+
 				// Persist a new block node
 				Map<String, Object> blockProps = new HashMap<String, Object>();
 				blockProps.put("hash", currentBlock.getHash());
@@ -118,7 +150,35 @@ public class Database
 				currentBlockNode = restApi.createNode(blockProps);
 
 				// Create a relationship of this block to the parentBlock
-				restApi.createRelationship(currentBlockNode, lastBlockNode, BitcoinRelationships.succeeds, null);
+
+				// In the unlikely event that the previous block of the current
+				// block node is not equal to the last block node's hash,
+				// then we have to traverse the graph and find the relationship.
+				// This occurs when a block is not part of the main chain, and
+				// is instead branching off.
+				if (!((String) currentBlockNode.getProperty("prev_block")).contains((String) lastBlockNode.getProperty("hash")))
+				{
+					TraversalDescription td = new TraversalDescriptionImpl();
+					td = td.depthFirst().relationships(BitcoinRelationships.succeeds);
+					Iterable<Node> nodeTraversal = td.traverse(lastBlockNode).nodes();
+
+					for (Iterator<Node> iter = nodeTraversal.iterator(); iter.hasNext();)
+					{
+						Node blockNode = iter.next();
+						// We check to see if its hash is equal to the current
+						// block nodes previous_block hash
+						if (((String) blockNode.getProperty("hash")).contains(((String) currentBlockNode.getProperty("prev_block"))))
+						{
+							// We have found the block. Create a relationship
+							restApi.createRelationship(currentBlockNode, blockNode, BitcoinRelationships.succeeds, null);
+						}
+					}
+				}
+
+				else
+				{
+					restApi.createRelationship(currentBlockNode, lastBlockNode, BitcoinRelationships.succeeds, null);
+				}
 
 				// Persist transaction nodes
 				// The transaction node properties
@@ -146,14 +206,15 @@ public class Database
 					fromRelation.put("block_hash", currentBlock.getHash());
 					restApi.createRelationship(tranNode, currentBlockNode, BitcoinRelationships.from, fromRelation);
 
-					// Persist Money nodes 
+					// Persist Money nodes
 					// The money node properties
-					Map<String, Object> moneyProps; 
+					Map<String, Object> moneyProps;
 					// The money node
-					RestNode outNode = null; 
+					RestNode outNode = null;
 					// The output object
 					OutputType output;
-					// The relationship properties between transaction and output
+					// The relationship properties between transaction and
+					// output
 					Map<String, Object> sentRelation;
 					// The location of an output within a transaction.
 					int n = 0;
@@ -169,16 +230,16 @@ public class Database
 
 						sentRelation = new HashMap<String, Object>();
 						sentRelation.put("to_addr", output.getAddr());
-						sentRelation.put("n", n);						
+						sentRelation.put("n", n);
 						restApi.createRelationship(tranNode, outNode, BitcoinRelationships.sent, sentRelation);
 						n++;
-					}					
+					}
 
 					// The relationship properties between input and
 					// transaction
 					Map<String, Object> receivedRelation;
 					// The input object
-					PrevOut prevOut; 
+					PrevOut prevOut;
 					for (Iterator<InputType> inputIter = tran.getInputs().iterator(); inputIter.hasNext();)
 					{
 						moneyProps = new HashMap<String, Object>();
@@ -189,47 +250,64 @@ public class Database
 						moneyProps.put("addr", prevOut.getAddr());
 						moneyProps.put("value", prevOut.getValue());
 						moneyProps.put("n", prevOut.getN());
-						
-						// We need to reedeem an output transaction.  Because the chain is being built sequentially from early to later, this is possible.
+
+						// We need to reedeem an output transaction. Because
+						// the
+						// chain is being built sequentially from early to
+						// later, this is possible.
 						TraversalDescription td = new TraversalDescriptionImpl();
-						td = td.breadthFirst();						
+						td = td.breadthFirst();
 						Iterable<Node> nodeTraversal = td.traverse(tranNode).nodes();
-						
+
 						boolean isFound = false;
 						for (Iterator<Node> iter = nodeTraversal.iterator(); iter.hasNext();)
 						{
 							Node transactionNode = iter.next();
-							// We grab the transaction the money node we are looking for belongs to	
-							if (transactionNode.hasProperty("tx_index"))							
+							// We grab the transaction the money node we are
+							// looking for belongs to
+							if (transactionNode.hasProperty("tx_index"))
 							{
-								int transactionIndex = (Integer) transactionNode.getProperty("tx_index");								
+								int transactionIndex = (Integer) transactionNode.getProperty("tx_index");
 								if (transactionIndex == prevOut.getTx_index())
 								{
-									// We have found the transaction node.  Now we find the corresponding money node by looking at "sent" transactions 									
-									Iterable<Relationship> moneyNodeRelationships = transactionNode.getRelationships(BitcoinRelationships.sent, Direction.OUTGOING);
+									// We have found the transaction node.
+									// Now
+									// we find the corresponding money node
+									// by
+									// looking at "sent" transactions
+									Iterable<Relationship> moneyNodeRelationships = transactionNode.getRelationships(BitcoinRelationships.sent,
+											Direction.OUTGOING);
 									for (Iterator<Relationship> moneyIter = moneyNodeRelationships.iterator(); moneyIter.hasNext();)
 									{
-										// For each sent transaction, we get the nodes attached to it
-										Node[] moneyNodes = moneyIter.next().getNodes();										
+										// For each sent transaction, we get
+										// the
+										// nodes attached to it
+										Node[] moneyNodes = moneyIter.next().getNodes();
 										for (int i = 0; i < moneyNodes.length; i++)
 										{
-											// Is this the money node were looking for!?
-											if (moneyNodes[i].hasProperty("addr") && moneyNodes[i].hasProperty("n") && ((String)moneyNodes[i].getProperty("addr")).contains(prevOut.getAddr()) && ((Integer)moneyNodes[i].getProperty("n") == prevOut.getN()))
+											// Is this the money node we're
+											// looking for!?
+											if (moneyNodes[i].hasProperty("addr") && moneyNodes[i].hasProperty("n")
+													&& ((String) moneyNodes[i].getProperty("addr")).contains(prevOut.getAddr())
+													&& ((Integer) moneyNodes[i].getProperty("n") == prevOut.getN()))
 											{
-											
-												// We have found the money node that reedemed this one.  Create the relationship.
+
+												// We have found the money
+												// node
+												// that reedemed this one.
+												// Create the relationship.
 												receivedRelation = new HashMap<String, Object>();
 												receivedRelation.put("tx_index", prevOut.getTx_index());
 												restApi.createRelationship(moneyNodes[i], tranNode, BitcoinRelationships.received, receivedRelation);
 												isFound = true;
-												break;	
-											}								
-										
+												break;
+											}
+
 										}
-										
+
 										if (isFound)
-											break;										
-									}						
+											break;
+									}
 								}
 							}
 							if (isFound)
@@ -237,40 +315,19 @@ public class Database
 						}
 					}
 				}
-			}
 
-			catch (FetcherException e)
-			{
-				LOG.log(Level.WARNING, "FethcerThread failed.  Download on block: " + e.getFailedBlockIndex() + " will try again in 30 seconds...", e);
-				
-				// 30 second backoff to let the API chill its shit.
-				try
-				{
-					Thread.sleep(30000);
-				}
-
-				catch (InterruptedException e2)
-				{
-					LOG.log(Level.SEVERE, "Thread.sleep() was interrupted.  Aborting...", e2);
-				}
-			}
-
-			// Update the previous block node to the current one and repeat
-			lastBlockIndex = currentBlock.getBlock_index();
-			lastBlockNode = currentBlockNode;
-
-			// A one second wait period for the API
-			try
-			{
-				Thread.sleep(2000);
-			}
-
-			catch (InterruptedException e)
-			{
-				LOG.log(Level.SEVERE, "Thread.sleep() was interrupted.  Aborting...", e);
+				// Update the previous block node to the current one and repeat
+				lastBlockIndex = currentBlock.getBlock_index();
+				lastBlockNode = currentBlockNode;
 			}
 		}
-
+		
+		else
+		{
+			// We failed integrity test
+			LOG.severe("Integrity test failed. Aborting... Try again.");
+			return;
+		}
 	}
 
 	/**
@@ -293,5 +350,175 @@ public class Database
 				return node;
 		}
 		return referenceNode;
+	}
+
+	/**
+	 * Downloads the blocks between the two block indexes (inclusive). Will
+	 * overwrite any file with the same name.
+	 * 
+	 * @param latestLocalBlockIndex
+	 *            - The last block we have
+	 * @param latestBlock
+	 *            - The last block from the api
+	 * @throws FetcherException
+	 */
+	private void downloadChain(int latestLocalBlockIndex, LatestBlock latestBlock)
+	{
+		// Fetch the latest block given the last remote block index
+		BlockJsonType lastBlock;
+		try
+		{
+			lastBlock = Fetcher.GetBlock(latestBlock.getBlock_index());
+		}
+
+		catch (FetcherException e1)
+		{
+			LOG.log(Level.SEVERE, "Unable to download the latest block from the API.  Aborting...", e1);
+			return;
+		}
+
+		// Keep downloading until we find the last block
+		while (lastBlock.getBlockType().getBlock_index() != latestLocalBlockIndex)
+		{
+			try
+			{
+				FileUtils.writeStringToFile(new File(lastBlock.getBlockType().getBlock_index() + ".json"), lastBlock.getBlockJson().render(true));
+				lastBlock = Fetcher.GetBlock(lastBlock.getBlockType().getPrev_block());
+			}
+
+			catch (IOException e)
+			{
+				LOG.warning("Error downloading block: " + lastBlock.getBlockType().getPrev_block());
+				LOG.warning("5 minute backoff timer begin.");
+				try
+				{
+					Thread.sleep(300000);
+				}
+
+				catch (InterruptedException e1)
+				{
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+			}
+
+			catch (FetcherException e)
+			{
+				LOG.warning(e.getMessage());
+				LOG.warning("5 minute backoff timer begin.");
+				try
+				{
+					Thread.sleep(300000);
+				}
+
+				catch (InterruptedException e1)
+				{
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+			}
+		}
+
+		LOG.info("Blockchain download complete.");
+	}
+
+	/**
+	 * Scans the disk to make sure that the blockchain and that there are no
+	 * missing blocks.
+	 * 
+	 * @return
+	 */
+	private boolean isBlockchainComplete()
+	{
+		boolean isComplete = true;
+
+		LOG.info("Verifying local blockchain integrity.");
+
+		// We are going to populate a hashtable binding addresses (key) to index
+		// numbers (value).
+		// This will allow in-memory verification while keeping memory
+		// consumption at a minimum
+		Hashtable<String, Integer> blocks = new Hashtable<String, Integer>();
+		File fileBlock;
+		BlockType block;
+
+		LOG.info("Collecting blocks...");
+		Collection<File> files = Fetcher.getFolderContents(".");
+		for (Iterator<File> iter = files.iterator(); iter.hasNext();)
+		{
+			fileBlock = iter.next();
+			if (fileBlock.getName().endsWith("json"))
+			{
+				try
+				{
+					block = Fetcher.GetBlock(fileBlock).getBlockType();
+					blocks.put(block.getHash(), block.getBlock_index());
+				}
+
+				catch (FetcherException e)
+				{
+					LOG.severe("Unable to parse block.  Reason: " + e.getMessage());
+				}
+			}
+		}
+
+		// For every file, we check to see if it's prev_block value exists in
+		// the hash table. If it does, we go to the next file
+		LOG.info("Verifying integrity...");
+		files = Fetcher.getFolderContents(".");
+		for (Iterator<File> iter = files.iterator(); iter.hasNext();)
+		{
+			fileBlock = iter.next();
+			if (fileBlock.getName().endsWith("json"))
+			{
+				try
+				{
+					block = Fetcher.GetBlock(fileBlock).getBlockType();
+					if (block.getPrev_block().length() != 0)
+					{
+						Integer prevBlock = blocks.get(block.getPrev_block());
+						if (prevBlock != null)
+						{
+							// blocks.remove(block.getPrev_block()); - We don't
+							// remove the block because there is no guarentee of
+							// order in FileUtils.listFiles in Fetcher
+						}
+
+						else
+						{
+							LOG.severe("Error.  Could not find the prev_block (" + block.getPrev_block() + ") on block index: "
+									+ block.getBlock_index() + " Downloading missing block...");
+
+							BlockJsonType blockToWrite = Fetcher.GetBlock(block.getPrev_block());
+							FileUtils.writeStringToFile(new File(blockToWrite.getBlockType().getBlock_index() + ".json"), blockToWrite.getBlockJson()
+									.render(true));
+							isComplete = false;
+						}
+					}
+
+					else
+					{
+						// The genesis block does not contain a prev_block.
+					}
+
+				}
+
+				catch (FetcherException e)
+				{
+					LOG.severe(e.getMessage());
+					return false;
+				}
+
+				catch (IOException e)
+				{
+					LOG.severe(e.getMessage());
+					return false;
+				}
+
+			}
+		}
+
+		LOG.info("Integrity test complete.");
+		return isComplete;
 	}
 }

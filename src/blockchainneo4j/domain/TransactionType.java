@@ -11,6 +11,7 @@ public class TransactionType
 	private Integer size;
 	private String relayed_by;
 	private Integer tx_index;
+	private Long time;
 	
 	ArrayList<InputType> inputs;
 	ArrayList<OutputType> out;	
@@ -86,5 +87,13 @@ public class TransactionType
 	public void setOut(ArrayList<OutputType> out)
 	{
 		this.out = out;
+	}
+	public Long getTime()
+	{
+		return time;
+	}
+	public void setTime(Long time)
+	{
+		this.time = time;
 	}	
 }
