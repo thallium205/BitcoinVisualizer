@@ -282,7 +282,7 @@ public class Database
 						for (Iterator<Node> iter = nodeTraversal.iterator(); iter.hasNext();)
 						{
 							Node transactionNode = iter.next();
-							// We grab the transaction the money node we are looking for belongs to
+							// We grab the transaction node that contains the outbound money node we are looking for.
 							if (transactionNode.hasProperty("tx_index"))
 							{
 								int transactionIndex = (Integer) transactionNode.getProperty("tx_index");
@@ -292,7 +292,8 @@ public class Database
 									Iterable<Relationship> moneyNodeRelationships = transactionNode.getRelationships(BitcoinRelationships.sent, Direction.OUTGOING);
 									for (Iterator<Relationship> moneyIter = moneyNodeRelationships.iterator(); moneyIter.hasNext();)
 									{
-										// For each sent transaction, we get the nodes attached to it
+										// For each sent transaction, we get the nodes attached to it. There will only ever be 2 to iterate over, and in very rare cases, 3 or 4 more nodes for "weird"
+										// transactions.
 										Node[] moneyNodes = moneyIter.next().getNodes();
 										for (int i = 0; i < moneyNodes.length; i++)
 										{
@@ -316,10 +317,9 @@ public class Database
 										else
 										{
 											LOG.severe("Unable to redeem transaction: " + transactionNode.getProperty("tx_index"));
-											// Should abort application in later release!											
+											// Should abort application in later release!
 										}
-										
-										
+
 									}
 								}
 							}
