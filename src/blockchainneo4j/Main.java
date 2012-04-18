@@ -32,19 +32,22 @@ public class Main
 			CommandLine line = parser.parse(getOptions(), args);
 			String path = line.getOptionValue("uri");
 			String user = line.getOptionValue("user");
-			String pass = line.getOptionValue("pass");			
+			String pass = line.getOptionValue("pass");
+			boolean validate = true;
+			if (line.hasOption("validate"))
+				validate = Boolean.parseBoolean(line.getOptionValue("validate"));
+				
 
 			if (user != null && pass != null)
 			{
 				Database db = new Database(path, user, pass);
-				db.downloadBlockChain();
-
+				db.downloadBlockChain(validate);
 			}
 			
 			else
 			{			
 				Database db = new Database(path);
-				db.downloadBlockChain();
+				db.downloadBlockChain(validate);
 			}
 			
 			LOG.info("Completed.");
@@ -64,15 +67,17 @@ public class Main
 	@SuppressWarnings("static-access")
 	private static Options getOptions()
 	{
-		// Define options
+		// Define options	
 		Option uri = OptionBuilder.hasArg().withArgName("uri").withDescription("The uri to the neo4j instsance. Ex: http://localhost:7474/db/data").isRequired().create("uri");
 		Option user = OptionBuilder.hasArg().withArgName("username").withDescription("Username of the neo4j instance.").create("user");
 		Option pass = OptionBuilder.hasArg().withArgName("password").withDescription("Password of the neo4j instance.").create("pass");
+		Option validate = OptionBuilder.hasArg().withArgName("true/false").withDescription("Toggle whether the local json files form a complete blockchain.  Default: true.  Recommended.").create("validate");
 
 		Options options = new Options();
 		options.addOption(uri);
 		options.addOption(user);
 		options.addOption(pass);
+		options.addOption(validate);
 		return options;
 	}
 }
