@@ -1,6 +1,8 @@
 package blockchainneo4j.domain;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 
 /**
  * The fundamental datastructure of bitcoin.
@@ -137,14 +139,24 @@ public class BlockType
 	public void setRelayed_by(String relayed_by)
 	{
 		this.relayed_by = relayed_by;
-	}
+	}	
 	public ArrayList<TransactionType> getTx()
-	{
+	{		
 		return tx;
-	}
+	}	
 	public void setTx(ArrayList<TransactionType> tx)
 	{
 		this.tx = tx;
 	}
-	
+	public ArrayList<TransactionType> getAscTx()
+	{
+		Collections.sort(tx, new Comparator<TransactionType>() {
+			@Override
+			public int compare(TransactionType t1, TransactionType t2)
+			{
+				return t1.getTx_index() - t2.getTx_index();
+			}	
+		});
+		return tx;
+	}
 }

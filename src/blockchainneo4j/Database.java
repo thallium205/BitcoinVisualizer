@@ -15,6 +15,7 @@ import java.util.logging.Logger;
 import org.apache.commons.io.FileUtils;
 import org.neo4j.rest.graphdb.RestAPI;
 import org.neo4j.rest.graphdb.entity.RestNode;
+import org.neo4j.rest.graphdb.index.RestIndex;
 
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Node;
@@ -45,6 +46,7 @@ public class Database
 	private static final Logger LOG = Logger.getLogger(Database.class.getName());
 
 	RestAPI restApi;
+	RestIndex<Node> transactionsIndex;
 
 	/**
 	 * Represents the basic relationships of the model.
@@ -60,11 +62,13 @@ public class Database
 	public Database(String uri)
 	{
 		restApi = new RestAPI(uri);
+		transactionsIndex = restApi.index().forNodes("transactions");
 	}
 
 	public Database(String uri, String user, String pass)
 	{
 		restApi = new RestAPI(uri, user, pass);
+		transactionsIndex = restApi.index().forNodes("transactions");
 	}
 
 	/**
@@ -117,7 +121,7 @@ public class Database
 		{
 			if (isBlockchainComplete())
 			{
-				// Yay.
+				LOG.info("Integrity test succeeded.");
 			} else
 			{
 				LOG.severe("Integrity test failed. Aborting... Try again.");
@@ -213,7 +217,9 @@ public class Database
 				RestNode tranNode = null;
 				// The relationship properties between transaction and block
 				Map<String, Object> fromRelation;
-				for (Iterator<TransactionType> tranIter = currentBlock.getTx().iterator(); tranIter.hasNext();)
+				// We get an ascending order of transactions. The API does not print them in ascending order which is necessary as inputs may try to redeem outputs that
+				// dont exist yet within the same block!
+				for (Iterator<TransactionType> tranIter = currentBlock.getAscTx().iterator(); tranIter.hasNext();)
 				{
 					tranProps = new HashMap<String, Object>();
 					tran = tranIter.next();
@@ -226,9 +232,13 @@ public class Database
 					tranProps.put("tx_index", tran.getTx_index());
 					tranNode = restApi.createNode(tranProps);
 
+					// Create the relationship
 					fromRelation = new HashMap<String, Object>();
 					fromRelation.put("block_hash", currentBlock.getHash());
 					restApi.createRelationship(tranNode, currentBlockNode, BitcoinRelationships.from, fromRelation);
+
+					// Create the index
+					transactionsIndex.add(tranNode, "tx_index", tran.getTx_index());
 
 					// Persist Money nodes
 					// The money node properties
@@ -273,62 +283,35 @@ public class Database
 						moneyProps.put("value", prevOut.getValue());
 						moneyProps.put("n", prevOut.getN());
 
-						// We need to reedeem an output transaction. Because the chain is being built sequentially from early to later, this is possible.
-						TraversalDescription td = new TraversalDescriptionImpl();
-						td = td.breadthFirst().relationships(BitcoinRelationships.succeeds).relationships(BitcoinRelationships.from);
-						Iterable<Node> nodeTraversal = td.traverse(tranNode).nodes();
+						// We redeem the output transaction from a previous transaction using an index.
+						Node transactionNode = transactionsIndex.query("tx_index", prevOut.getTx_index()).getSingle();
 
-						boolean isFound = false;
-						for (Iterator<Node> iter = nodeTraversal.iterator(); iter.hasNext();)
+						if (transactionNode != null)
 						{
-							Node transactionNode = iter.next();
-							// We grab the transaction node that contains the outbound money node we are looking for.
-							if (transactionNode.hasProperty("tx_index"))
+							// We have found the transaction node. Now we find the corresponding money node by looking at "sent" transactions
+							Iterable<Relationship> moneyNodeRelationships = transactionNode.getRelationships(BitcoinRelationships.sent, Direction.OUTGOING);
+							for (Iterator<Relationship> moneyIter = moneyNodeRelationships.iterator(); moneyIter.hasNext();)
 							{
-								int transactionIndex = (Integer) transactionNode.getProperty("tx_index");
-								if (transactionIndex == prevOut.getTx_index())
+								// For each sent transaction, we get the nodes attached to it. There will only ever be 2 to iterate over, and in very rare cases, 3 or 4 more nodes for "weird"
+								// transactions.
+								Node[] moneyNodes = moneyIter.next().getNodes();
+								for (int i = 0; i < moneyNodes.length; i++)
 								{
-									// We have found the transaction node. Now we find the corresponding money node by looking at "sent" transactions
-									Iterable<Relationship> moneyNodeRelationships = transactionNode.getRelationships(BitcoinRelationships.sent, Direction.OUTGOING);
-									for (Iterator<Relationship> moneyIter = moneyNodeRelationships.iterator(); moneyIter.hasNext();)
+									// Is this the money node we're looking for!?
+									if (moneyNodes[i].hasProperty("addr") && moneyNodes[i].hasProperty("n") && ((String) moneyNodes[i].getProperty("addr")).contains(prevOut.getAddr())
+											&& ((Integer) moneyNodes[i].getProperty("n") == prevOut.getN()))
 									{
-										// For each sent transaction, we get the nodes attached to it. There will only ever be 2 to iterate over, and in very rare cases, 3 or 4 more nodes for "weird"
-										// transactions.
-										Node[] moneyNodes = moneyIter.next().getNodes();
-										for (int i = 0; i < moneyNodes.length; i++)
-										{
-											// Is this the money node we're looking for!?
-											if (moneyNodes[i].hasProperty("addr") && moneyNodes[i].hasProperty("n") && ((String) moneyNodes[i].getProperty("addr")).contains(prevOut.getAddr())
-													&& ((Integer) moneyNodes[i].getProperty("n") == prevOut.getN()))
-											{
-
-												// We have found the money node that reedemed this one. Create the relationship.
-												receivedRelation = new HashMap<String, Object>();
-												receivedRelation.put("tx_index", prevOut.getTx_index());
-												restApi.createRelationship(moneyNodes[i], tranNode, BitcoinRelationships.received, receivedRelation);
-												isFound = true;
-												break;
-											}
-
-										}
-
-										if (isFound)
-											break;
-										else
-										{
-											LOG.severe("Unable to redeem transaction: " + transactionNode.getProperty("tx_index"));
-											// Should abort application in later release!
-										}
-
+										// We have found the money node that reedemed this one. Create the relationship.
+										receivedRelation = new HashMap<String, Object>();
+										receivedRelation.put("tx_index", prevOut.getTx_index());
+										restApi.createRelationship(moneyNodes[i], tranNode, BitcoinRelationships.received, receivedRelation);
+										break;
 									}
 								}
 							}
-							if (isFound)
-								break;
 						}
 					}
 				}
-
 				// Update the previous block node to the current one and repeat
 				lastDatabaseBlockIndex = currentBlock.getBlock_index();
 				latestDatabaseBlock = currentBlockNode;
@@ -388,7 +371,7 @@ public class Database
 			{
 				FileUtils.writeStringToFile(new File(lastBlock.getBlockType().getBlock_index() + ".json"), lastBlock.getBlockJson().render(true));
 				lastBlock = Fetcher.GetBlock(lastBlock.getBlockType().getPrev_block());
-				LOG.info((latestLocalBlockIndex - lastBlock.getBlockType().getBlock_index()) + " blocks left.");
+				LOG.info((Math.abs(latestLocalBlockIndex - lastBlock.getBlockType().getBlock_index())) + " blocks left.");
 			}
 
 			catch (IOException e)

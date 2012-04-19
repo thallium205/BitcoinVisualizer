@@ -95,5 +95,5 @@ public class TransactionType
 	public void setTime(Long time)
 	{
 		this.time = time;
-	}	
+	}
 }
