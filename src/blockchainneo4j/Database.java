@@ -129,193 +129,190 @@ public class Database
 			}
 		}
 
-		else
+		LOG.info("Begin persistance...");
+		// Begin persistence
+		BlockType currentBlock = null;
+		RestNode currentBlockNode = null;
+		while (lastDatabaseBlockIndex < LATEST_INTERNET_BLOCK_INDEX)
 		{
-			LOG.info("Begin persistance...");
-			// Begin persistence
-			BlockType currentBlock = null;
-			RestNode currentBlockNode = null;
-			while (lastDatabaseBlockIndex < LATEST_INTERNET_BLOCK_INDEX)
+			// Load the next block from disk. Because indexes don't go in
+			// order, we need to find it from disk.
+			try
 			{
-				// Load the next block from disk. Because indexes don't go in
-				// order, we need to find it from disk.
-				try
+				for (int i = lastDatabaseBlockIndex; i < LATEST_INTERNET_BLOCK_INDEX; i++)
 				{
-					for (int i = lastDatabaseBlockIndex; i < LATEST_INTERNET_BLOCK_INDEX; i++)
+					if (FileUtils.getFile((i + 1) + ".json").exists())
 					{
-						if (FileUtils.getFile((i + 1) + ".json").exists())
-						{
-							currentBlock = Fetcher.GetBlock(FileUtils.getFile((i + 1) + ".json")).getBlockType();
-							break;
-						}
+						currentBlock = Fetcher.GetBlock(FileUtils.getFile((i + 1) + ".json")).getBlockType();
+						break;
 					}
 				}
+			}
 
-				catch (FetcherException e)
+			catch (FetcherException e)
+			{
+				LOG.log(Level.SEVERE, "Corrupted block on disk.  Reason:  " + e.getMessage() + " Aborting...", e);
+				return;
+			}
+
+			LOG.info("Persisting Block: " + currentBlock.getBlock_index());
+
+			// Persist a new block node
+			Map<String, Object> blockProps = new HashMap<String, Object>();
+			blockProps.put("hash", currentBlock.getHash());
+			blockProps.put("ver", currentBlock.getVer());
+			blockProps.put("prev_block", currentBlock.getPrev_block());
+			blockProps.put("mrkl_root", currentBlock.getMrkl_root());
+			blockProps.put("time", currentBlock.getTime());
+			blockProps.put("bits", currentBlock.getBits());
+			blockProps.put("nonce", currentBlock.getNonce());
+			blockProps.put("n_tx", currentBlock.getN_tx());
+			blockProps.put("size", currentBlock.getSize());
+			blockProps.put("block_index", currentBlock.getBlock_index());
+			blockProps.put("main_chain", currentBlock.getMain_chain());
+			blockProps.put("height", currentBlock.getHeight());
+			blockProps.put("received_time", currentBlock.getReceived_time());
+			blockProps.put("relayed_by", currentBlock.getRelayed_by());
+			currentBlockNode = restApi.createNode(blockProps);
+
+			// Create a relationship of this block to the parentBlock
+
+			// In the unlikely event that the previous block of the current
+			// block node is not equal to the last block node's hash,
+			// then we have to traverse the graph and find the relationship.
+			// This occurs when a block is not part of the main chain, and
+			// is instead branching off.
+			if (latestDatabaseBlock.hasProperty("hash") && !((String) currentBlockNode.getProperty("prev_block")).contains((String) latestDatabaseBlock.getProperty("hash")))
+			{
+				TraversalDescription td = new TraversalDescriptionImpl();
+				td = td.depthFirst().relationships(BitcoinRelationships.succeeds);
+				Iterable<Node> nodeTraversal = td.traverse(latestDatabaseBlock).nodes();
+
+				for (Iterator<Node> iter = nodeTraversal.iterator(); iter.hasNext();)
 				{
-					LOG.log(Level.SEVERE, "Corrupted block on disk.  Reason:  " + e.getMessage() + " Aborting...", e);
-					return;
-				}
-
-				LOG.info("Persisting Block: " + currentBlock.getBlock_index());
-
-				// Persist a new block node
-				Map<String, Object> blockProps = new HashMap<String, Object>();
-				blockProps.put("hash", currentBlock.getHash());
-				blockProps.put("ver", currentBlock.getVer());
-				blockProps.put("prev_block", currentBlock.getPrev_block());
-				blockProps.put("mrkl_root", currentBlock.getMrkl_root());
-				blockProps.put("time", currentBlock.getTime());
-				blockProps.put("bits", currentBlock.getBits());
-				blockProps.put("nonce", currentBlock.getNonce());
-				blockProps.put("n_tx", currentBlock.getN_tx());
-				blockProps.put("size", currentBlock.getSize());
-				blockProps.put("block_index", currentBlock.getBlock_index());
-				blockProps.put("main_chain", currentBlock.getMain_chain());
-				blockProps.put("height", currentBlock.getHeight());
-				blockProps.put("received_time", currentBlock.getReceived_time());
-				blockProps.put("relayed_by", currentBlock.getRelayed_by());
-				currentBlockNode = restApi.createNode(blockProps);
-
-				// Create a relationship of this block to the parentBlock
-
-				// In the unlikely event that the previous block of the current
-				// block node is not equal to the last block node's hash,
-				// then we have to traverse the graph and find the relationship.
-				// This occurs when a block is not part of the main chain, and
-				// is instead branching off.
-				if (latestDatabaseBlock.hasProperty("hash") && !((String) currentBlockNode.getProperty("prev_block")).contains((String) latestDatabaseBlock.getProperty("hash")))
-				{
-					TraversalDescription td = new TraversalDescriptionImpl();
-					td = td.depthFirst().relationships(BitcoinRelationships.succeeds);
-					Iterable<Node> nodeTraversal = td.traverse(latestDatabaseBlock).nodes();
-
-					for (Iterator<Node> iter = nodeTraversal.iterator(); iter.hasNext();)
+					Node blockNode = iter.next();
+					// We check to see if its hash is equal to the current
+					// block nodes previous_block hash
+					if (blockNode.hasProperty("hash") && ((String) blockNode.getProperty("hash")).contains(((String) currentBlockNode.getProperty("prev_block"))))
 					{
-						Node blockNode = iter.next();
-						// We check to see if its hash is equal to the current
-						// block nodes previous_block hash
-						if (blockNode.hasProperty("hash") && ((String) blockNode.getProperty("hash")).contains(((String) currentBlockNode.getProperty("prev_block"))))
-						{
-							// We have found the block. Create a relationship
-							restApi.createRelationship(currentBlockNode, blockNode, BitcoinRelationships.succeeds, null);
-						}
+						// We have found the block. Create a relationship
+						restApi.createRelationship(currentBlockNode, blockNode, BitcoinRelationships.succeeds, null);
 					}
 				}
+			}
 
-				else
+			else
+			{
+				restApi.createRelationship(currentBlockNode, latestDatabaseBlock, BitcoinRelationships.succeeds, null);
+			}
+
+			// Persist transaction nodes
+			// The transaction node properties
+			Map<String, Object> tranProps;
+			// The transaction object
+			TransactionType tran;
+			// The transaction node
+			RestNode tranNode = null;
+			// The relationship properties between transaction and block
+			Map<String, Object> fromRelation;
+			// We get an ascending order of transactions. The API does not print them in ascending order which is necessary as inputs may try to redeem outputs that
+			// dont exist yet within the same block!
+			for (Iterator<TransactionType> tranIter = currentBlock.getAscTx().iterator(); tranIter.hasNext();)
+			{
+				tranProps = new HashMap<String, Object>();
+				tran = tranIter.next();
+				tranProps.put("hash", tran.getHash());
+				tranProps.put("ver", tran.getVer());
+				tranProps.put("vin_sz", tran.getVin_sz());
+				tranProps.put("vout_sz", tran.getVout_sz());
+				tranProps.put("size", tran.getSize());
+				tranProps.put("relayed_by", tran.getRelayed_by());
+				tranProps.put("tx_index", tran.getTx_index());
+				tranNode = restApi.createNode(tranProps);
+
+				// Create the relationship
+				fromRelation = new HashMap<String, Object>();
+				fromRelation.put("block_hash", currentBlock.getHash());
+				restApi.createRelationship(tranNode, currentBlockNode, BitcoinRelationships.from, fromRelation);
+
+				// Create the index
+				transactionsIndex.add(tranNode, "tx_index", tran.getTx_index());
+
+				// Persist Money nodes
+				// The money node properties
+				Map<String, Object> moneyProps;
+				// The money node
+				RestNode outNode = null;
+				// The output object
+				OutputType output;
+				// The relationship properties between transaction and output
+				Map<String, Object> sentRelation;
+				// The location of an output within a transaction.
+				int n = 0;
+				for (Iterator<OutputType> outputIter = tran.getOut().iterator(); outputIter.hasNext();)
 				{
-					restApi.createRelationship(currentBlockNode, latestDatabaseBlock, BitcoinRelationships.succeeds, null);
+					moneyProps = new HashMap<String, Object>();
+					output = outputIter.next();
+					moneyProps.put("type", output.getType());
+					moneyProps.put("addr", output.getAddr());
+					moneyProps.put("value", output.getValue());
+					moneyProps.put("n", n);
+					outNode = restApi.createNode(moneyProps);
+
+					sentRelation = new HashMap<String, Object>();
+					sentRelation.put("to_addr", output.getAddr());
+					sentRelation.put("n", n);
+					restApi.createRelationship(tranNode, outNode, BitcoinRelationships.sent, sentRelation);
+					n++;
 				}
 
-				// Persist transaction nodes
-				// The transaction node properties
-				Map<String, Object> tranProps;
-				// The transaction object
-				TransactionType tran;
-				// The transaction node
-				RestNode tranNode = null;
-				// The relationship properties between transaction and block
-				Map<String, Object> fromRelation;
-				// We get an ascending order of transactions. The API does not print them in ascending order which is necessary as inputs may try to redeem outputs that
-				// dont exist yet within the same block!
-				for (Iterator<TransactionType> tranIter = currentBlock.getAscTx().iterator(); tranIter.hasNext();)
+				// The relationship properties between input and transaction
+				Map<String, Object> receivedRelation;
+				// The input object
+				PrevOut prevOut;
+				for (Iterator<InputType> inputIter = tran.getInputs().iterator(); inputIter.hasNext();)
 				{
-					tranProps = new HashMap<String, Object>();
-					tran = tranIter.next();
-					tranProps.put("hash", tran.getHash());
-					tranProps.put("ver", tran.getVer());
-					tranProps.put("vin_sz", tran.getVin_sz());
-					tranProps.put("vout_sz", tran.getVout_sz());
-					tranProps.put("size", tran.getSize());
-					tranProps.put("relayed_by", tran.getRelayed_by());
-					tranProps.put("tx_index", tran.getTx_index());
-					tranNode = restApi.createNode(tranProps);
+					moneyProps = new HashMap<String, Object>();
+					prevOut = inputIter.next().getPrev_out();
+					if (prevOut == null)
+						continue;
+					moneyProps.put("type", prevOut.getType());
+					moneyProps.put("addr", prevOut.getAddr());
+					moneyProps.put("value", prevOut.getValue());
+					moneyProps.put("n", prevOut.getN());
 
-					// Create the relationship
-					fromRelation = new HashMap<String, Object>();
-					fromRelation.put("block_hash", currentBlock.getHash());
-					restApi.createRelationship(tranNode, currentBlockNode, BitcoinRelationships.from, fromRelation);
+					// We redeem the output transaction from a previous transaction using an index.
+					Node transactionNode = transactionsIndex.query("tx_index", prevOut.getTx_index()).getSingle();
 
-					// Create the index
-					transactionsIndex.add(tranNode, "tx_index", tran.getTx_index());
-
-					// Persist Money nodes
-					// The money node properties
-					Map<String, Object> moneyProps;
-					// The money node
-					RestNode outNode = null;
-					// The output object
-					OutputType output;
-					// The relationship properties between transaction and output
-					Map<String, Object> sentRelation;
-					// The location of an output within a transaction.
-					int n = 0;
-					for (Iterator<OutputType> outputIter = tran.getOut().iterator(); outputIter.hasNext();)
+					if (transactionNode != null)
 					{
-						moneyProps = new HashMap<String, Object>();
-						output = outputIter.next();
-						moneyProps.put("type", output.getType());
-						moneyProps.put("addr", output.getAddr());
-						moneyProps.put("value", output.getValue());
-						moneyProps.put("n", n);
-						outNode = restApi.createNode(moneyProps);
-
-						sentRelation = new HashMap<String, Object>();
-						sentRelation.put("to_addr", output.getAddr());
-						sentRelation.put("n", n);
-						restApi.createRelationship(tranNode, outNode, BitcoinRelationships.sent, sentRelation);
-						n++;
-					}
-
-					// The relationship properties between input and transaction
-					Map<String, Object> receivedRelation;
-					// The input object
-					PrevOut prevOut;
-					for (Iterator<InputType> inputIter = tran.getInputs().iterator(); inputIter.hasNext();)
-					{
-						moneyProps = new HashMap<String, Object>();
-						prevOut = inputIter.next().getPrev_out();
-						if (prevOut == null)
-							continue;
-						moneyProps.put("type", prevOut.getType());
-						moneyProps.put("addr", prevOut.getAddr());
-						moneyProps.put("value", prevOut.getValue());
-						moneyProps.put("n", prevOut.getN());
-
-						// We redeem the output transaction from a previous transaction using an index.
-						Node transactionNode = transactionsIndex.query("tx_index", prevOut.getTx_index()).getSingle();
-
-						if (transactionNode != null)
+						// We have found the transaction node. Now we find the corresponding money node by looking at "sent" transactions
+						Iterable<Relationship> moneyNodeRelationships = transactionNode.getRelationships(BitcoinRelationships.sent, Direction.OUTGOING);
+						for (Iterator<Relationship> moneyIter = moneyNodeRelationships.iterator(); moneyIter.hasNext();)
 						{
-							// We have found the transaction node. Now we find the corresponding money node by looking at "sent" transactions
-							Iterable<Relationship> moneyNodeRelationships = transactionNode.getRelationships(BitcoinRelationships.sent, Direction.OUTGOING);
-							for (Iterator<Relationship> moneyIter = moneyNodeRelationships.iterator(); moneyIter.hasNext();)
+							// For each sent transaction, we get the nodes attached to it. There will only ever be 2 to iterate over, and in very rare cases, 3 or 4 more nodes for "weird"
+							// transactions.
+							Node[] moneyNodes = moneyIter.next().getNodes();
+							for (int i = 0; i < moneyNodes.length; i++)
 							{
-								// For each sent transaction, we get the nodes attached to it. There will only ever be 2 to iterate over, and in very rare cases, 3 or 4 more nodes for "weird"
-								// transactions.
-								Node[] moneyNodes = moneyIter.next().getNodes();
-								for (int i = 0; i < moneyNodes.length; i++)
+								// Is this the money node we're looking for!?
+								if (moneyNodes[i].hasProperty("addr") && moneyNodes[i].hasProperty("n") && ((String) moneyNodes[i].getProperty("addr")).contains(prevOut.getAddr())
+										&& ((Integer) moneyNodes[i].getProperty("n") == prevOut.getN()))
 								{
-									// Is this the money node we're looking for!?
-									if (moneyNodes[i].hasProperty("addr") && moneyNodes[i].hasProperty("n") && ((String) moneyNodes[i].getProperty("addr")).contains(prevOut.getAddr())
-											&& ((Integer) moneyNodes[i].getProperty("n") == prevOut.getN()))
-									{
-										// We have found the money node that reedemed this one. Create the relationship.
-										receivedRelation = new HashMap<String, Object>();
-										receivedRelation.put("tx_index", prevOut.getTx_index());
-										restApi.createRelationship(moneyNodes[i], tranNode, BitcoinRelationships.received, receivedRelation);
-										break;
-									}
+									// We have found the money node that reedemed this one. Create the relationship.
+									receivedRelation = new HashMap<String, Object>();
+									receivedRelation.put("tx_index", prevOut.getTx_index());
+									restApi.createRelationship(moneyNodes[i], tranNode, BitcoinRelationships.received, receivedRelation);
+									break;
 								}
 							}
 						}
 					}
 				}
-				// Update the previous block node to the current one and repeat
-				lastDatabaseBlockIndex = currentBlock.getBlock_index();
-				latestDatabaseBlock = currentBlockNode;
 			}
+			// Update the previous block node to the current one and repeat
+			lastDatabaseBlockIndex = currentBlock.getBlock_index();
+			latestDatabaseBlock = currentBlockNode;
 		}
 	}
 
