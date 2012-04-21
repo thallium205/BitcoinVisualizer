@@ -328,8 +328,8 @@ public class Database
 	 */
 	private Node getLatestDatabaseBlockNode()
 	{
-		// Node referenceNode = restApi.getReferenceNode();
-		Node referenceNode = restApi.getNodeById(281565);
+		Node referenceNode = restApi.getReferenceNode();
+		// Node referenceNode = restApi.getNodeById(281565);
 		TraversalDescription td = new TraversalDescriptionImpl();
 		td = td.depthFirst().relationships(BitcoinRelationships.succeeds, Direction.INCOMING);
 
