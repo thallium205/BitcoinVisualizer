@@ -109,7 +109,7 @@ public class Database
 		downloadChain(LATEST_DISK_BLOCK_INDEX, latestInternetBlock);
 
 		// We now find the latest block persisted to the database
-		Node latestDatabaseBlock = getLatestLocalBlockNode();
+		Node latestDatabaseBlock = getLatestDatabaseBlockNode();
 		if (latestDatabaseBlock.hasProperty("block_index"))
 			lastDatabaseBlockIndex = (Integer) latestDatabaseBlock.getProperty("block_index");
 		else
@@ -324,9 +324,9 @@ public class Database
 	/**
 	 * Queries the local database to find the latest stored block index. Used to set a lower bound on what Blocks to fetch from the API.
 	 * 
-	 * @return The next block index the local datastore needs to store.
+	 * @return The latest block node stored from the datastore.
 	 */
-	private Node getLatestLocalBlockNode()
+	private Node getLatestDatabaseBlockNode()
 	{
 		// Node referenceNode = restApi.getReferenceNode();
 		Node referenceNode = restApi.getNodeById(281565);
