@@ -253,16 +253,21 @@ public class Database
 				{
 					moneyProps = new HashMap<String, Object>();
 					output = outputIter.next();
-					moneyProps.put("type", output.getType());
-					moneyProps.put("addr", output.getAddr());
-					moneyProps.put("value", output.getValue());
-					moneyProps.put("n", n);
-					outNode = restApi.createNode(moneyProps);
+					// We need to make sure this is a valid outbound transaction
+					if (output.getType() != -1)
+					{
+						// This is a valid outbound transaction.  Some outbound transactions do not have outbound addresses, which messes up everything
+						moneyProps.put("type", output.getType());
+						moneyProps.put("addr", output.getAddr());
+						moneyProps.put("value", output.getValue());
+						moneyProps.put("n", n);
+						outNode = restApi.createNode(moneyProps);
 
-					sentRelation = new HashMap<String, Object>();
-					sentRelation.put("to_addr", output.getAddr());
-					sentRelation.put("n", n);
-					restApi.createRelationship(tranNode, outNode, BitcoinRelationships.sent, sentRelation);
+						sentRelation = new HashMap<String, Object>();
+						sentRelation.put("to_addr", output.getAddr());
+						sentRelation.put("n", n);
+						restApi.createRelationship(tranNode, outNode, BitcoinRelationships.sent, sentRelation);
+					}
 					n++;
 				}
 
@@ -323,16 +328,21 @@ public class Database
 	 */
 	private Node getLatestLocalBlockNode()
 	{
-		Node referenceNode = restApi.getReferenceNode();
+		// Node referenceNode = restApi.getReferenceNode();
+		Node referenceNode = restApi.getNodeById(281565);
 		TraversalDescription td = new TraversalDescriptionImpl();
 		td = td.depthFirst().relationships(BitcoinRelationships.succeeds, Direction.INCOMING);
 
 		Traverser traverser = td.traverse(referenceNode);
-		for (Iterator<Path> iter = traverser.iterator(); iter.hasNext();)
+		Node node;
+		Iterator<Path> iter;
+		for (iter = traverser.iterator(); iter.hasNext();)
 		{
-			Node node = iter.next().endNode();
+			node = iter.next().endNode();
 			if (!node.hasRelationship(BitcoinRelationships.succeeds, Direction.INCOMING))
 				return node;
+			else
+				System.out.println(node.getId());
 		}
 		return referenceNode;
 	}
