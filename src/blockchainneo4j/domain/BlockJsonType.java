@@ -3,7 +3,7 @@ package blockchainneo4j.domain;
 import com.sdicons.json.model.JSONValue;
 
 /**
- * High level accessor of a block.  Returns both the parsed and unparsed JSON object returned from the API.
+ * High level accessor of a block.  Contains both the parsed and raw JSON object returned from the API.
  * @author John
  *
  */

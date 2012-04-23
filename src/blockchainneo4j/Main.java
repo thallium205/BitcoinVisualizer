@@ -35,8 +35,7 @@ public class Main
 			String pass = line.getOptionValue("pass");
 			boolean validate = true;
 			if (line.hasOption("validate"))
-				validate = Boolean.parseBoolean(line.getOptionValue("validate"));
-				
+				validate = Boolean.parseBoolean(line.getOptionValue("validate"));				
 
 			if (user != null && pass != null)
 			{

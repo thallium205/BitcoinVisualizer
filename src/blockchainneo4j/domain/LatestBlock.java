@@ -2,6 +2,11 @@ package blockchainneo4j.domain;
 
 import java.util.ArrayList;
 
+/**
+ * A minimum information block that is returned from calling http://blockchain.info/latestblock
+ * @author John
+ *
+ */
 public class LatestBlock
 {
 	String hash;
@@ -49,7 +54,5 @@ public class LatestBlock
 	public void setTxIndexes(ArrayList<Integer> txIndexes)
 	{
 		this.txIndexes = txIndexes;
-	}
-	
-	
+	}	
 }

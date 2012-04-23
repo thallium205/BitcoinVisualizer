@@ -2,6 +2,11 @@ package blockchainneo4j.domain;
 
 import java.util.ArrayList;
 
+/**
+ * Summary and aggregate information regarding containing input and output transactions.
+ * @author John
+ *
+ */
 public class TransactionType
 {
 	private String hash;

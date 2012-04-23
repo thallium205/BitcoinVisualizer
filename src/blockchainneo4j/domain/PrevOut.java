@@ -1,5 +1,10 @@
 package blockchainneo4j.domain;
 
+/**
+ * A redeeming input transaction.
+ * @author John
+ *
+ */
 public class PrevOut
 {
 	private Integer type;

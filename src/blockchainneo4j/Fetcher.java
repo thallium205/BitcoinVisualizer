@@ -150,6 +150,12 @@ public class Fetcher
 		}
 	}
 	
+	/**
+	 * Converts a JSON file from disk to a BlockJsonType
+	 * @param file - a .json file from disk.
+	 * @return 
+	 * @throws FetcherException
+	 */
 	public static BlockJsonType GetBlock(File file) throws FetcherException
 	{
 		try

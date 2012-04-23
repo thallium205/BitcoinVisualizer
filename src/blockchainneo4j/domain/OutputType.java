@@ -1,5 +1,10 @@
 package blockchainneo4j.domain;
 
+/**
+ * An output.  Addr2, Addr3 are anamolous and are rarely used.  All modern blocks in the chain will never have these values.
+ * @author John
+ *
+ */
 public class OutputType
 {
 	private String addr;
@@ -49,5 +54,4 @@ public class OutputType
 	{
 		this.addr3 = addr3;
 	}
-
 }

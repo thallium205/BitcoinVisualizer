@@ -1,5 +1,10 @@
 package blockchainneo4j.domain;
 
+/**
+ * An input abstraction created from the blockchain.info API.
+ * @author John
+ *
+ */
 public class InputType
 {
 	private PrevOut prev_out;

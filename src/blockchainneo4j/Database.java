@@ -185,18 +185,16 @@ public class Database
 			if (latestDatabaseBlock.hasProperty("hash") && !((String) currentBlockNode.getProperty("prev_block")).contains((String) latestDatabaseBlock.getProperty("hash")))
 			{
 				TraversalDescription td = new TraversalDescriptionImpl();
-				td = td.depthFirst().relationships(BitcoinRelationships.succeeds);
+				td = td.breadthFirst().relationships(BitcoinRelationships.succeeds);
 				Iterable<Node> nodeTraversal = td.traverse(latestDatabaseBlock).nodes();
-
-				for (Iterator<Node> iter = nodeTraversal.iterator(); iter.hasNext();)
+				for (Node blockNode : nodeTraversal)
 				{
-					Node blockNode = iter.next();
-					// We check to see if its hash is equal to the current
-					// block nodes previous_block hash
+					// We check to see if its hash is equal to the current block nodes previous_block hash
 					if (blockNode.hasProperty("hash") && ((String) blockNode.getProperty("hash")).contains(((String) currentBlockNode.getProperty("prev_block"))))
 					{
 						// We have found the block. Create a relationship
 						restApi.createRelationship(currentBlockNode, blockNode, BitcoinRelationships.succeeds, null);
+						break;
 					}
 				}
 			}
@@ -256,7 +254,7 @@ public class Database
 					// We need to make sure this is a valid outbound transaction
 					if (output.getType() != -1)
 					{
-						// This is a valid outbound transaction.  Some outbound transactions do not have outbound addresses, which messes up everything
+						// This is a valid outbound transaction. Some outbound transactions do not have outbound addresses, which messes up everything
 						moneyProps.put("type", output.getType());
 						moneyProps.put("addr", output.getAddr());
 						moneyProps.put("value", output.getValue());
@@ -329,20 +327,17 @@ public class Database
 	private Node getLatestDatabaseBlockNode()
 	{
 		Node referenceNode = restApi.getReferenceNode();
-		// Node referenceNode = restApi.getNodeById(281565);
+		// Node referenceNode = restApi.getNodeById(4526474);
 		TraversalDescription td = new TraversalDescriptionImpl();
 		td = td.depthFirst().relationships(BitcoinRelationships.succeeds, Direction.INCOMING);
 
 		Traverser traverser = td.traverse(referenceNode);
 		Node node;
-		Iterator<Path> iter;
-		for (iter = traverser.iterator(); iter.hasNext();)
+		for (Path path : traverser)
 		{
-			node = iter.next().endNode();
+			node = path.endNode();
 			if (!node.hasRelationship(BitcoinRelationships.succeeds, Direction.INCOMING))
 				return node;
-			else
-				System.out.println(node.getId());
 		}
 		return referenceNode;
 	}
