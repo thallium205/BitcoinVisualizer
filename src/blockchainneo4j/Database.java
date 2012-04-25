@@ -116,7 +116,6 @@ public class Database
 			lastDatabaseBlockIndex = 0;
 
 		// We persist the difference
-
 		if (doValidate)
 		{
 			if (isBlockchainComplete())
@@ -203,6 +202,8 @@ public class Database
 			{
 				restApi.createRelationship(currentBlockNode, latestDatabaseBlock, BitcoinRelationships.succeeds, null);
 			}
+			
+			
 
 			// Persist transaction nodes
 			// The transaction node properties
@@ -252,7 +253,7 @@ public class Database
 					moneyProps = new HashMap<String, Object>();
 					output = outputIter.next();
 					// We need to make sure this is a valid outbound transaction
-					if (output.getType() != -1)
+					if (output.getType() != -1 && output.getAddr() != null)
 					{
 						// This is a valid outbound transaction. Some outbound transactions do not have outbound addresses, which messes up everything
 						moneyProps.put("type", output.getType());
@@ -326,8 +327,8 @@ public class Database
 	 */
 	private Node getLatestDatabaseBlockNode()
 	{
-		Node referenceNode = restApi.getReferenceNode();
-		// Node referenceNode = restApi.getNodeById(4526474);
+		// 9505925
+		Node referenceNode = restApi.getReferenceNode(); 
 		TraversalDescription td = new TraversalDescriptionImpl();
 		td = td.depthFirst().relationships(BitcoinRelationships.succeeds, Direction.INCOMING);
 
@@ -336,9 +337,10 @@ public class Database
 		for (Path path : traverser)
 		{
 			node = path.endNode();
-			if (!node.hasRelationship(BitcoinRelationships.succeeds, Direction.INCOMING))
+			if (!node.hasRelationship(BitcoinRelationships.succeeds, Direction.INCOMING)  && (Boolean)node.getProperty("main_chain"))
 				return node;
 		}
+		
 		return referenceNode;
 	}
 
