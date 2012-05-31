@@ -1,5 +1,7 @@
 package blockchainneo4j;
 
+import java.io.IOException;
+import java.sql.SQLException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -12,14 +14,13 @@ import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
-
 public class Main
 {
 	private static final Logger LOG = Logger.getLogger(Main.class.getName());
-	
+
 	public static void main(String[] args)
 	{
-		
+
 		// Print options
 		HelpFormatter formatter = new HelpFormatter();
 		formatter.printHelp("java -jar blockchainneo4j.jar", getOptions());
@@ -30,26 +31,47 @@ public class Main
 		{
 			// Get values
 			CommandLine line = parser.parse(getOptions(), args);
-			String path = line.getOptionValue("uri");
-			String user = line.getOptionValue("user");
-			String pass = line.getOptionValue("pass");
-			boolean validate = true;
-			if (line.hasOption("validate"))
-				validate = Boolean.parseBoolean(line.getOptionValue("validate"));				
-
-			if (user != null && pass != null)
+			
+			if (line.hasOption("path") && line.hasOption("config"))
 			{
-				Database db = new Database(path, user, pass);
-				db.downloadBlockChain(validate);
+				boolean validate = true;
+				if (line.hasOption("validate"))
+					validate = Boolean.parseBoolean(line.getOptionValue("validate"));
+				Database db = new Database(line.getOptionValue("path"), line.getOptionValue("config"));
+				db.downloadAndSaveBlockChain(validate);
+				db.buildHighLevelGraph();
+				LOG.info("Completed.");
+			}
+			
+			// If the user activated the scraper
+			else if (line.hasOption("scraper"))
+			{
+				try
+				{
+					Scraper scraper = new Scraper("scraper.sql");
+					scraper.bitcoinTalkProfiles();
+				}
+
+				catch (ClassNotFoundException e)
+				{
+					LOG.log(Level.SEVERE, "Unable to start the scraper.", e);
+				}
+
+				catch (SQLException e)
+				{
+					LOG.log(Level.SEVERE, "Unable to start the scraper.", e);
+				}
+
+				catch (IOException e)
+				{
+					LOG.log(Level.SEVERE, "Unable to scrape the website.", e);
+				}
 			}
 			
 			else
-			{			
-				Database db = new Database(path);
-				db.downloadBlockChain(validate);
+			{
+				LOG.info("No options selected.");
 			}
-			
-			LOG.info("Completed.");
 		}
 
 		catch (ParseException e)
@@ -66,17 +88,18 @@ public class Main
 	@SuppressWarnings("static-access")
 	private static Options getOptions()
 	{
-		// Define options	
-		Option uri = OptionBuilder.hasArg().withArgName("uri").withDescription("The uri to the neo4j instsance. Ex: http://localhost:7474/db/data").isRequired().create("uri");
-		Option user = OptionBuilder.hasArg().withArgName("username").withDescription("Username of the neo4j instance.").create("user");
-		Option pass = OptionBuilder.hasArg().withArgName("password").withDescription("Password of the neo4j instance.").create("pass");
-		Option validate = OptionBuilder.hasArg().withArgName("true/false").withDescription("Toggle whether the local json files form a complete blockchain.  Default: true.  Recommended.").create("validate");
+		// Define options
+		Option dbPath = OptionBuilder.hasArg().withArgName("path").withDescription("The path to the neo4j graph.db directory. Ex: /home/user/Documents/neo4j/graph.db").isRequired().create("path");
+		Option dbConfig = OptionBuilder.hasArg().withArgName("config").withDescription("The path to the conf directory. Ex: /home/user/opt/neo4j-community-1.7/conf/").isRequired().create("config");
+		Option validate = OptionBuilder.hasArg().withArgName("true/false")
+				.withDescription("Toggle the verifier which checks if the local json files form a complete blockchain.  Default: true.  Recommended.").create("validate");
+		Option scraper = OptionBuilder.withArgName("scraper").withDescription("Runs the scraper which attempts to associate bitcoin addresses to real world entities.").create("scraper");
 
 		Options options = new Options();
-		options.addOption(uri);
-		options.addOption(user);
-		options.addOption(pass);
+		options.addOption(dbPath);
+		options.addOption(dbConfig);
 		options.addOption(validate);
+		options.addOption(scraper);
 		return options;
 	}
 }

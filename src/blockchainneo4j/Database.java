@@ -5,23 +5,22 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
-import org.neo4j.rest.graphdb.RestAPI;
-import org.neo4j.rest.graphdb.entity.RestNode;
-import org.neo4j.rest.graphdb.index.RestIndex;
 
 import org.neo4j.graphdb.Direction;
+import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Path;
 import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
+import org.neo4j.graphdb.Transaction;
+import org.neo4j.graphdb.factory.GraphDatabaseFactory;
+import org.neo4j.graphdb.index.Index;
 import org.neo4j.graphdb.traversal.TraversalDescription;
 import org.neo4j.graphdb.traversal.Traverser;
 import org.neo4j.kernel.impl.traversal.TraversalDescriptionImpl;
@@ -35,8 +34,7 @@ import blockchainneo4j.domain.PrevOut;
 import blockchainneo4j.domain.TransactionType;
 
 /**
- * Stores the basic underlying structure of the bitcoin blockchcain to neo4j. The relationships are: Blocks "succeed" one another. Transaction are "from" blocks. Transactions "send" money.
- * Transactions "receive" money.
+ * Provides functionality to fetch the low-level block chain and the high level abstraction.
  * 
  * @author John
  * 
@@ -45,8 +43,11 @@ public class Database
 {
 	private static final Logger LOG = Logger.getLogger(Database.class.getName());
 
-	RestAPI restApi;
-	RestIndex<Node> transactionsIndex;
+	private static final String TRANSACTION_INDEX = "transactions";
+	private static final String TRANSACTION_INDEX_KEY = "tx_index";
+
+	GraphDatabaseService graphDb;
+	Index<Node> transactionsIndex;
 
 	/**
 	 * Represents the basic relationships of the model.
@@ -54,21 +55,25 @@ public class Database
 	 * @author John
 	 * 
 	 */
-	enum BitcoinRelationships implements RelationshipType
+	enum BlockchainRelationships implements RelationshipType
 	{
 		succeeds, from, received, sent
 	}
 
-	public Database(String uri)
+	public Database(final String dbPath, final String dbConfig)
 	{
-		restApi = new RestAPI(uri);
-		transactionsIndex = restApi.index().forNodes("transactions");
-	}
-
-	public Database(String uri, String user, String pass)
-	{
-		restApi = new RestAPI(uri, user, pass);
-		transactionsIndex = restApi.index().forNodes("transactions");
+		graphDb = new GraphDatabaseFactory().newEmbeddedDatabaseBuilder(dbPath).loadPropertiesFromFile(dbConfig + "neo4j.properties").newGraphDatabase();
+		transactionsIndex = graphDb.index().forNodes(TRANSACTION_INDEX);
+		
+		// Register shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread() 
+        {
+            @Override
+            public void run() 
+            {
+                graphDb.shutdown();
+            }
+        });
 	}
 
 	/**
@@ -80,33 +85,22 @@ public class Database
 	 * @author John
 	 * 
 	 */
-	public void downloadBlockChain(boolean doValidate)
+	public void downloadAndSaveBlockChain(boolean doValidate)
 	{
-		// The latest block index we have on index before downloadChain() is
-		// called.
-		final int LATEST_DISK_BLOCK_INDEX;
+		// We find the latest block from the internet
+		LatestBlock latestInternetBlock = Fetcher.GetLatest();
+		
 		// The latest block index that exists in the bitcoin blockchain
-		final int LATEST_INTERNET_BLOCK_INDEX;
+		final int latestRemotBlockIndex = latestInternetBlock.getBlock_index();
+		
+		// The latest block index we have on disk before downloadChain() is called.
+		final int latestLocalBlockIndex = latestDiskBlockIndex();
+		
 		// The most recent database block index that has been persisted to neo4j
 		int lastDatabaseBlockIndex;
 
-		// We find the latest block from the internet
-		LatestBlock latestInternetBlock = Fetcher.GetLatest();
-		LATEST_INTERNET_BLOCK_INDEX = latestInternetBlock.getBlock_index();
-
-		// We find the latest block on disk
-		Collection<File> files = Fetcher.getFolderContents(".");
-		ArrayList<Integer> fileNames = new ArrayList<Integer>();
-		for (File file : files)
-		{
-			if (file.getName().endsWith(".json"))
-				fileNames.add(Integer.parseInt(file.getName().split(".json")[0]));
-		}
-		Collections.sort(fileNames);
-		LATEST_DISK_BLOCK_INDEX = fileNames.get(fileNames.size() - 1);
-
 		// We fetch the difference
-		downloadChain(LATEST_DISK_BLOCK_INDEX, latestInternetBlock);
+		downloadChainFromInternet(latestLocalBlockIndex, latestInternetBlock);
 
 		// We now find the latest block persisted to the database
 		Node latestDatabaseBlock = getLatestDatabaseBlockNode();
@@ -118,230 +112,86 @@ public class Database
 		// We persist the difference
 		if (doValidate)
 		{
+			LOG.info("Starting blockchain validation...");
 			if (isBlockchainComplete())
 			{
 				LOG.info("Integrity test succeeded.");
-			} else
+			}
+
+			else
 			{
 				LOG.severe("Integrity test failed. Aborting... Try again.");
 				return;
 			}
 		}
 
+		else
+		{
+			LOG.info("Skipping blockchain validation...");
+		}
+
 		LOG.info("Begin persistance...");
 		// Begin persistence
 		BlockType currentBlock = null;
-		RestNode currentBlockNode = null;
-		while (lastDatabaseBlockIndex < LATEST_INTERNET_BLOCK_INDEX)
+		Transaction tx;
+		while (lastDatabaseBlockIndex < latestRemotBlockIndex)
 		{
-			// Load the next block from disk. Because indexes don't go in
-			// order, we need to find it from disk.
+			// Begin transaction
+			LOG.info("Persisting Block: " + currentBlock.getBlock_index());
+			tx = graphDb.beginTx();
 			try
 			{
-				for (int i = lastDatabaseBlockIndex; i < LATEST_INTERNET_BLOCK_INDEX; i++)
-				{
-					if (FileUtils.getFile((i + 1) + ".json").exists())
-					{
-						currentBlock = Fetcher.GetBlock(FileUtils.getFile((i + 1) + ".json")).getBlockType();
-						break;
-					}
-				}
+				currentBlock = getNextBlockFromDisk(lastDatabaseBlockIndex, latestRemotBlockIndex);
+				
+				// We save the block node and set it to the latestDatabaseBlock
+				latestDatabaseBlock = persistBlockNode(currentBlock, latestDatabaseBlock);				
+				tx.success();
+				
+				// Update the previous block node to the current one and repeat
+				lastDatabaseBlockIndex = currentBlock.getBlock_index();
 			}
 
 			catch (FetcherException e)
 			{
 				LOG.log(Level.SEVERE, "Corrupted block on disk.  Reason:  " + e.getMessage() + " Aborting...", e);
+				tx.failure();
 				return;
 			}
 
-			LOG.info("Persisting Block: " + currentBlock.getBlock_index());
-
-			// Persist a new block node
-			Map<String, Object> blockProps = new HashMap<String, Object>();
-			blockProps.put("hash", currentBlock.getHash());
-			blockProps.put("ver", currentBlock.getVer());
-			blockProps.put("prev_block", currentBlock.getPrev_block());
-			blockProps.put("mrkl_root", currentBlock.getMrkl_root());
-			blockProps.put("time", currentBlock.getTime());
-			blockProps.put("bits", currentBlock.getBits());
-			blockProps.put("nonce", currentBlock.getNonce());
-			blockProps.put("n_tx", currentBlock.getN_tx());
-			blockProps.put("size", currentBlock.getSize());
-			blockProps.put("block_index", currentBlock.getBlock_index());
-			blockProps.put("main_chain", currentBlock.getMain_chain());
-			blockProps.put("height", currentBlock.getHeight());
-			blockProps.put("received_time", currentBlock.getReceived_time());
-			blockProps.put("relayed_by", currentBlock.getRelayed_by());
-			currentBlockNode = restApi.createNode(blockProps);
-
-			// Create a relationship of this block to the parentBlock
-
-			// In the unlikely event that the previous block of the current
-			// block node is not equal to the last block node's hash,
-			// then we have to traverse the graph and find the relationship.
-			// This occurs when a block is not part of the main chain, and
-			// is instead branching off.
-			if (latestDatabaseBlock.hasProperty("hash") && !((String) currentBlockNode.getProperty("prev_block")).contains((String) latestDatabaseBlock.getProperty("hash")))
+			catch (Exception e)
 			{
-				TraversalDescription td = new TraversalDescriptionImpl();
-				td = td.breadthFirst().relationships(BitcoinRelationships.succeeds);
-				Iterable<Node> nodeTraversal = td.traverse(latestDatabaseBlock).nodes();
-				for (Node blockNode : nodeTraversal)
-				{
-					// We check to see if its hash is equal to the current block nodes previous_block hash
-					if (blockNode.hasProperty("hash") && ((String) blockNode.getProperty("hash")).contains(((String) currentBlockNode.getProperty("prev_block"))))
-					{
-						// We have found the block. Create a relationship
-						restApi.createRelationship(currentBlockNode, blockNode, BitcoinRelationships.succeeds, null);
-						break;
-					}
-				}
+				LOG.log(Level.SEVERE, "Error in persistence of block: " + currentBlock.getBlock_index() + " Aborting...", e);
+				tx.failure();
+				return;
 			}
 
-			else
+			finally
 			{
-				restApi.createRelationship(currentBlockNode, latestDatabaseBlock, BitcoinRelationships.succeeds, null);
+				LOG.info("Block persistence completed.");
+				tx.finish();
 			}
-			
-			
-
-			// Persist transaction nodes
-			// The transaction node properties
-			Map<String, Object> tranProps;
-			// The transaction object
-			TransactionType tran;
-			// The transaction node
-			RestNode tranNode = null;
-			// The relationship properties between transaction and block
-			Map<String, Object> fromRelation;
-			// We get an ascending order of transactions. The API does not print them in ascending order which is necessary as inputs may try to redeem outputs that
-			// dont exist yet within the same block!
-			for (Iterator<TransactionType> tranIter = currentBlock.getAscTx().iterator(); tranIter.hasNext();)
-			{
-				tranProps = new HashMap<String, Object>();
-				tran = tranIter.next();
-				tranProps.put("hash", tran.getHash());
-				tranProps.put("ver", tran.getVer());
-				tranProps.put("vin_sz", tran.getVin_sz());
-				tranProps.put("vout_sz", tran.getVout_sz());
-				tranProps.put("size", tran.getSize());
-				tranProps.put("relayed_by", tran.getRelayed_by());
-				tranProps.put("tx_index", tran.getTx_index());
-				tranNode = restApi.createNode(tranProps);
-
-				// Create the relationship
-				fromRelation = new HashMap<String, Object>();
-				fromRelation.put("block_hash", currentBlock.getHash());
-				restApi.createRelationship(tranNode, currentBlockNode, BitcoinRelationships.from, fromRelation);
-
-				// Create the index
-				transactionsIndex.add(tranNode, "tx_index", tran.getTx_index());
-
-				// Persist Money nodes
-				// The money node properties
-				Map<String, Object> moneyProps;
-				// The money node
-				RestNode outNode = null;
-				// The output object
-				OutputType output;
-				// The relationship properties between transaction and output
-				Map<String, Object> sentRelation;
-				// The location of an output within a transaction.
-				int n = 0;
-				for (Iterator<OutputType> outputIter = tran.getOut().iterator(); outputIter.hasNext();)
-				{
-					moneyProps = new HashMap<String, Object>();
-					output = outputIter.next();
-					// We need to make sure this is a valid outbound transaction
-					if (output.getType() != -1 && output.getAddr() != null)
-					{
-						// This is a valid outbound transaction. Some outbound transactions do not have outbound addresses, which messes up everything
-						moneyProps.put("type", output.getType());
-						moneyProps.put("addr", output.getAddr());
-						moneyProps.put("value", output.getValue());
-						moneyProps.put("n", n);
-						outNode = restApi.createNode(moneyProps);
-
-						sentRelation = new HashMap<String, Object>();
-						sentRelation.put("to_addr", output.getAddr());
-						sentRelation.put("n", n);
-						restApi.createRelationship(tranNode, outNode, BitcoinRelationships.sent, sentRelation);
-					}
-					n++;
-				}
-
-				// The relationship properties between input and transaction
-				Map<String, Object> receivedRelation;
-				// The input object
-				PrevOut prevOut;
-				for (Iterator<InputType> inputIter = tran.getInputs().iterator(); inputIter.hasNext();)
-				{
-					moneyProps = new HashMap<String, Object>();
-					prevOut = inputIter.next().getPrev_out();
-					if (prevOut == null)
-						continue;
-					moneyProps.put("type", prevOut.getType());
-					moneyProps.put("addr", prevOut.getAddr());
-					moneyProps.put("value", prevOut.getValue());
-					moneyProps.put("n", prevOut.getN());
-
-					// We redeem the output transaction from a previous transaction using an index.
-					Node transactionNode = transactionsIndex.query("tx_index", prevOut.getTx_index()).getSingle();
-
-					if (transactionNode != null)
-					{
-						// We have found the transaction node. Now we find the corresponding money node by looking at "sent" transactions
-						Iterable<Relationship> moneyNodeRelationships = transactionNode.getRelationships(BitcoinRelationships.sent, Direction.OUTGOING);
-						for (Iterator<Relationship> moneyIter = moneyNodeRelationships.iterator(); moneyIter.hasNext();)
-						{
-							// For each sent transaction, we get the nodes attached to it. There will only ever be 2 to iterate over, and in very rare cases, 3 or 4 more nodes for "weird"
-							// transactions.
-							Node[] moneyNodes = moneyIter.next().getNodes();
-							for (int i = 0; i < moneyNodes.length; i++)
-							{
-								// Is this the money node we're looking for!?
-								if (moneyNodes[i].hasProperty("addr") && moneyNodes[i].hasProperty("n") && ((String) moneyNodes[i].getProperty("addr")).contains(prevOut.getAddr())
-										&& ((Integer) moneyNodes[i].getProperty("n") == prevOut.getN()))
-								{
-									// We have found the money node that reedemed this one. Create the relationship.
-									receivedRelation = new HashMap<String, Object>();
-									receivedRelation.put("tx_index", prevOut.getTx_index());
-									restApi.createRelationship(moneyNodes[i], tranNode, BitcoinRelationships.received, receivedRelation);
-									break;
-								}
-							}
-						}
-					}
-				}
-			}
-			// Update the previous block node to the current one and repeat
-			lastDatabaseBlockIndex = currentBlock.getBlock_index();
-			latestDatabaseBlock = currentBlockNode;
-		}
-	}
-
-	/**
-	 * Queries the local database to find the latest stored block index. Used to set a lower bound on what Blocks to fetch from the API.
-	 * 
-	 * @return The latest block node stored from the datastore.
-	 */
-	private Node getLatestDatabaseBlockNode()
-	{
-		// 9505925
-		Node referenceNode = restApi.getReferenceNode(); 
-		TraversalDescription td = new TraversalDescriptionImpl();
-		td = td.depthFirst().relationships(BitcoinRelationships.succeeds, Direction.INCOMING);
-
-		Traverser traverser = td.traverse(referenceNode);
-		Node node;
-		for (Path path : traverser)
-		{
-			node = path.endNode();
-			if (!node.hasRelationship(BitcoinRelationships.succeeds, Direction.INCOMING)  && (Boolean)node.getProperty("main_chain"))
-				return node;
 		}
 		
-		return referenceNode;
+		// Shutdown the database
+		graphDb.shutdown();
+	}
+
+	public void buildHighLevelGraph()
+	{
+
+	}
+
+	private int latestDiskBlockIndex()
+	{
+		Collection<File> files = Fetcher.getFolderContents(".");
+		ArrayList<Integer> fileNames = new ArrayList<Integer>();
+		for (File file : files)
+		{
+			if (file.getName().endsWith(".json"))
+				fileNames.add(Integer.parseInt(file.getName().split(".json")[0]));
+		}
+		Collections.sort(fileNames);
+		return fileNames.get(fileNames.size() - 1);
 	}
 
 	/**
@@ -353,7 +203,7 @@ public class Database
 	 *            - The last block from the api
 	 * @throws FetcherException
 	 */
-	private void downloadChain(int latestLocalBlockIndex, LatestBlock latestBlock)
+	private void downloadChainFromInternet(int latestLocalBlockIndex, LatestBlock latestBlock)
 	{
 		// Fetch the latest block given the last remote block index
 		BlockJsonType lastBlock;
@@ -389,8 +239,7 @@ public class Database
 
 				catch (InterruptedException e1)
 				{
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
+					LOG.log(Level.SEVERE, "Sleep thread timer interrupted", e1);
 				}
 			}
 
@@ -405,13 +254,36 @@ public class Database
 
 				catch (InterruptedException e1)
 				{
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
+					LOG.log(Level.SEVERE, "Sleep thread timer interrupted", e1);
 				}
 			}
 		}
 
 		LOG.info("Blockchain download complete.");
+	}
+
+	/**
+	 * Queries the local database to find the latest stored block index. Used to set a lower bound on what Blocks to fetch from the API.
+	 * 
+	 * @return The latest block node stored from the datastore.
+	 */
+	private Node getLatestDatabaseBlockNode()
+	{
+		// 9505925
+		Node referenceNode = graphDb.getReferenceNode();
+		TraversalDescription td = new TraversalDescriptionImpl();
+		td = td.depthFirst().relationships(BlockchainRelationships.succeeds, Direction.INCOMING);
+
+		Traverser traverser = td.traverse(referenceNode);
+		Node node;
+		for (Path path : traverser)
+		{
+			node = path.endNode();
+			if (!node.hasRelationship(BlockchainRelationships.succeeds, Direction.INCOMING) && (Boolean) node.getProperty("main_chain"))
+				return node;
+		}
+
+		return referenceNode;
 	}
 
 	/**
@@ -425,10 +297,7 @@ public class Database
 
 		LOG.info("Verifying local blockchain integrity.");
 
-		// We are going to populate a hashtable binding addresses (key) to index
-		// numbers (value).
-		// This will allow in-memory verification while keeping memory
-		// consumption at a minimum
+		// We are going to populate a hashtable binding addresses (key) to index numbers (value). This will allow in-memory verification while keeping memory consumption at a minimum
 		Hashtable<String, Integer> blocks = new Hashtable<String, Integer>();
 		File fileBlock;
 		BlockType block;
@@ -510,5 +379,210 @@ public class Database
 
 		LOG.info("Integrity test complete.");
 		return isComplete;
+	}
+
+	/**
+	 * Fetches the next block that needs to be processed from disk.
+	 * 
+	 * @param lastDatabaseBlockIndex
+	 *            - The last block that was persisted to the database.
+	 * @param lastBlockDownloaded
+	 *            - The last block we have.
+	 * @return - The next block to process.
+	 * @throws FetcherException
+	 */
+	private BlockType getNextBlockFromDisk(int lastDatabaseBlockIndex, final int lastBlockDownloaded) throws FetcherException
+	{
+		// Load the next block from disk. Because indexes don't go in
+		// order, we need to find it from disk.
+		for (int i = lastDatabaseBlockIndex; i < lastBlockDownloaded; i++)
+		{
+			if (FileUtils.getFile((i + 1) + ".json").exists())
+			{
+				return Fetcher.GetBlock(FileUtils.getFile((i + 1) + ".json")).getBlockType();
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Saves a block to the database.
+	 * 
+	 * @param currentBlock
+	 *            - The block to save
+	 * @param previousBlock
+	 *            - The block preceding the currentBlock
+	 * @return - Returns the neo4j block node entity.
+	 */
+	private Node persistBlockNode(BlockType currentBlock, Node previousBlock)
+	{
+		// Persist a new block node
+		Node currentBlockNode = graphDb.createNode();
+		currentBlockNode.setProperty("hash", currentBlock.getHash());
+		currentBlockNode.setProperty("ver", currentBlock.getVer());
+		currentBlockNode.setProperty("prev_block", currentBlock.getPrev_block());
+		currentBlockNode.setProperty("mrkl_root", currentBlock.getMrkl_root());
+		currentBlockNode.setProperty("time", currentBlock.getTime());
+		currentBlockNode.setProperty("bits", currentBlock.getBits());
+		currentBlockNode.setProperty("nonce", currentBlock.getNonce());
+		currentBlockNode.setProperty("n_tx", currentBlock.getN_tx());
+		currentBlockNode.setProperty("size", currentBlock.getSize());
+		currentBlockNode.setProperty("block_index", currentBlock.getBlock_index());
+		currentBlockNode.setProperty("main_chain", currentBlock.getMain_chain());
+		currentBlockNode.setProperty("height", currentBlock.getHeight());
+		currentBlockNode.setProperty("received_time", currentBlock.getReceived_time());
+		currentBlockNode.setProperty("relayed_by", currentBlock.getRelayed_by());
+
+		// Create a relationship of this block to the parentBlock
+
+		// In the unlikely event that the previous block of the current
+		// block node is not equal to the last block node's hash,
+		// then we have to traverse the graph and find the relationship.
+		// This occurs when a block is not part of the main chain, and
+		// is instead branching off.
+		if (previousBlock.hasProperty("hash") && !((String) currentBlockNode.getProperty("prev_block")).contains((String) previousBlock.getProperty("hash")))
+		{
+			TraversalDescription td = new TraversalDescriptionImpl();
+			td = td.breadthFirst().relationships(BlockchainRelationships.succeeds);
+			Iterable<Node> nodeTraversal = td.traverse(previousBlock).nodes();
+			for (Node blockNode : nodeTraversal)
+			{
+				// We check to see if its hash is equal to the current block nodes previous_block hash
+				if (blockNode.hasProperty("hash") && ((String) blockNode.getProperty("hash")).contains(((String) currentBlockNode.getProperty("prev_block"))))
+				{
+					// We have found the block. Create a relationship
+					currentBlockNode.createRelationshipTo(blockNode, BlockchainRelationships.succeeds);
+					break;
+				}
+			}
+		}
+
+		// The previous block of the current block node is equal.
+		else
+		{
+			currentBlockNode.createRelationshipTo(previousBlock, BlockchainRelationships.succeeds);
+		}
+
+		// We save each transaction in the block.
+		// We get an ascending order of transactions. The API does not print them in ascending order which is necessary as inputs may try to redeem outputs that
+		// dont exist yet within the same block!
+		for (TransactionType tran : currentBlock.getAscTx())
+		{
+			persistTransaction(currentBlockNode, tran);
+		}
+
+		return currentBlockNode;
+	}
+
+	/**
+	 * Saves a transaction in a block.
+	 * 
+	 * @param currentBlockNode
+	 *            - The block that holds the transaction
+	 * @param tran
+	 *            - The transaction to save
+	 */
+	private void persistTransaction(Node block, TransactionType tran)
+	{
+		// Persist transaction
+		Node tranNode = graphDb.createNode();
+		tranNode.setProperty("hash", tran.getHash());
+		tranNode.setProperty("ver", tran.getVer());
+		tranNode.setProperty("vin_sz", tran.getVin_sz());
+		tranNode.setProperty("vout_sz", tran.getVout_sz());
+		tranNode.setProperty("size", tran.getSize());
+		tranNode.setProperty("relayed_by", tran.getRelayed_by());
+		tranNode.setProperty("tx_index", tran.getTx_index());
+
+		// Create the relationship
+		tranNode.createRelationshipTo(block, BlockchainRelationships.from);
+
+		// Create the index
+		transactionsIndex.add(tranNode, TRANSACTION_INDEX_KEY, tran.getTx_index());
+
+		// Persist outbound transactions
+		// The location of an output within a transaction.
+		int n = 0;
+		for (OutputType output : tran.getOut())
+		{
+			persistOutput(output, tranNode, n);
+			n++;
+		}
+
+		// Persist inbound transactions
+		for (InputType input : tran.getInputs())
+		{
+			persistInput(input, tranNode);
+		}
+	}
+
+	/**
+	 * Saves an output to the database.
+	 * 
+	 * @param output
+	 *            - The outbound transaction to save.
+	 * @param transactionNode
+	 *            - The transaction that owns the output
+	 * @param index
+	 *            - The index location of where the output transaction is in the transaction
+	 */
+	private void persistOutput(OutputType output, Node transactionNode, int index)
+	{
+		// We need to make sure this is a valid outbound transaction
+		if (output.getType() != -1 && output.getAddr() != null)
+		{
+			// This is a valid outbound transaction. Some outbound transactions do not have outbound addresses, which messes up everything
+			Node outNode = graphDb.createNode();
+			outNode.setProperty("type", output.getType());
+			outNode.setProperty("addr", output.getAddr());
+			outNode.setProperty("value", output.getValue());
+			outNode.setProperty("n", index);
+
+			// Create relationship
+			transactionNode.createRelationshipTo(outNode, BlockchainRelationships.sent);
+		}
+	}
+
+	/**
+	 * Saves and redeems an input to the database.
+	 * 
+	 * @param input
+	 *            - The input to save
+	 * @param transacstionNode
+	 *            - The transaction the input belongs to
+	 */
+	private void persistInput(InputType input, Node transacstionNode)
+	{
+		PrevOut prevOut = input.getPrev_out();
+
+		// Sometimes old blockchain data is bunk, so we ignore these anomalies
+		if (prevOut == null)
+			return;
+
+		// We redeem the output transaction from a previous transaction using an index.
+		Node transactionNode = transactionsIndex.query("tx_index", prevOut.getTx_index()).getSingle();
+
+		if (transactionNode != null)
+		{
+			// We have found the transaction node. Now we find the corresponding money node by looking at "sent" transactions
+			Iterable<Relationship> moneyNodeRelationships = transactionNode.getRelationships(BlockchainRelationships.sent, Direction.OUTGOING);
+			for (Iterator<Relationship> moneyIter = moneyNodeRelationships.iterator(); moneyIter.hasNext();)
+			{
+				// For each sent transaction, we get the nodes attached to it. There will only ever be 2 to iterate over, and in very rare cases, 3 or 4 more nodes for "weird"
+				// transactions.
+				Node[] moneyNodes = moneyIter.next().getNodes();
+				for (int i = 0; i < moneyNodes.length; i++)
+				{
+					// Is this the money node we're looking for!?
+					if (moneyNodes[i].hasProperty("addr") && moneyNodes[i].hasProperty("n") && ((String) moneyNodes[i].getProperty("addr")).contains(prevOut.getAddr())
+							&& ((Integer) moneyNodes[i].getProperty("n") == prevOut.getN()))
+					{
+						// We have found the money node that redeemed this one. Create the relationship.
+						moneyNodes[i].createRelationshipTo(transacstionNode, BlockchainRelationships.received);
+						break;
+					}
+				}
+			}
+		}
 	}
 }

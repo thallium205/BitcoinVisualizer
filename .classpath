@@ -5,13 +5,23 @@
 	<classpathentry kind="lib" path="jar/commons-cli-1.2.jar"/>
 	<classpathentry kind="lib" path="jar/jsontools-core-1.7.jar"/>
 	<classpathentry kind="lib" path="jar/antlrworks-1.4.3.jar"/>
-	<classpathentry kind="lib" path="C:/Users/John/Eclipse/java-rest-binding/jar/jackson-all-1.9.6.jar"/>
-	<classpathentry kind="lib" path="C:/Users/John/Eclipse/java-rest-binding/jar/jersey-bundle-1.4.jar"/>
-	<classpathentry kind="lib" path="C:/Users/John/Eclipse/java-rest-binding/jar/jsr311-api-1.1.1.jar"/>
-	<classpathentry kind="lib" path="C:/Users/John/Eclipse/java-rest-binding/jar/neo4j-kernel-1.6.1.jar"/>
-	<classpathentry kind="lib" path="C:/Users/John/Eclipse/java-rest-binding/jar/neo4j-lucene-index-1.6.1.jar"/>
-	<classpathentry kind="lib" path="C:/Users/John/Eclipse/java-rest-binding/jar/server-api-1.6.1.jar"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/java-rest-binding"/>
 	<classpathentry kind="lib" path="jar/commons-io-2.2.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/geronimo-jta_1.1_spec-1.1.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/lucene-core-3.5.0.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/neo4j-community-1.7.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/neo4j-cypher-1.7.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/neo4j-graph-algo-1.7.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/neo4j-graph-matching-1.7.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/neo4j-jmx-1.7.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/neo4j-kernel-1.7.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/neo4j-lucene-index-1.7.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/neo4j-shell-1.7.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/neo4j-udc-1.7.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/org.apache.servicemix.bundles.jline-0.9.94_1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/scala-library-2.9.0-1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/server-api-1.7.1.jar"/>
+	<classpathentry kind="lib" path="jar/bitcoinj-0.4.jar"/>
+	<classpathentry kind="lib" path="jar/jsoup-1.6.2.jar"/>
+	<classpathentry kind="lib" path="jar/sqlitejdbc-v056.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
