@@ -1,5 +1,7 @@
 package blockchainneo4j.domain;
 
+import blockchainneo4j.PrevOut;
+
 /**
  * An input abstraction created from the blockchain.info API.
  * @author John

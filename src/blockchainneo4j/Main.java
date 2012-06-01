@@ -14,13 +14,13 @@ import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
+
 public class Main
 {
 	private static final Logger LOG = Logger.getLogger(Main.class.getName());
 
 	public static void main(String[] args)
 	{
-
 		// Print options
 		HelpFormatter formatter = new HelpFormatter();
 		formatter.printHelp("java -jar blockchainneo4j.jar", getOptions());
@@ -32,14 +32,15 @@ public class Main
 			// Get values
 			CommandLine line = parser.parse(getOptions(), args);
 			
-			if (line.hasOption("path") && line.hasOption("config"))
+			if (line.hasOption("path"))
 			{
 				boolean validate = true;
 				if (line.hasOption("validate"))
 					validate = Boolean.parseBoolean(line.getOptionValue("validate"));
-				Database db = new Database(line.getOptionValue("path"), line.getOptionValue("config"));
-				db.downloadAndSaveBlockChain(validate);
-				db.buildHighLevelGraph();
+				GraphBuilder.StartDatabase(line.getOptionValue("path"));
+				GraphBuilder.DownloadAndSaveBlockChain(validate);
+				GraphBuilder.BuildHighLevelGraph();	
+				GraphBuilder.StopDatabase(); // Debug.
 				LOG.info("Completed.");
 			}
 			
@@ -90,14 +91,11 @@ public class Main
 	{
 		// Define options
 		Option dbPath = OptionBuilder.hasArg().withArgName("path").withDescription("The path to the neo4j graph.db directory. Ex: /home/user/Documents/neo4j/graph.db").isRequired().create("path");
-		Option dbConfig = OptionBuilder.hasArg().withArgName("config").withDescription("The path to the conf directory. Ex: /home/user/opt/neo4j-community-1.7/conf/").isRequired().create("config");
 		Option validate = OptionBuilder.hasArg().withArgName("true/false")
 				.withDescription("Toggle the verifier which checks if the local json files form a complete blockchain.  Default: true.  Recommended.").create("validate");
 		Option scraper = OptionBuilder.withArgName("scraper").withDescription("Runs the scraper which attempts to associate bitcoin addresses to real world entities.").create("scraper");
-
 		Options options = new Options();
 		options.addOption(dbPath);
-		options.addOption(dbConfig);
 		options.addOption(validate);
 		options.addOption(scraper);
 		return options;

@@ -16,6 +16,11 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.CanReadFileFilter;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 
+
+import blockchainneo4j.domain.BlockJsonType;
+import blockchainneo4j.domain.BlockType;
+import blockchainneo4j.domain.LatestBlock;
+
 import com.sdicons.json.mapper.JSONMapper;
 import com.sdicons.json.mapper.MapperException;
 import com.sdicons.json.model.JSONValue;
@@ -23,9 +28,6 @@ import com.sdicons.json.parser.JSONParser;
 
 import antlr.RecognitionException;
 import antlr.TokenStreamException;
-import blockchainneo4j.domain.BlockJsonType;
-import blockchainneo4j.domain.BlockType;
-import blockchainneo4j.domain.LatestBlock;
 
 public class Fetcher
 {

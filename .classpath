@@ -23,5 +23,50 @@
 	<classpathentry kind="lib" path="jar/bitcoinj-0.4.jar"/>
 	<classpathentry kind="lib" path="jar/jsoup-1.6.2.jar"/>
 	<classpathentry kind="lib" path="jar/sqlitejdbc-v056.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/antlr-2.7.7.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/asm-3.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/asm-analysis-3.2.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/asm-commons-3.2.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/asm-tree-3.2.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/asm-util-3.2.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/bcprov-jdk16-140.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/blueprints-core-1.2.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/blueprints-neo4j-graph-1.2.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/commons-beanutils-1.8.0.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/commons-beanutils-core-1.8.0.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/commons-collections-3.2.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/commons-configuration-1.6.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/commons-digester-1.8.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/commons-io-1.4.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/commons-lang-2.4.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/commons-logging-1.1.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/gremlin-groovy-1.5.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/gremlin-java-1.5.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/groovy-1.8.5.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/jackson-core-asl-1.8.3.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/jackson-jaxrs-1.8.3.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/jackson-mapper-asl-1.8.3.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/jansi-1.5.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/jcl-over-slf4j-1.6.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/jersey-core-1.9.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/jersey-multipart-1.9.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/jersey-server-1.9.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/jettison-1.3.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/jetty-6.1.25.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/jetty-util-6.1.25.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/jsr311-api-1.1.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/log4j-over-slf4j-1.6.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/mimepull-1.6.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/neo4j-cypher-plugin-1.7.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/neo4j-gremlin-plugin-1.7.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/neo4j-server-1.7.1-static-web.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/neo4j-server-1.7.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/pipes-1.0.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/rrd4j-2.0.7.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/servlet-api-2.5-20081211.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/slf4j-api-1.6.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/slf4j-jdk14-1.6.1.jar"/>
+	<classpathentry kind="lib" path="jar/neo4j/system/stax-api-1.0.1.jar"/>
+	<classpathentry kind="lib" path="jar/guava-12.0.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
