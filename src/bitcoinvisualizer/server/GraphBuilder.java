@@ -1,4 +1,4 @@
-package blockchainneo4j;
+package bitcoinvisualizer.server;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,12 +38,12 @@ import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
-import blockchainneo4j.domain.BlockJsonType;
-import blockchainneo4j.domain.BlockType;
-import blockchainneo4j.domain.InputType;
-import blockchainneo4j.domain.LatestBlock;
-import blockchainneo4j.domain.OutputType;
-import blockchainneo4j.domain.TransactionType;
+import bitcoinvisualizer.server.domain.BlockJsonType;
+import bitcoinvisualizer.server.domain.BlockType;
+import bitcoinvisualizer.server.domain.InputType;
+import bitcoinvisualizer.server.domain.LatestBlock;
+import bitcoinvisualizer.server.domain.OutputType;
+import bitcoinvisualizer.server.domain.TransactionType;
 
 /**
  * Provides functionality to fetch and create the low-level block chain and the high level abstractions.
@@ -672,7 +672,7 @@ public class GraphBuilder
 		// Create the relationship
 		tranNode.createRelationshipTo(block, BlockchainRelationships.from);
 
-		// Create the index
+		// Create the index		
 		transactionsIndex.add(tranNode, TRANSACTION_INDEX_KEY, tran.getTx_index());
 
 		// Persist outbound transactions

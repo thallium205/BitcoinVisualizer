@@ -1,4 +1,4 @@
-package blockchainneo4j;
+package bitcoinvisualizer.server;
 
 import java.io.File;
 import java.io.IOException;

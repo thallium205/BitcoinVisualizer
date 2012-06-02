@@ -1,4 +1,4 @@
-package blockchainneo4j;
+package bitcoinvisualizer.server;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -17,9 +17,9 @@ import org.apache.commons.io.filefilter.CanReadFileFilter;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 
 
-import blockchainneo4j.domain.BlockJsonType;
-import blockchainneo4j.domain.BlockType;
-import blockchainneo4j.domain.LatestBlock;
+import bitcoinvisualizer.server.domain.BlockJsonType;
+import bitcoinvisualizer.server.domain.BlockType;
+import bitcoinvisualizer.server.domain.LatestBlock;
 
 import com.sdicons.json.mapper.JSONMapper;
 import com.sdicons.json.mapper.MapperException;

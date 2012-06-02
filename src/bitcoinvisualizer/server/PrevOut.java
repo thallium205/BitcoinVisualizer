@@ -1,4 +1,4 @@
-package blockchainneo4j;
+package bitcoinvisualizer.server;
 
 /**
  * A redeeming input transaction.

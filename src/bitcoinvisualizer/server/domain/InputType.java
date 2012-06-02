@@ -1,6 +1,6 @@
-package blockchainneo4j.domain;
+package bitcoinvisualizer.server.domain;
 
-import blockchainneo4j.PrevOut;
+import bitcoinvisualizer.server.PrevOut;
 
 /**
  * An input abstraction created from the blockchain.info API.
