@@ -1,4 +1,4 @@
-package bitcoinvisualizer.server.domain;
+package bitcoinvisualizer.domain;
 
 import java.util.ArrayList;
 import java.util.Collections;

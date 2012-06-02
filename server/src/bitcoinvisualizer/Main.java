@@ -1,4 +1,4 @@
-package bitcoinvisualizer.server;
+package bitcoinvisualizer;
 
 import java.io.IOException;
 import java.sql.SQLException;

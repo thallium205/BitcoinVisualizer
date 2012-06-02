@@ -1,6 +1,6 @@
-package bitcoinvisualizer.server.domain;
+package bitcoinvisualizer.domain;
 
-import bitcoinvisualizer.server.PrevOut;
+import bitcoinvisualizer.PrevOut;
 
 /**
  * An input abstraction created from the blockchain.info API.

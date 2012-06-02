@@ -1,4 +1,4 @@
-package bitcoinvisualizer.server.domain;
+package bitcoinvisualizer.domain;
 
 /**
  * An output.  Addr2, Addr3 are anamolous and are rarely used.  All modern blocks in the chain will never have these values.

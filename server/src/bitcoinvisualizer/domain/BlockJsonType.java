@@ -1,4 +1,4 @@
-package bitcoinvisualizer.server.domain;
+package bitcoinvisualizer.domain;
 
 import com.sdicons.json.model.JSONValue;
 
@@ -12,9 +12,9 @@ public class BlockJsonType
 	private BlockType blockType;
 	private JSONValue blockJson;
 	
-	public BlockJsonType(BlockType blockType, JSONValue blockJson)
+	public BlockJsonType(bitcoinvisualizer.domain.BlockType blockType2, JSONValue blockJson)
 	{
-		this.blockType = blockType;
+		this.blockType = blockType2;
 		this.blockJson = blockJson;
 	}
 	

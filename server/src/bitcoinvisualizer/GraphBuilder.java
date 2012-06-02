@@ -1,4 +1,4 @@
-package bitcoinvisualizer.server;
+package bitcoinvisualizer;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,18 +32,18 @@ import org.neo4j.kernel.Traversal;
 import org.neo4j.kernel.impl.traversal.TraversalDescriptionImpl;
 import org.neo4j.server.WrappingNeoServerBootstrapper;
 
+import bitcoinvisualizer.domain.BlockJsonType;
+import bitcoinvisualizer.domain.BlockType;
+import bitcoinvisualizer.domain.InputType;
+import bitcoinvisualizer.domain.LatestBlock;
+import bitcoinvisualizer.domain.OutputType;
+import bitcoinvisualizer.domain.TransactionType;
+
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-
-import bitcoinvisualizer.server.domain.BlockJsonType;
-import bitcoinvisualizer.server.domain.BlockType;
-import bitcoinvisualizer.server.domain.InputType;
-import bitcoinvisualizer.server.domain.LatestBlock;
-import bitcoinvisualizer.server.domain.OutputType;
-import bitcoinvisualizer.server.domain.TransactionType;
 
 /**
  * Provides functionality to fetch and create the low-level block chain and the high level abstractions.

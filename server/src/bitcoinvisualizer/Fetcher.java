@@ -1,4 +1,4 @@
-package bitcoinvisualizer.server;
+package bitcoinvisualizer;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -16,10 +16,9 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.CanReadFileFilter;
 import org.apache.commons.io.filefilter.DirectoryFileFilter;
 
-
-import bitcoinvisualizer.server.domain.BlockJsonType;
-import bitcoinvisualizer.server.domain.BlockType;
-import bitcoinvisualizer.server.domain.LatestBlock;
+import bitcoinvisualizer.domain.BlockJsonType;
+import bitcoinvisualizer.domain.BlockType;
+import bitcoinvisualizer.domain.LatestBlock;
 
 import com.sdicons.json.mapper.JSONMapper;
 import com.sdicons.json.mapper.MapperException;

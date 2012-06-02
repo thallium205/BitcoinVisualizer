@@ -1,4 +1,4 @@
-package bitcoinvisualizer.server;
+package bitcoinvisualizer;
 
 /**
  * A redeeming input transaction.
