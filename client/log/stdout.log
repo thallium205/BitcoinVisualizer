@@ -1,4 +1,4 @@
-[Sat, 02 Jun 2012 04:51:34 GMT] INFO Server starting with config: {
+[Tue, 05 Jun 2012 05:23:23 GMT] INFO Server starting with config: {
   "environment": "development",
   "workers": 1,
   "port": 4000,
@@ -6,11 +6,11 @@
   "rotateWorkers": false,
   "rotationWindow": 7200000,
   "rotationTimeout": 300000,
-  "logDir": "E:\\Workspace\\BitcoinVisualizer\\src\\bitcoinvisualizer\\client\\log",
+  "logDir": "E:\\Workspace\\BitcoinVisualizer\\client\\log",
   "gracefulShutdownTimeout": 30000,
   "heartbeatInterval": 5000,
   "heartbeatWindow": 20000,
-  "staticFilePath": "E:\\Workspace\\BitcoinVisualizer\\src\\bitcoinvisualizer\\client\\public",
+  "staticFilePath": "E:\\Workspace\\BitcoinVisualizer\\client\\public",
   "sessions": {
     "store": "memory",
     "key": "sid",
@@ -21,7 +21,7 @@
   "i18n": {
     "defaultLocale": "en-us",
     "loadPaths": [
-      "E:\\Workspace\\BitcoinVisualizer\\src\\bitcoinvisualizer\\client\\config\\locales"
+      "E:\\Workspace\\BitcoinVisualizer\\client\\config\\locales"
     ]
   },
   "ssl": null,
@@ -32,7 +32,7 @@
   "detailedErrors": true,
   "hostname": null
 }
-[Sat, 02 Jun 2012 04:51:34 GMT] INFO Creating 1 worker process.
-[Sat, 02 Jun 2012 04:51:34 GMT] INFO Server worker running in development on port 4000 with a PID of: 4660
-[Sat, 02 Jun 2012 04:51:34 GMT] DEBUG LOGGING STARTED ============================================
-[Sat, 02 Jun 2012 04:51:34 GMT] DEBUG ============================================================
+[Tue, 05 Jun 2012 05:23:23 GMT] INFO Creating 1 worker process.
+[Tue, 05 Jun 2012 05:23:23 GMT] INFO Server worker running in development on port 4000 with a PID of: 992
+[Tue, 05 Jun 2012 05:23:23 GMT] DEBUG LOGGING STARTED ============================================
+[Tue, 05 Jun 2012 05:23:23 GMT] DEBUG ============================================================

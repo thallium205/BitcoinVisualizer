@@ -32,5 +32,6 @@ router.match('/').to({controller: 'Main', action: 'index'});
 // Resource-based routes
 // router.resource('hemispheres');
 
+router.resource('addresses');
 exports.router = router;
 

@@ -17,7 +17,7 @@ import org.apache.commons.cli.ParseException;
 
 public class Main
 {
-	private static final Logger LOG = Logger.getLogger(Main.class.getName());
+	private static final java.util.logging.Logger LOG = Logger.getLogger(Main.class.getName());
 
 	public static void main(String[] args)
 	{

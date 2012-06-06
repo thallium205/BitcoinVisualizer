@@ -1,6 +1,30 @@
-<!-- Lets talk about geddy -->
-<div class="hero-unit geddy-welcome-box">
-  <h1>Hello, World!</h1>
-  <p>You've created a Geddy app and your server is running. If you already know what you're doing, feel free to jump into your app logic, if not...</p>
-  <p><a href="http://geddyjs.org/tutorial.html" class="btn btn-primary btn-large">Lets get you started »</a></p>
+<div class="container-fluid">
+	<div class="row-fluid">
+		<div class="span4">
+		<!--Sidebar content-->
+		<form class="well form-search">
+			<input type="text" class="input-medium search-query">
+			<button type="submit" class="btn">Search</button>
+		</form>
+		</div>
+		<div class="span8">
+		<!--Body content-->
+			<div id="viz"></div>
+			<script type="text/javascript">
+			var sampleSVG = d3.select("#viz")
+			.append("svg")
+			.attr("width", 100)
+			.attr("height", 100);   
+			
+			sampleSVG.append("circle")
+			.style("stroke", "gray")
+			.style("fill", "white")
+			.attr("r", 40)
+			.attr("cx", 50)
+			.attr("cy", 50)
+			.on("mouseover", function(){d3.select(this).style("fill", "aliceblue");})
+			.on("mouseout", function(){d3.select(this).style("fill", "white");});
+			</script>  
+		</div>
+  </div>
 </div>

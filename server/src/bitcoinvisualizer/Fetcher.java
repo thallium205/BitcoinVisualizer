@@ -196,7 +196,7 @@ public class Fetcher
 	 */
 	public static LatestBlock GetLatest()
 	{
-		LOG.info("Downloading latest block value.");
+		LOG.info("Downloading latest block value from the internet...");
 		URL url;
 		try
 		{

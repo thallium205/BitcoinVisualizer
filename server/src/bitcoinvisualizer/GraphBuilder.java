@@ -54,20 +54,39 @@ import com.google.common.collect.Iterables;
 public class GraphBuilder
 {
 	private static final Logger LOG = Logger.getLogger(GraphBuilder.class.getName());
+	
+	// Index block hash
+	private static final String BLOCK_HASH = "block_hashes";
+	private static final String BLOCK_HASH_KEY = "block_hash";
+	static Index<Node> block_hashes;	
+	
+	// Index block height
+	private static final String BLOCK_HEIGHT = "block_heights";
+	private static final String BLOCK_HEIGHT_KEY = "block_height";
+	static Index<Node> block_heights;
+	
+	// Index Transaction hashes
+	private static final String TRANSACTION_HASH = "tx_hashes";
+	private static final String TRANSACTION_HASH_KEY = "tx_hash";
+	static Index<Node> tx_hashes;
 
-	private static final String TRANSACTION_INDEX = "transactions";
+	// Index Transaction index
+	private static final String TRANSACTION_INDEX = "tx_indexes";
 	private static final String TRANSACTION_INDEX_KEY = "tx_index";
+	static Index<Node> tx_indexes;
+	
+	// Address hash
+    private static final String ADDRESS_HASH = "addr_hashes";
+    private static final String ADDRESS_HASH_KEY = "addr_hash";
+    static Index<Node> addresses;	
 
-	private static final String ADDRESS_INDEX = "addresses";
-	private static final String ADDRESS_INDEX_KEY = "addr_index";
-
-	// Do this many operations before flushing a transaction to disk.
-	final private static int NODES_PER_TX = 1000;
+	// Index IPV4 address
+	private static final String IPV4 = "ipv4_addrs";
+	private static final String IPV4_KEY = "ipv4_addr";
+	static Index<Node> ipv4_addrs;
 
 	static GraphDatabaseAPI graphDb;
-	static WrappingNeoServerBootstrapper srv;
-	static Index<Node> transactionsIndex;
-	
+	static WrappingNeoServerBootstrapper srv;	
 	static Thread shutdownThread;
 
 	/**
@@ -110,7 +129,14 @@ public class GraphBuilder
 		graphDb = new EmbeddedGraphDatabase(dbPath);
 		srv = new WrappingNeoServerBootstrapper(graphDb);
 		srv.start();
-		transactionsIndex = graphDb.index().forNodes(TRANSACTION_INDEX);
+		
+		// Load indexes
+		block_hashes = graphDb.index().forNodes(BLOCK_HASH);
+		block_heights = graphDb.index().forNodes(BLOCK_HEIGHT);
+		tx_hashes = graphDb.index().forNodes(TRANSACTION_HASH);
+		tx_indexes = graphDb.index().forNodes(TRANSACTION_INDEX);
+		addresses = graphDb.index().forNodes(ADDRESS_HASH);
+		ipv4_addrs = graphDb.index().forNodes(IPV4);
 
 		// Register shutdown hook
 		shutdownThread = new Thread()
@@ -151,6 +177,7 @@ public class GraphBuilder
 		LOG.info("Begin building block chain...");
 		// We find the latest block from the internet
 		LatestBlock latestInternetBlock = Fetcher.GetLatest();
+		LOG.info("Latest block from the internet is: " + latestInternetBlock.getHeight());	
 
 		// The latest block index that exists in the bitcoin blockchain
 		final int latestRemoteBlockIndex = latestInternetBlock.getBlock_index();
@@ -250,18 +277,17 @@ public class GraphBuilder
 		{            
             final Transaction tx = graphDb.beginTx();
             try 
-			{                
-                int i = 0;
+			{      
+            	int i = 0;
                 do 
 				{
-                    ++i;
+                	i++;
                     final Node transaction = iter.next();
                     LOG.info("Processing transaction: " + transaction.getId());
                     linkAddresses(transaction);                    
-                } 
-				
-				while (i < NODES_PER_TX && iter.hasNext());
-				
+                }				
+				while (i < 1000 && iter.hasNext());
+                
                 tx.success();				
             }
             
@@ -287,16 +313,15 @@ public class GraphBuilder
             final Transaction tx = graphDb.beginTx();
             try 
 			{
-                int i = 0;
+            	int i = 0;
                 do 
 				{
-                    ++i;
+                	i++;
                     final Node block = iter.next();                                        
                     LOG.info("Processing block: " + block.getId());
                     createOwners(block);
                 }
-
-				while (i < NODES_PER_TX && iter.hasNext());
+				while (i < 1000 && iter.hasNext());
 				
                 tx.success();				
             } 
@@ -353,6 +378,7 @@ public class GraphBuilder
 	 */
 	private static int latestDiskBlockIndex()
 	{
+		LOG.info("Finding latest block on disk...");
 		Collection<File> files = Fetcher.getFolderContents(".");
 		ArrayList<Integer> fileNames = new ArrayList<Integer>();
 		for (File file : files)
@@ -361,6 +387,7 @@ public class GraphBuilder
 				fileNames.add(Integer.parseInt(file.getName().split(".json")[0]));
 		}
 		Collections.sort(fileNames);
+		LOG.info("Latest block on disk: " + (fileNames.size() - 1) + ".json");
 		return fileNames.get(fileNames.size() - 1);
 	}
 
@@ -441,19 +468,34 @@ public class GraphBuilder
 	 */
 	private static Node getLatestDatabaseBlockNode()
 	{
+		LOG.info("Finding latest block in database...");
 		Node referenceNode = graphDb.getReferenceNode();
 		TraversalDescription td = new TraversalDescriptionImpl();
 		td = td.depthFirst().relationships(BlockchainRelationships.succeeds, Direction.INCOMING);
 
 		Traverser traverser = td.traverse(referenceNode);
-		Node node;
+		
+		Node node = null;
 		for (Path path : traverser)
 		{
 			node = path.endNode();
+			
 			if (!node.hasRelationship(BlockchainRelationships.succeeds, Direction.INCOMING) && node.hasProperty("main_chain") && (Boolean) node.getProperty("main_chain"))
+			{
+				LOG.info("Latest block in database is part of the main chain.  Its index is: " + node.getProperty("block_index"));
 				return node;
+			}
 		}
+		
+		if (node != null && node.hasProperty("block_index"))
+		{
+			// The last block we downloaded was an orphan since it is not part of the main chain and does not a successor block.  We still return the program will relink it.
+			LOG.info("Latest block in database is an orphan block.  Its index is: " + node.getProperty("block_index"));			
+			return node;
+		}
+		
 
+		LOG.info("Latest block in database is the reference block.");
 		return referenceNode;
 	}
 
@@ -545,7 +587,6 @@ public class GraphBuilder
 					LOG.severe(e.getMessage());
 					return false;
 				}
-
 			}
 		}
 
@@ -569,7 +610,7 @@ public class GraphBuilder
 		// Load the next block from disk. Because indexes don't go in
 		// order, we need to find it from disk.
 		for (int i = lastDatabaseBlockIndex; i < lastBlockDownloaded; i++)
-		{
+		{			
 			if (FileUtils.getFile((i + 1) + ".json").exists())
 			{
 				return Fetcher.GetBlock(FileUtils.getFile((i + 1) + ".json")).getBlockType();
@@ -613,7 +654,7 @@ public class GraphBuilder
 		// block node is not equal to the last block node's hash,
 		// then we have to traverse the graph and find the relationship.
 		// This occurs when a block is not part of the main chain, and
-		// is instead branching off.
+		// is instead branching off (orphan block).
 		if (previousBlock.hasProperty("hash") && !((String) currentBlockNode.getProperty("prev_block")).contains((String) previousBlock.getProperty("hash")))
 		{
 			TraversalDescription td = new TraversalDescriptionImpl();
@@ -636,6 +677,15 @@ public class GraphBuilder
 		{
 			currentBlockNode.createRelationshipTo(previousBlock, BlockchainRelationships.succeeds);
 		}
+		
+		// Store indexes
+		if (currentBlockNode.hasProperty("hash"))
+			block_hashes.add(currentBlockNode, BLOCK_HASH_KEY, currentBlockNode.getProperty("hash"));
+		if (currentBlockNode.hasProperty("height"))
+			block_heights.add(currentBlockNode, BLOCK_HEIGHT_KEY, currentBlockNode.getProperty("height"));
+		if (currentBlockNode.hasProperty("relayed_by"))
+			ipv4_addrs.add(currentBlockNode, IPV4_KEY, currentBlockNode.getProperty("relayed_by"));
+		
 
 		// We save each transaction in the block.
 		// We get an ascending order of transactions. The API does not print them in ascending order which is necessary as inputs may try to redeem outputs that
@@ -672,8 +722,17 @@ public class GraphBuilder
 		// Create the relationship
 		tranNode.createRelationshipTo(block, BlockchainRelationships.from);
 
-		// Create the index		
-		transactionsIndex.add(tranNode, TRANSACTION_INDEX_KEY, tran.getTx_index());
+		// Store indexes	
+		// Used for redeeming inputs
+		if (tranNode.hasProperty("tx_index"))
+			tx_indexes.add(tranNode, TRANSACTION_INDEX_KEY, tranNode.getProperty("tx_index"));
+		if (tranNode.hasProperty("hash"))
+			tx_hashes.add(tranNode, TRANSACTION_HASH_KEY, tranNode.getProperty("hash"));
+		if (tranNode.hasProperty("relayed_by"))
+			ipv4_addrs.add(tranNode, IPV4_KEY, tranNode.getProperty("relayed_by"));
+			
+		
+		
 
 		// Persist outbound transactions
 		// The location of an output within a transaction.
@@ -737,7 +796,7 @@ public class GraphBuilder
 			return;
 
 		// We redeem the output transaction from a previous transaction using an index.
-		Node transactionNode = transactionsIndex.query("tx_index", prevOut.getTx_index()).getSingle();
+		Node transactionNode = tx_indexes.query(TRANSACTION_INDEX_KEY, prevOut.getTx_index()).getSingle();
 
 		if (transactionNode != null)
 		{
@@ -866,20 +925,21 @@ public class GraphBuilder
 	 */
 	public static Node getAddress(final String address)
 	{
-		final Index<Node> index = graphDb.index().forNodes(ADDRESS_INDEX);
-		final Node existing = index.get(ADDRESS_INDEX_KEY, address).getSingle();
+		final Node existing = addresses.get(ADDRESS_HASH_KEY, address).getSingle();
 
 		final Node result;
 		if (existing != null)
 		{
 			result = existing;
-		} else
+		} 
+		
+		else
 		{
 			final Node newNode = graphDb.createNode();
 			newNode.setProperty(TransferProperties.addr.toString(), address);
 
 			// Atomic add to the index.
-			final Node indexedNode = index.putIfAbsent(newNode, ADDRESS_INDEX_KEY, address);
+			final Node indexedNode = addresses.putIfAbsent(newNode, ADDRESS_HASH_KEY, address);
 			if (indexedNode == null)
 			{
 				// Nobody else tried to add that address at the same time.
