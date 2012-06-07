@@ -79,6 +79,11 @@ public class GraphBuilder
     private static final String ADDRESS_HASH = "addr_hashes";
     private static final String ADDRESS_HASH_KEY = "addr_hash";
     static Index<Node> addresses;	
+	
+	// Owner address hash
+    private static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
+    private static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
+    static Index<Node> owned_addresses;	
 
 	// Index IPV4 address
 	private static final String IPV4 = "ipv4_addrs";
@@ -136,6 +141,7 @@ public class GraphBuilder
 		tx_hashes = graphDb.index().forNodes(TRANSACTION_HASH);
 		tx_indexes = graphDb.index().forNodes(TRANSACTION_INDEX);
 		addresses = graphDb.index().forNodes(ADDRESS_HASH);
+		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH);
 		ipv4_addrs = graphDb.index().forNodes(IPV4);
 
 		// Register shutdown hook
@@ -144,8 +150,10 @@ public class GraphBuilder
 			@Override
 			public void run()
 			{
+				LOG.info("Stopping database...");
 				srv.stop();
 				graphDb.shutdown();
+				LOG.info("Database stopped.");
 			}
 		};		
 		
@@ -729,9 +737,7 @@ public class GraphBuilder
 		if (tranNode.hasProperty("hash"))
 			tx_hashes.add(tranNode, TRANSACTION_HASH_KEY, tranNode.getProperty("hash"));
 		if (tranNode.hasProperty("relayed_by"))
-			ipv4_addrs.add(tranNode, IPV4_KEY, tranNode.getProperty("relayed_by"));
-			
-		
+			ipv4_addrs.add(tranNode, IPV4_KEY, tranNode.getProperty("relayed_by"));	
 		
 
 		// Persist outbound transactions
@@ -771,10 +777,14 @@ public class GraphBuilder
 			outNode.setProperty("type", output.getType());
 			outNode.setProperty("addr", output.getAddr());
 			outNode.setProperty("value", output.getValue());
-			outNode.setProperty("n", index);
+			outNode.setProperty("n", index);			
 
 			// Create relationship
 			transactionNode.createRelationshipTo(outNode, BlockchainRelationships.sent);
+			
+			// Create index
+			if (outNode.hasProperty("addr"))
+				addresses.add(outNode, ADDRESS_HASH_KEY, outNode.getProperty("addr"));
 		}
 	}
 
@@ -925,7 +935,7 @@ public class GraphBuilder
 	 */
 	public static Node getAddress(final String address)
 	{
-		final Node existing = addresses.get(ADDRESS_HASH_KEY, address).getSingle();
+		final Node existing = owned_addresses.get(OWNED_ADDRESS_HASH_KEY, address).getSingle();
 
 		final Node result;
 		if (existing != null)
@@ -939,7 +949,7 @@ public class GraphBuilder
 			newNode.setProperty(TransferProperties.addr.toString(), address);
 
 			// Atomic add to the index.
-			final Node indexedNode = addresses.putIfAbsent(newNode, ADDRESS_HASH_KEY, address);
+			final Node indexedNode = owned_addresses.putIfAbsent(newNode, OWNED_ADDRESS_HASH_KEY, address);
 			if (indexedNode == null)
 			{
 				// Nobody else tried to add that address at the same time.
