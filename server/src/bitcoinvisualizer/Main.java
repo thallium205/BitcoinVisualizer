@@ -39,7 +39,7 @@ public class Main
 					validate = Boolean.parseBoolean(line.getOptionValue("validate"));
 				GraphBuilder.StartDatabase(line.getOptionValue("path"));
 				GraphBuilder.DownloadAndSaveBlockChain(validate);
-				// GraphBuilder.BuildHighLevelGraph();	
+				GraphBuilder.BuildHighLevelGraph();	
 				// GraphBuilder.StopDatabase(); // Debug.
 				LOG.info("Completed.");
 			}

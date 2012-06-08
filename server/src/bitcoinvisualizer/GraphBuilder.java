@@ -12,7 +12,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
-import org.mortbay.log.Log;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Path;
@@ -24,7 +23,6 @@ import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.index.Index;
 import org.neo4j.graphdb.traversal.Evaluators;
 import org.neo4j.graphdb.traversal.TraversalDescription;
-import org.neo4j.graphdb.traversal.Traverser;
 import org.neo4j.kernel.EmbeddedGraphDatabase;
 import org.neo4j.kernel.GraphDatabaseAPI;
 import org.neo4j.kernel.Traversal;
@@ -93,9 +91,6 @@ public class GraphBuilder
 	private static final String IPV4 = "ipv4_addrs";
 	private static final String IPV4_KEY = "ipv4_addr";
 	static Index<Node> ipv4_addrs;
-
-	// Metadata node
-	static Node metadataNode;
 
 	/**
 	 * Represents the basic relationships of the low-level model.
@@ -172,20 +167,6 @@ public class GraphBuilder
 				LOG.info("Database stopped.");
 			}
 		};
-
-		// Load meta node
-		metadataNode = graphDb.getNodeById(1);
-		
-		if (metadataNode == null)
-		{
-			LOG.info("Creating new metadata node...");
-			Transaction tx = graphDb.beginTx();
-			metadataNode = graphDb.createNode();
-			graphDb.getReferenceNode().createRelationshipTo(metadataNode, DataType.metadata);
-			tx.success();
-			tx.finish();
-			LOG.info("Metadata node created: " + metadataNode.getId());
-		}
 		
 		LOG.info("Database started.");
 	}
@@ -276,7 +257,7 @@ public class GraphBuilder
 				latestDatabaseBlock = persistBlockNode(currentBlock, latestDatabaseBlock);
 				
 				// Update the metadata node of the last database block
-				metadataNode.setProperty("last_database_block", currentBlock.getHash());
+				graphDb.getReferenceNode().setProperty("last_database_block", currentBlock.getHash());
 				
 				tx.success();
 				
@@ -514,9 +495,9 @@ public class GraphBuilder
 	 */
 	private static Node getLatestDatabaseBlockNode()
 	{
-		if (metadataNode.hasProperty("last_database_block"))
+		if (graphDb.getReferenceNode().hasProperty("last_database_block"))
 		{
-			return block_hashes.query(BLOCK_HASH_KEY, (String) metadataNode.getProperty("last_database_block")).getSingle();
+			return block_hashes.query(BLOCK_HASH_KEY, (String) graphDb.getReferenceNode().getProperty("last_database_block")).getSingle();
 		}
 
 		else
