@@ -12,9 +12,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
-
+import org.mortbay.log.Log;
 import org.neo4j.graphdb.Direction;
-import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Path;
 import org.neo4j.graphdb.Relationship;
@@ -45,6 +44,7 @@ import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
+
 /**
  * Provides functionality to fetch and create the low-level block chain and the high level abstractions.
  * 
@@ -54,17 +54,21 @@ import com.google.common.collect.Iterables;
 public class GraphBuilder
 {
 	private static final Logger LOG = Logger.getLogger(GraphBuilder.class.getName());
-	
+
+	static GraphDatabaseAPI graphDb;
+	private static WrappingNeoServerBootstrapper srv;
+	static Thread shutdownThread;
+
 	// Index block hash
 	private static final String BLOCK_HASH = "block_hashes";
 	private static final String BLOCK_HASH_KEY = "block_hash";
-	static Index<Node> block_hashes;	
-	
+	static Index<Node> block_hashes;
+
 	// Index block height
 	private static final String BLOCK_HEIGHT = "block_heights";
 	private static final String BLOCK_HEIGHT_KEY = "block_height";
 	static Index<Node> block_heights;
-	
+
 	// Index Transaction hashes
 	private static final String TRANSACTION_HASH = "tx_hashes";
 	private static final String TRANSACTION_HASH_KEY = "tx_hash";
@@ -74,28 +78,28 @@ public class GraphBuilder
 	private static final String TRANSACTION_INDEX = "tx_indexes";
 	private static final String TRANSACTION_INDEX_KEY = "tx_index";
 	static Index<Node> tx_indexes;
-	
+
 	// Address hash
-    private static final String ADDRESS_HASH = "addr_hashes";
-    private static final String ADDRESS_HASH_KEY = "addr_hash";
-    static Index<Node> addresses;	
-	
+	private static final String ADDRESS_HASH = "addr_hashes";
+	private static final String ADDRESS_HASH_KEY = "addr_hash";
+	static Index<Node> addresses;
+
 	// Owner address hash
-    private static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
-    private static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
-    static Index<Node> owned_addresses;	
+	private static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
+	private static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
+	static Index<Node> owned_addresses;
 
 	// Index IPV4 address
 	private static final String IPV4 = "ipv4_addrs";
 	private static final String IPV4_KEY = "ipv4_addr";
 	static Index<Node> ipv4_addrs;
 
-	static GraphDatabaseAPI graphDb;
-	static WrappingNeoServerBootstrapper srv;	
-	static Thread shutdownThread;
+	// Metadata node
+	static Node metadataNode;
 
 	/**
-	 * Represents the basic relationships of the low-level model. 
+	 * Represents the basic relationships of the low-level model.
+	 * 
 	 * @author John
 	 * 
 	 */
@@ -106,8 +110,9 @@ public class GraphBuilder
 
 	/**
 	 * Represents high-level relationships of addresses.
+	 * 
 	 * @author jdmarble
-	 *
+	 * 
 	 */
 	public static enum AddressRelTypes implements RelationshipType
 	{
@@ -116,8 +121,9 @@ public class GraphBuilder
 
 	/**
 	 * Represents high-level relationships of owners.
+	 * 
 	 * @author jdmarble
-	 *
+	 * 
 	 */
 	public static enum OwnerRelTypes implements RelationshipType
 	{
@@ -125,8 +131,18 @@ public class GraphBuilder
 	}
 
 	/**
+	 * Represents a data relationship
+	 */
+	public static enum DataType implements RelationshipType
+	{
+		metadata;
+	}
+
+	/**
 	 * Starts the embedded neo4j instance
-	 * @param dbPath - The path where the data will be saved
+	 * 
+	 * @param dbPath
+	 *            - The path where the data will be saved
 	 */
 	public static void StartDatabase(final String dbPath)
 	{
@@ -134,7 +150,7 @@ public class GraphBuilder
 		graphDb = new EmbeddedGraphDatabase(dbPath);
 		srv = new WrappingNeoServerBootstrapper(graphDb);
 		srv.start();
-		
+
 		// Load indexes
 		block_hashes = graphDb.index().forNodes(BLOCK_HASH);
 		block_heights = graphDb.index().forNodes(BLOCK_HEIGHT);
@@ -155,17 +171,30 @@ public class GraphBuilder
 				graphDb.shutdown();
 				LOG.info("Database stopped.");
 			}
-		};		
+		};
+
+		// Load meta node
+		metadataNode = graphDb.getNodeById(1);
 		
-		Runtime.getRuntime().addShutdownHook(shutdownThread);
+		if (metadataNode == null)
+		{
+			LOG.info("Creating new metadata node...");
+			Transaction tx = graphDb.beginTx();
+			metadataNode = graphDb.createNode();
+			graphDb.getReferenceNode().createRelationshipTo(metadataNode, DataType.metadata);
+			tx.success();
+			tx.finish();
+			LOG.info("Metadata node created: " + metadataNode.getId());
+		}
+		
 		LOG.info("Database started.");
 	}
-	
+
 	/**
 	 * Stops the embedded neo4j instance
 	 */
 	public static void StopDatabase()
-	{	
+	{
 		LOG.info("Stopping database...");
 		srv.stop();
 		graphDb.shutdown();
@@ -176,7 +205,8 @@ public class GraphBuilder
 	/**
 	 * Stores blocks, transactions, and input/output nodes to the database. Blocks will be given a relationship of "succeeds" to the previous categorized block to the database. Transactions will be
 	 * given a relationship of "from" to its owner Block. Input/Output nodes (called Money nodes) will either be given "sent" or "received" relationships based upon what they represent. This function
-	 * maintains a local json repository by downloading it directly from the API. Then, it persists the json blocks to the datastore from these local json files. 
+	 * maintains a local json repository by downloading it directly from the API. Then, it persists the json blocks to the datastore from these local json files.
+	 * 
 	 * @author John
 	 * 
 	 */
@@ -185,7 +215,7 @@ public class GraphBuilder
 		LOG.info("Begin building block chain...");
 		// We find the latest block from the internet
 		LatestBlock latestInternetBlock = Fetcher.GetLatest();
-		LOG.info("Latest block from the internet is: " + latestInternetBlock.getHeight());	
+		LOG.info("Latest block from the internet is: " + latestInternetBlock.getHeight());
 
 		// The latest block index that exists in the bitcoin blockchain
 		final int latestRemoteBlockIndex = latestInternetBlock.getBlock_index();
@@ -200,11 +230,13 @@ public class GraphBuilder
 		downloadChainFromInternet(latestLocalBlockIndex, latestInternetBlock);
 
 		// We now find the latest block persisted to the database
+		LOG.info("Finding the last block saved in the datastore...");
 		Node latestDatabaseBlock = getLatestDatabaseBlockNode();
 		if (latestDatabaseBlock.hasProperty("block_index"))
 			lastDatabaseBlockIndex = (Integer) latestDatabaseBlock.getProperty("block_index");
 		else
 			lastDatabaseBlockIndex = 0;
+		LOG.info("Latest database block index is: " + lastDatabaseBlockIndex);
 
 		// We persist the difference
 		if (doValidate)
@@ -242,10 +274,16 @@ public class GraphBuilder
 
 				// We save the block node and set it to the latestDatabaseBlock
 				latestDatabaseBlock = persistBlockNode(currentBlock, latestDatabaseBlock);
+				
+				// Update the metadata node of the last database block
+				metadataNode.setProperty("last_database_block", currentBlock.getHash());
+				
 				tx.success();
-
+				
 				// Update the previous block node to the current one and repeat
 				lastDatabaseBlockIndex = currentBlock.getBlock_index();
+
+
 			}
 
 			catch (FetcherException e)
@@ -267,113 +305,112 @@ public class GraphBuilder
 				tx.finish();
 			}
 		}
-		
+
 		LOG.info("Building block chain completed.");
 	}
 
 	/**
-	 * Builds the high level abstraction of the block chain. 
+	 * Builds the high level abstraction of the block chain.
+	 * 
 	 * @author jdmarble
 	 */
 	public static void BuildHighLevelGraph()
 	{
 		LOG.info("Begin building high level graph...");
 		// Add addresses to redeemed transfers and link those addresses together when
-        // the owner is the same.
+		// the owner is the same.
 		LOG.info("Linking addresses...");
-        for (final Iterator<Node> iter = getTransactions(graphDb).iterator(); iter.hasNext();) 
-		{            
-            final Transaction tx = graphDb.beginTx();
-            try 
-			{      
-            	int i = 0;
-                do 
-				{
-                	i++;
-                    final Node transaction = iter.next();
-                    LOG.info("Processing transaction: " + transaction.getId());
-                    linkAddresses(transaction);                    
-                }				
-				while (i < 1000 && iter.hasNext());
-                
-                tx.success();				
-            }
-            
-            catch (Exception e)
-            {      
-            	LOG.log(Level.SEVERE, "Link address error.", e);
-            	tx.failure();
-            	return;
-            }
-			
-			finally 
+		for (final Iterator<Node> iter = getTransactions().iterator(); iter.hasNext();)
+		{
+			final Transaction tx = graphDb.beginTx();
+			try
 			{
-                tx.finish();
-            }            
-        }
-        LOG.info("Linking addresses completed.");
-		
+				int i = 0;
+				do
+				{
+					i++;
+					final Node transaction = iter.next();
+					LOG.info("Processing transaction: " + transaction.getId());
+					linkAddresses(transaction);
+				} while (i < 1000 && iter.hasNext());
+
+				tx.success();
+			}
+
+			catch (Exception e)
+			{
+				LOG.log(Level.SEVERE, "Link address error.", e);
+				tx.failure();
+				return;
+			}
+
+			finally
+			{
+				tx.finish();
+			}
+		}
+		LOG.info("Linking addresses completed.");
+
 		// Go through all addresses and create an owner for each connected component
-        // NOTE: ALL addresses must be created and linked BEFORE this pass.
-        LOG.info("Begin building owners for all linked addresses...");
-        for (final Iterator<Node> iter = getMainBlocks(graphDb).iterator(); iter.hasNext();) 
-		{            
-            final Transaction tx = graphDb.beginTx();
-            try 
+		// NOTE: ALL addresses must be created and linked BEFORE this pass.
+		LOG.info("Begin building owners for all linked addresses...");
+		for (final Iterator<Node> iter = getMainBlocks().iterator(); iter.hasNext();)
+		{
+			final Transaction tx = graphDb.beginTx();
+			try
 			{
-            	int i = 0;
-                do 
+				int i = 0;
+				do
 				{
-                	i++;
-                    final Node block = iter.next();                                        
-                    LOG.info("Processing block: " + block.getId());
-                    createOwners(block);
-                }
-				while (i < 1000 && iter.hasNext());
-				
-                tx.success();				
-            } 
-            
-            catch (Exception e)
-            {
-            	LOG.log(Level.SEVERE, "Building owners error.", e);
-            	tx.failure();
-            	return;
-            }
-			
-			finally 
+					i++;
+					final Node block = iter.next();
+					LOG.info("Processing block: " + block.getId());
+					createOwners(block);
+				} while (i < 1000 && iter.hasNext());
+
+				tx.success();
+			}
+
+			catch (Exception e)
 			{
-                tx.finish();
-            } 
-            LOG.info("Building owners completed.");
-        }
-		
+				LOG.log(Level.SEVERE, "Building owners error.", e);
+				tx.failure();
+				return;
+			}
+
+			finally
+			{
+				tx.finish();
+			}
+			LOG.info("Building owners completed.");
+		}
+
 		// Link the owners for the highest level of the abstraction
-        LOG.info("Begin linking owners...");        
-		for (final Node block : getMainBlocks(graphDb)) 
-		{            
-            final Transaction tx = graphDb.beginTx();
-            try 
+		LOG.info("Begin linking owners...");
+		for (final Node block : getMainBlocks())
+		{
+			final Transaction tx = graphDb.beginTx();
+			try
 			{
-                for (final Node owner : getOwners(block)) 
+				for (final Node owner : getOwners(block))
 				{
-                	LOG.info("Processing owner: " + owner.getId());
-                    linkOwners(owner);
-                    tx.success();
-                }
-            } 
-            
-            catch (Exception e)
-            {
-            	LOG.log(Level.SEVERE, "Linking owners error.", e);
-            	tx.failure();
-            	return;
-            }
-			
-			finally 
+					LOG.info("Processing owner: " + owner.getId());
+					linkOwners(owner);
+					tx.success();
+				}
+			}
+
+			catch (Exception e)
 			{
-                tx.finish();                
-            }
+				LOG.log(Level.SEVERE, "Linking owners error.", e);
+				tx.failure();
+				return;
+			}
+
+			finally
+			{
+				tx.finish();
+			}
 		}
 		LOG.info("Linking owners completed.");
 		LOG.info("Building high level graph completed.");
@@ -381,7 +418,8 @@ public class GraphBuilder
 
 	/**
 	 * Fetches the latest block index stored on disk.
-	 * @return - The latest block index on disk. 
+	 * 
+	 * @return - The latest block index on disk.
 	 * @author John
 	 */
 	private static int latestDiskBlockIndex()
@@ -406,7 +444,7 @@ public class GraphBuilder
 	 *            - The last block we have
 	 * @param latestBlock
 	 *            - The last block from the api
-	 * @throws FetcherException 
+	 * @throws FetcherException
 	 * @author John
 	 */
 	private static void downloadChainFromInternet(int latestLocalBlockIndex, LatestBlock latestBlock)
@@ -469,42 +507,22 @@ public class GraphBuilder
 	}
 
 	/**
-	 * Queries the local database to find the latest stored block index. Used to set a lower bound on what Blocks to fetch from the API.
+	 * Queries the local database to find the latest stored block index.
 	 * 
-	 * @return The latest block node stored from the datastore.	
+	 * @return The latest block node stored from the datastore.
 	 * @author John
 	 */
 	private static Node getLatestDatabaseBlockNode()
 	{
-		LOG.info("Finding latest block in database...");
-		Node referenceNode = graphDb.getReferenceNode();
-		TraversalDescription td = new TraversalDescriptionImpl();
-		td = td.depthFirst().relationships(BlockchainRelationships.succeeds, Direction.INCOMING);
-
-		Traverser traverser = td.traverse(referenceNode);
-		
-		Node node = null;
-		for (Path path : traverser)
+		if (metadataNode.hasProperty("last_database_block"))
 		{
-			node = path.endNode();
-			
-			if (!node.hasRelationship(BlockchainRelationships.succeeds, Direction.INCOMING) && node.hasProperty("main_chain") && (Boolean) node.getProperty("main_chain"))
-			{
-				LOG.info("Latest block in database is part of the main chain.  Its index is: " + node.getProperty("block_index"));
-				return node;
-			}
+			return block_hashes.query(BLOCK_HASH_KEY, (String) metadataNode.getProperty("last_database_block")).getSingle();
 		}
-		
-		if (node != null && node.hasProperty("block_index"))
-		{
-			// The last block we downloaded was an orphan since it is not part of the main chain and does not a successor block.  We still return the program will relink it.
-			LOG.info("Latest block in database is an orphan block.  Its index is: " + node.getProperty("block_index"));			
-			return node;
-		}
-		
 
-		LOG.info("Latest block in database is the reference block.");
-		return referenceNode;
+		else
+		{
+			return graphDb.getReferenceNode();
+		}
 	}
 
 	/**
@@ -610,7 +628,7 @@ public class GraphBuilder
 	 * @param lastBlockDownloaded
 	 *            - The last block we have.
 	 * @return - The next block to process.
-	 * @throws FetcherException 
+	 * @throws FetcherException
 	 * @author John
 	 */
 	private static BlockType getNextBlockFromDisk(int lastDatabaseBlockIndex, final int lastBlockDownloaded) throws FetcherException
@@ -618,7 +636,7 @@ public class GraphBuilder
 		// Load the next block from disk. Because indexes don't go in
 		// order, we need to find it from disk.
 		for (int i = lastDatabaseBlockIndex; i < lastBlockDownloaded; i++)
-		{			
+		{
 			if (FileUtils.getFile((i + 1) + ".json").exists())
 			{
 				return Fetcher.GetBlock(FileUtils.getFile((i + 1) + ".json")).getBlockType();
@@ -634,7 +652,7 @@ public class GraphBuilder
 	 *            - The block to save
 	 * @param previousBlock
 	 *            - The block preceding the currentBlock
-	 * @return - Returns the neo4j block node entity.	   
+	 * @return - Returns the neo4j block node entity.
 	 * @author John
 	 */
 	private static Node persistBlockNode(BlockType currentBlock, Node previousBlock)
@@ -685,7 +703,7 @@ public class GraphBuilder
 		{
 			currentBlockNode.createRelationshipTo(previousBlock, BlockchainRelationships.succeeds);
 		}
-		
+
 		// Store indexes
 		if (currentBlockNode.hasProperty("hash"))
 			block_hashes.add(currentBlockNode, BLOCK_HASH_KEY, currentBlockNode.getProperty("hash"));
@@ -693,7 +711,6 @@ public class GraphBuilder
 			block_heights.add(currentBlockNode, BLOCK_HEIGHT_KEY, currentBlockNode.getProperty("height"));
 		if (currentBlockNode.hasProperty("relayed_by"))
 			ipv4_addrs.add(currentBlockNode, IPV4_KEY, currentBlockNode.getProperty("relayed_by"));
-		
 
 		// We save each transaction in the block.
 		// We get an ascending order of transactions. The API does not print them in ascending order which is necessary as inputs may try to redeem outputs that
@@ -712,7 +729,7 @@ public class GraphBuilder
 	 * @param currentBlockNode
 	 *            - The block that holds the transaction
 	 * @param tran
-	 *            - The transaction to save            
+	 *            - The transaction to save
 	 * @author John
 	 */
 	private static void persistTransaction(Node block, TransactionType tran)
@@ -730,15 +747,14 @@ public class GraphBuilder
 		// Create the relationship
 		tranNode.createRelationshipTo(block, BlockchainRelationships.from);
 
-		// Store indexes	
+		// Store indexes
 		// Used for redeeming inputs
 		if (tranNode.hasProperty("tx_index"))
 			tx_indexes.add(tranNode, TRANSACTION_INDEX_KEY, tranNode.getProperty("tx_index"));
 		if (tranNode.hasProperty("hash"))
 			tx_hashes.add(tranNode, TRANSACTION_HASH_KEY, tranNode.getProperty("hash"));
 		if (tranNode.hasProperty("relayed_by"))
-			ipv4_addrs.add(tranNode, IPV4_KEY, tranNode.getProperty("relayed_by"));	
-		
+			ipv4_addrs.add(tranNode, IPV4_KEY, tranNode.getProperty("relayed_by"));
 
 		// Persist outbound transactions
 		// The location of an output within a transaction.
@@ -777,11 +793,11 @@ public class GraphBuilder
 			outNode.setProperty("type", output.getType());
 			outNode.setProperty("addr", output.getAddr());
 			outNode.setProperty("value", output.getValue());
-			outNode.setProperty("n", index);			
+			outNode.setProperty("n", index);
 
 			// Create relationship
 			transactionNode.createRelationshipTo(outNode, BlockchainRelationships.sent);
-			
+
 			// Create index
 			if (outNode.hasProperty("addr"))
 				addresses.add(outNode, ADDRESS_HASH_KEY, outNode.getProperty("addr"));
@@ -794,7 +810,7 @@ public class GraphBuilder
 	 * @param input
 	 *            - The input to save
 	 * @param transacstionNode
-	 *            - The transaction the input belongs to	 
+	 *            - The transaction the input belongs to
 	 * @author John
 	 */
 	private static void persistInput(InputType input, Node transacstionNode)
@@ -831,67 +847,68 @@ public class GraphBuilder
 			}
 		}
 	}
-	
+
 	/**
-     * A lazy Iterable of all transactions from the given block.
-     * 
-     * @param block a node in the block chain to get transactions from.
-     * @return all transactions from the given block.     
-     * @author jdmarble
-     */
-    public static Iterable<Node> getTransactions(final Node block) 
-    {
-        return block.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, BlockchainRelationships.from, Direction.INCOMING);
-    }
-    
-    /**
-     * A lazy Iterable of all transactions from the given blocks.
-     * 
-     * @param blocks nodes in the block chain to get transactions from.
-     * @return all transactions from the given blocks.     
-     * @author jdmarble
-     */
-    public static Iterable<Node> getTransactions(final Iterable<Node> blocks) 
-    {
-        final Iterable<Iterable<Node>> transactionGroups =
-                FluentIterable.from(blocks).transform(new GetTransactions());
-        return Iterables.concat(transactionGroups);
-    }    
-    
+	 * A lazy Iterable of all transactions from the given block.
+	 * 
+	 * @param block
+	 *            a node in the block chain to get transactions from.
+	 * @return all transactions from the given block.
+	 * @author jdmarble
+	 */
+	public static Iterable<Node> getTransactions(final Node block)
+	{
+		return block.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, BlockchainRelationships.from, Direction.INCOMING);
+	}
+
+	/**
+	 * A lazy Iterable of all transactions from the given blocks.
+	 * 
+	 * @param blocks
+	 *            nodes in the block chain to get transactions from.
+	 * @return all transactions from the given blocks.
+	 * @author jdmarble
+	 */
+	public static Iterable<Node> getTransactions(final Iterable<Node> blocks)
+	{
+		final Iterable<Iterable<Node>> transactionGroups = FluentIterable.from(blocks).transform(new GetTransactions());
+		return Iterables.concat(transactionGroups);
+	}
+
 	/**
 	 * A lazy Iterable of all transactions from the main block chain.
 	 * 
-	 * @param graphDb
-	 *            the database to get transactions from.
-	 * @return all transactions from the main blocks.	 
+	 * @return all transactions from the main blocks.
 	 * @author jdmarble
 	 */
-	public static Iterable<Node> getTransactions(final GraphDatabaseService graphDb)
+	public static Iterable<Node> getTransactions()
 	{
-		return getTransactions(getMainBlocks(graphDb));
+		return getTransactions(getMainBlocks());
 	}
-	
+
 	/**
-     * Wraps {@link Transactions.getTransactions(Node)} in a function so it can be transformed lazily.      
-     * @author jdmarble
-     */
-    private static class GetTransactions implements Function<Node, Iterable<Node>> 
-    {
-        public Iterable<Node> apply(final Node block) 
-        {
-            return getTransactions(block);
-        }
-    }
-	
-	public static enum TransferProperties 
+	 * Wraps {@link Transactions.getTransactions(Node)} in a function so it can be transformed lazily.
+	 * 
+	 * @author jdmarble
+	 */
+	private static class GetTransactions implements Function<Node, Iterable<Node>>
 	{
-        addr, value;
-    }
-	
+		public Iterable<Node> apply(final Node block)
+		{
+			return getTransactions(block);
+		}
+	}
+
+	public static enum TransferProperties
+	{
+		addr, value;
+	}
+
 	/**
 	 * Creates redeemed addresses to a transfer.
+	 * 
 	 * @param transaction
-	 * @param graphDb	  
+	 * @param graphDb
 	 * @author jdmarble
 	 */
 	public static void linkAddresses(final Node transaction)
@@ -929,6 +946,7 @@ public class GraphBuilder
 
 	/**
 	 * Gets the node that belongs to a given address.
+	 * 
 	 * @param address
 	 * @return
 	 * @author jdmarble
@@ -941,8 +959,8 @@ public class GraphBuilder
 		if (existing != null)
 		{
 			result = existing;
-		} 
-		
+		}
+
 		else
 		{
 			final Node newNode = graphDb.createNode();
@@ -969,22 +987,23 @@ public class GraphBuilder
 
 	/**
 	 * Returns all the inputs from a given transaction
+	 * 
 	 * @param transaction
 	 * @return
 	 * @author jdmarble
 	 */
-    public static Iterable<Node> getInputs(final Node transaction) 
-    {
-        return transaction.traverse(
-        		org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE,
-        		BlockchainRelationships.received, Direction.INCOMING);
-    }
+	public static Iterable<Node> getInputs(final Node transaction)
+	{
+		return transaction.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, BlockchainRelationships.received,
+				Direction.INCOMING);
+	}
 
-    /**
-     * Creates an owner if one doesn't exist and links it to the other addresses that have been identified as being owned by the same owner as this address.
-     * @param block
-     * @author jdmarble
-     */
+	/**
+	 * Creates an owner if one doesn't exist and links it to the other addresses that have been identified as being owned by the same owner as this address.
+	 * 
+	 * @param block
+	 * @author jdmarble
+	 */
 	private static void createOwners(final Node block)
 	{
 		// All addresses that redeemed an input at a transaction in this block.
@@ -1003,6 +1022,7 @@ public class GraphBuilder
 
 	/**
 	 * Creates unique owners.
+	 * 
 	 * @param address
 	 * @return
 	 * @author jdmarble
@@ -1015,8 +1035,8 @@ public class GraphBuilder
 		if (owns.isEmpty())
 		{
 			owner = createOwner(address);
-		} 
-		
+		}
+
 		else
 		{
 			owner = Iterables.getOnlyElement(owns).getStartNode();
@@ -1026,24 +1046,26 @@ public class GraphBuilder
 	}
 
 	/**
-	 * Gets all owners.  Use getOnwerOf to prevent duplicates.
+	 * Gets all owners. Use getOnwerOf to prevent duplicates.
+	 * 
 	 * @param address
 	 * @return
 	 * @author jdmarble
 	 */
 	private static Node createOwner(final Node address)
 	{
-		final Iterable<Node> addresses = address.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL, AddressRelTypes.same_owner, Direction.BOTH);
+		final Iterable<Node> addresses = address.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL, AddressRelTypes.same_owner,
+				Direction.BOTH);
 
 		final Node owner = address.getGraphDatabase().createNode();
-		
+
 		for (final Node owned : addresses)
 		{
 			owner.createRelationshipTo(owned, OwnerRelTypes.owns);
 		}
 		return owner;
 	}
-	
+
 	/**
 	 * A lazy Iterable of all "main" blocks in the database.
 	 * 
@@ -1054,9 +1076,9 @@ public class GraphBuilder
 	 * @return all main blocks in the database in breadth first order.
 	 * @author jdmarble
 	 */
-	public static Iterable<Node> getMainBlocks(final GraphDatabaseService graphDb)
+	public static Iterable<Node> getMainBlocks()
 	{
-		final Iterable<Node> blocks = getBlocks(graphDb);
+		final Iterable<Node> blocks = getBlocks();
 
 		return FluentIterable.from(blocks).filter(new Predicate<Node>()
 		{
@@ -1075,7 +1097,7 @@ public class GraphBuilder
 	 * @return all blocks in the database in breadth first order.
 	 * @author jdmarble
 	 */
-	public static Iterable<Node> getBlocks(final GraphDatabaseService graphDb)
+	public static Iterable<Node> getBlocks()
 	{
 		final Node root = graphDb.getReferenceNode();
 
@@ -1119,8 +1141,9 @@ public class GraphBuilder
 
 		// All addresses that redeemed an input at a transaction in this block.
 		final TraversalDescription td = Traversal.description().relationships(OwnerRelTypes.owns, Direction.OUTGOING).relationships(AddressRelTypes.redeemed, Direction.OUTGOING)
-				.relationships(BlockchainRelationships.received, Direction.OUTGOING).relationships(BlockchainRelationships.sent, Direction.OUTGOING).relationships(AddressRelTypes.redeemed, Direction.INCOMING)
-				.relationships(OwnerRelTypes.owns, Direction.INCOMING).evaluator(Evaluators.atDepth(6)).evaluator(Evaluators.returnWhereLastRelationshipTypeIs(OwnerRelTypes.owns));
+				.relationships(BlockchainRelationships.received, Direction.OUTGOING).relationships(BlockchainRelationships.sent, Direction.OUTGOING)
+				.relationships(AddressRelTypes.redeemed, Direction.INCOMING).relationships(OwnerRelTypes.owns, Direction.INCOMING).evaluator(Evaluators.atDepth(6))
+				.evaluator(Evaluators.returnWhereLastRelationshipTypeIs(OwnerRelTypes.owns));
 
 		for (final Path btcTransfer : td.traverse(owner))
 		{
