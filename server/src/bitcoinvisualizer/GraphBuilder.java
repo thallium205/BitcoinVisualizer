@@ -53,43 +53,43 @@ public class GraphBuilder
 {
 	private static final Logger LOG = Logger.getLogger(GraphBuilder.class.getName());
 
-	static GraphDatabaseAPI graphDb;
+	private static GraphDatabaseAPI graphDb;
 	private static WrappingNeoServerBootstrapper srv;
-	static Thread shutdownThread;
+	private static Thread shutdownThread;
 
 	// Index block hash
-	private static final String BLOCK_HASH = "block_hashes";
-	private static final String BLOCK_HASH_KEY = "block_hash";
-	static Index<Node> block_hashes;
+	public static final String BLOCK_HASH = "block_hashes";
+	public static final String BLOCK_HASH_KEY = "block_hash";
+	private static Index<Node> block_hashes;
 
 	// Index block height
-	private static final String BLOCK_HEIGHT = "block_heights";
-	private static final String BLOCK_HEIGHT_KEY = "block_height";
-	static Index<Node> block_heights;
+	public static final String BLOCK_HEIGHT = "block_heights";
+	public static final String BLOCK_HEIGHT_KEY = "block_height";
+	private static Index<Node> block_heights;
 
 	// Index Transaction hashes
-	private static final String TRANSACTION_HASH = "tx_hashes";
-	private static final String TRANSACTION_HASH_KEY = "tx_hash";
-	static Index<Node> tx_hashes;
+	public static final String TRANSACTION_HASH = "tx_hashes";
+	public static final String TRANSACTION_HASH_KEY = "tx_hash";
+	private static Index<Node> tx_hashes;
 
 	// Index Transaction index
-	private static final String TRANSACTION_INDEX = "tx_indexes";
-	private static final String TRANSACTION_INDEX_KEY = "tx_index";
-	static Index<Node> tx_indexes;
+	public static final String TRANSACTION_INDEX = "tx_indexes";
+	public static final String TRANSACTION_INDEX_KEY = "tx_index";
+	private static Index<Node> tx_indexes;
 
 	// Address hash
-	private static final String ADDRESS_HASH = "addr_hashes";
-	private static final String ADDRESS_HASH_KEY = "addr_hash";
-	static Index<Node> addresses;
+	public static final String ADDRESS_HASH = "addr_hashes";
+	public static final String ADDRESS_HASH_KEY = "addr_hash";
+	private static Index<Node> addresses;
 
 	// Owner address hash
-	private static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
-	private static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
-	static Index<Node> owned_addresses;
+	public static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
+	public static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
+	private static Index<Node> owned_addresses;
 
 	// Index IPV4 address
-	private static final String IPV4 = "ipv4_addrs";
-	private static final String IPV4_KEY = "ipv4_addr";
+	public static final String IPV4 = "ipv4_addrs";
+	public static final String IPV4_KEY = "ipv4_addr";
 	static Index<Node> ipv4_addrs;
 
 	/**
@@ -123,14 +123,6 @@ public class GraphBuilder
 	public static enum OwnerRelTypes implements RelationshipType
 	{
 		owns, transfers;
-	}
-
-	/**
-	 * Represents a data relationship
-	 */
-	public static enum DataType implements RelationshipType
-	{
-		metadata;
 	}
 
 	/**
@@ -259,12 +251,10 @@ public class GraphBuilder
 				// Update the metadata node of the last database block
 				graphDb.getReferenceNode().setProperty("last_database_block", currentBlock.getHash());
 				
-				tx.success();
-				
 				// Update the previous block node to the current one and repeat
 				lastDatabaseBlockIndex = currentBlock.getBlock_index();
-
-
+				
+				tx.success();
 			}
 
 			catch (FetcherException e)
@@ -395,6 +385,26 @@ public class GraphBuilder
 		}
 		LOG.info("Linking owners completed.");
 		LOG.info("Building high level graph completed.");
+	}
+	
+	/**
+	 * Scrapes the internet, associating bitcoin addresses to entities.  The primary method this function uses is to scrape the signatures of bitcointalk.org users.
+	 */
+	public static void Scrape()
+	{
+		LOG.info("Begin scraping...");
+		
+		try
+		{
+			Scraper.BitcoinTalkProfiles(graphDb, owned_addresses);
+		} 
+		
+		catch (IOException e)
+		{
+			LOG.log(Level.SEVERE, "Scraping error.  Aborting...", e);
+		}
+		
+		LOG.info("Scraping complete.");		
 	}
 
 	/**
@@ -801,32 +811,36 @@ public class GraphBuilder
 		// Sometimes old blockchain data is bunk, so we ignore these anomalies
 		if (prevOut == null)
 			return;
-
+		
 		// We redeem the output transaction from a previous transaction using an index.
-		Node transactionNode = tx_indexes.query(TRANSACTION_INDEX_KEY, prevOut.getTx_index()).getSingle();
-
-		if (transactionNode != null)
+		// Note: There are very rare transactions that redeem from multiple blocks, such as: bc75d4718ba30e978c1a2d9fc2c3bfaa2e4b891dd186cda196b00363a557770a
+		// As a result, we must get an iterable and go through each transaction node
+		for (Node transactionNode : tx_indexes.query(TRANSACTION_INDEX_KEY, prevOut.getTx_index()))
 		{
-			// We have found the transaction node. Now we find the corresponding money node by looking at "sent" transactions
-			Iterable<Relationship> moneyNodeRelationships = transactionNode.getRelationships(BlockchainRelationships.sent, Direction.OUTGOING);
-			for (Iterator<Relationship> moneyIter = moneyNodeRelationships.iterator(); moneyIter.hasNext();)
+			if (transactionNode != null)
 			{
-				// For each sent transaction, we get the nodes attached to it. There will only ever be 2 to iterate over, and in very rare cases, 3 or 4 more nodes for "weird"
-				// transactions.
-				Node[] moneyNodes = moneyIter.next().getNodes();
-				for (int i = 0; i < moneyNodes.length; i++)
+				// We have found the transaction node. Now we find the corresponding money node by looking at "sent" transactions
+				Iterable<Relationship> moneyNodeRelationships = transactionNode.getRelationships(BlockchainRelationships.sent, Direction.OUTGOING);
+				for (Iterator<Relationship> moneyIter = moneyNodeRelationships.iterator(); moneyIter.hasNext();)
 				{
-					// Is this the money node we're looking for!?
-					if (moneyNodes[i].hasProperty("addr") && moneyNodes[i].hasProperty("n") && ((String) moneyNodes[i].getProperty("addr")).contains(prevOut.getAddr())
-							&& ((Integer) moneyNodes[i].getProperty("n") == prevOut.getN()))
+					// For each sent transaction, we get the nodes attached to it. There will only ever be 2 to iterate over, and in very rare cases, 3 or 4 more nodes for "weird"
+					// transactions.
+					Node[] moneyNodes = moneyIter.next().getNodes();
+					for (int i = 0; i < moneyNodes.length; i++)
 					{
-						// We have found the money node that redeemed this one. Create the relationship.
-						moneyNodes[i].createRelationshipTo(transacstionNode, BlockchainRelationships.received);
-						break;
+						// Is this the money node we're looking for!?
+						if (moneyNodes[i].hasProperty("addr") && moneyNodes[i].hasProperty("n") && ((String) moneyNodes[i].getProperty("addr")).contains(prevOut.getAddr())
+								&& ((Integer) moneyNodes[i].getProperty("n") == prevOut.getN()))
+						{
+							// We have found the money node that redeemed this one. Create the relationship.
+							moneyNodes[i].createRelationshipTo(transacstionNode, BlockchainRelationships.received);
+							break;
+						}
 					}
 				}
 			}
 		}
+
 	}
 
 	/**

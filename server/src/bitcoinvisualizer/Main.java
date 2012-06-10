@@ -14,7 +14,6 @@ import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
-
 public class Main
 {
 	private static final java.util.logging.Logger LOG = Logger.getLogger(Main.class.getName());
@@ -31,47 +30,20 @@ public class Main
 		{
 			// Get values
 			CommandLine line = parser.parse(getOptions(), args);
-			
-			if (line.hasOption("path"))
-			{
-				boolean validate = true;
-				if (line.hasOption("validate"))
-					validate = Boolean.parseBoolean(line.getOptionValue("validate"));
-				GraphBuilder.StartDatabase(line.getOptionValue("path"));
-				GraphBuilder.DownloadAndSaveBlockChain(validate);
-				GraphBuilder.BuildHighLevelGraph();	
-				// GraphBuilder.StopDatabase(); // Debug.
-				LOG.info("Completed.");
-			}
-			
+			boolean validate = true;
+			if (line.hasOption("validate"))
+				validate = Boolean.parseBoolean(line.getOptionValue("validate"));
+			GraphBuilder.StartDatabase(line.getOptionValue("path"));
+			// GraphBuilder.DownloadAndSaveBlockChain(validate);
+			// GraphBuilder.BuildHighLevelGraph();
+			// GraphBuilder.StopDatabase(); // Debug.
+			LOG.info("Completed.");
+
+			// Optional params			
 			// If the user activated the scraper
-			else if (line.hasOption("scraper"))
+			if (line.hasOption("scraper"))
 			{
-				try
-				{
-					Scraper scraper = new Scraper("scraper.sql");
-					scraper.bitcoinTalkProfiles();
-				}
-
-				catch (ClassNotFoundException e)
-				{
-					LOG.log(Level.SEVERE, "Unable to start the scraper.", e);
-				}
-
-				catch (SQLException e)
-				{
-					LOG.log(Level.SEVERE, "Unable to start the scraper.", e);
-				}
-
-				catch (IOException e)
-				{
-					LOG.log(Level.SEVERE, "Unable to scrape the website.", e);
-				}
-			}
-			
-			else
-			{
-				LOG.info("No options selected.");
+				// GraphBuilder.Scrape();
 			}
 		}
 

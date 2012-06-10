@@ -48,7 +48,6 @@ public class Fetcher
 	 */
 	public static BlockJsonType GetBlock(Integer index) throws FetcherException
 	{
-
 		LOG.info("Downloading block: " + index);
 		URL url;
 		try
