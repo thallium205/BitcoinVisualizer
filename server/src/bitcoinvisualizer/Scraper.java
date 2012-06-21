@@ -123,7 +123,7 @@ public class Scraper
 
 							catch (AddressFormatException e)
 							{
-								LOG.log(Level.INFO, word + " is not a valid Bitcoin address.  Skipping.", e);
+								LOG.log(Level.INFO, addr + " is not a valid Bitcoin address.  Skipping.", e);
 							}
 						}
 					}

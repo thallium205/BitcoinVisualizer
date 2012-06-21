@@ -1,2 +1,28 @@
-h1= title
-p Welcome to #{title}
+head
+  include ../includes/bootstrap
+
+div.topbar
+  div.fill
+    div.container
+      a(href='#').brand #{title}
+      ul.nav
+        li.active 
+          a(href='#') Home
+        li  
+          a(href='#') About
+        li  
+          a(href='#') Contact
+
+div.container
+  div.content
+    div.page-header
+      h1 #{title} 
+        small text
+    div.row
+      div.span10
+        h2 Main content
+      div.span4
+        h3 Secondary content
+
+  footer
+    p &copy; Company 2011

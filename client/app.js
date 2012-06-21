@@ -1,37 +1,42 @@
+var application_root = __dirname,
+    express = require("express"),
+    path = require("path"),
+    neo4j = require('neo4j');
 
-/**
- * Module dependencies.
- */
+// Database
+var db = new neo4j.GraphDatabase('http://localhost:7474');
 
-var express = require('express')
-  , routes = require('./routes');
-
-var app = module.exports = express.createServer();
-
-// Configuration
-
-app.configure(function(){
-  app.set('views', __dirname + '/views');
-  app.set('view engine', 'jade');
+// Config
+var app = express.createServer();
+app.configure(function () {
   app.use(express.bodyParser());
   app.use(express.methodOverride());
-  app.use(require('stylus').middleware({ src: __dirname + '/public' }));
   app.use(app.router);
-  app.use(express.static(__dirname + '/public'));
-});
-
-app.configure('development', function(){
+  app.use(express.static(path.join(application_root, "public")));
   app.use(express.errorHandler({ dumpExceptions: true, showStack: true }));
 });
 
-app.configure('production', function(){
-  app.use(express.errorHandler());
+// Homepage Route
+app.get('/', function(req, res){
+  res.render('index.jade', { title: 'My Site' });
 });
 
-// Routes
+// API Route
+app.get('/api', function (req, res) {
+  res.send('API is running');
+});
 
-app.get('/', routes.index);
+// API - block/hash
+app.get('/api/block/hash/:id', function (req, res) {
+  db.query("START block = node:block_hashes(block_hash=\"" + req.params.id + "\") MATCH (block) -- (x) RETURN x", function callback(err, result) {
+    if (err) {
+        res.send(err);
+    } else {
+        res.send(result);    // if an object, inspects the object
+    }
+})});
 
+// Launch server
 app.listen(3000, function(){
   console.log("Express server listening on port %d in %s mode", app.address().port, app.settings.env);
 });
