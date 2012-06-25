@@ -1,28 +1,105 @@
 head
-  include ../includes/bootstrap
-
-div.topbar
-  div.fill
-    div.container
-      a(href='#').brand #{title}
-      ul.nav
-        li.active 
-          a(href='#') Home
-        li  
-          a(href='#') About
-        li  
-          a(href='#') Contact
-
+	include ../includes/bootstrap
+	include ../includes/d3
+	
+div.navbar
+	div.navbar-inner
+		div.container
+			a(href='#').brand Block Viewer
+			ul.nav
+				li
+					a(href='#') What is this?
+				li  
+					a(href='#') Contact		
+			form.navbar-search.pull-right
+				input(type='text')(placeholder='Search').search-query
+				
 div.container
-  div.content
-    div.page-header
-      h1 #{title} 
-        small text
-    div.row
-      div.span10
-        h2 Main content
-      div.span4
-        h3 Secondary content
+	script					
+		d3.json("graph.json", function(json){	
+			var w = $(window).width(),
+			h = $(window).height();
+			
+			var links = json.edges,
+				nodes = {};	
+			
+			// Compute the distinct nodes from the links.
+			links.forEach(function(link) {
+				link.source = nodes[link.source] || (nodes[link.source] = {name: link.source});
+				link.target = nodes[link.target] || (nodes[link.target] = {name: link.target});
+			});
+			
+			var force = d3.layout.force()
+					.nodes(d3.values(nodes))
+					.links(links)
+					.size([w, h])
+					.linkDistance(60)
+					.charge(-300)
+					.on("tick", tick)
+					.start();
+			
+			var svg = d3.select("body").append("svg:svg")
+				.attr("width", w)
+				.attr("height", h);
+				
+			// Per-type markers, as they don't inherit styles.
+			svg.append("svg:defs").selectAll("marker")
+				.data(["from", "succeeds", "resolved"])
+				.enter().append("svg:marker")
+				.attr("id", String)
+				.attr("viewBox", "0 -5 10 10")
+				.attr("refX", 15)
+				.attr("refY", -1.5)
+				.attr("markerWidth", 6)
+				.attr("markerHeight", 6)
+				.attr("orient", "auto")
+				.append("svg:path")
+				.attr("d", "M0,-5L10,0L0,5");
+				
+			var path = svg.append("svg:g").selectAll("path")
+				.data(force.links())
+				.enter().append("svg:path")
+				.attr("class", function(d) { return "link " + d.edge; })
+				.attr("marker-end", function(d) { return "url(#" + d.edge + ")"; });
+				
+			var circle = svg.append("svg:g").selectAll("circle")
+				.data(force.nodes())
+				.enter().append("svg:circle")
+				.attr("r", 6)
+				.call(force.drag);
 
-  footer
-    p &copy; Company 2011
+			var text = svg.append("svg:g").selectAll("g")
+				.data(force.nodes())
+				.enter().append("svg:g");
+
+			// A copy of the text with a thick white stroke for legibility.
+			text.append("svg:text")
+				.attr("x", 8)
+				.attr("y", ".31em")
+				.attr("class", "shadow")
+				.text(function(d) { return d.name; });
+				
+			text.append("svg:text")
+				.attr("x", 8)
+				.attr("y", ".31em")
+				.text(function(d) { return d.name; });
+				
+			// Use elliptical arc path segments to doubly-encode directionality.
+			function tick() {
+				path.attr("d", function(d) {
+				var dx = d.target.x - d.source.x,
+					dy = d.target.y - d.source.y,
+					dr = Math.sqrt(dx * dx + dy * dy);
+				return "M" + d.source.x + "," + d.source.y + "A" + dr + "," + dr + " 0 0,1 " + d.target.x + "," + d.target.y;
+				});
+				
+			circle.attr("transform", function(d) {
+				return "translate(" + d.x + "," + d.y + ")";
+			});
+
+			text.attr("transform", function(d) {
+				return "translate(" + d.x + "," + d.y + ")";
+			});
+			}
+		});
+		
