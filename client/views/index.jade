@@ -15,91 +15,75 @@ div.navbar
 				input(type='text')(placeholder='Search').search-query
 				
 div.container
-	script					
-		d3.json("graph.json", function(json){	
-			var w = $(window).width(),
-			h = $(window).height();
+	script			
+		var width = $(window).width(),
+		height = $(window).height();		
+		
+		var svg = d3.select("body").append("svg")
+			.attr("width", width)
+			.attr("height", height);
 			
-			var links = json.edges,
-				nodes = {};	
+		var force = d3.layout.force()
+			.gravity(.05)
+			.distance(100)
+			.charge(-100)
+			.size([width, height]);
+
+		d3.json("graph.json", function(json) 
+		{				
+			var d3Nodes = [];
+			var d3Links = [];
 			
-			// Compute the distinct nodes from the links.
-			links.forEach(function(link) {
-				link.source = nodes[link.source] || (nodes[link.source] = {name: link.source});
-				link.target = nodes[link.target] || (nodes[link.target] = {name: link.target});
-			});
+			for (var node in json.graph.nodes.node)
+			{
+				d3Nodes.push({"name":json.graph.nodes.node[node]['@'].id});				
+			}
 			
-			var force = d3.layout.force()
-					.nodes(d3.values(nodes))
-					.links(links)
-					.size([w, h])
-					.linkDistance(60)
-					.charge(-300)
-					.on("tick", tick)
-					.start();
+			for (var edge in json.graph.edges.edge)
+			{
+				d3Links.push({"source":json.graph.edges.edge[edge]['@'].source, "target":json.graph.edges.edge[edge]['@'].target});
+			}			
 			
-			var svg = d3.select("body").append("svg:svg")
-				.attr("width", w)
-				.attr("height", h);
-				
-			// Per-type markers, as they don't inherit styles.
-			svg.append("svg:defs").selectAll("marker")
-				.data(["from", "succeeds", "resolved"])
-				.enter().append("svg:marker")
-				.attr("id", String)
-				.attr("viewBox", "0 -5 10 10")
-				.attr("refX", 15)
-				.attr("refY", -1.5)
-				.attr("markerWidth", 6)
-				.attr("markerHeight", 6)
-				.attr("orient", "auto")
-				.append("svg:path")
-				.attr("d", "M0,-5L10,0L0,5");
-				
-			var path = svg.append("svg:g").selectAll("path")
+			force
+				.nodes(d3Nodes)
+				.links(d3Links)
+				.start();		
+			
+			// alert(force.nodes());
+			
+			var link = svg.selectAll(".link")
 				.data(force.links())
-				.enter().append("svg:path")
-				.attr("class", function(d) { return "link " + d.edge; })
-				.attr("marker-end", function(d) { return "url(#" + d.edge + ")"; });
-				
-			var circle = svg.append("svg:g").selectAll("circle")
+				.enter().append("line")
+				.attr("class", "link");			
+
+			var node = svg.selectAll(".node")
 				.data(force.nodes())
-				.enter().append("svg:circle")
-				.attr("r", 6)
+				.enter().append("g")
+				.attr("class", "node")
 				.call(force.drag);
 
-			var text = svg.append("svg:g").selectAll("g")
-				.data(force.nodes())
-				.enter().append("svg:g");
+			node.append("image")
+				.attr("xlink:href", "https://github.com/favicon.ico")
+				.attr("x", -8)
+				.attr("y", -8)
+				.attr("width", 16)
+				.attr("height", 16);
 
-			// A copy of the text with a thick white stroke for legibility.
-			text.append("svg:text")
-				.attr("x", 8)
-				.attr("y", ".31em")
-				.attr("class", "shadow")
-				.text(function(d) { return d.name; });
+			node.append("text")
+				.attr("dx", 12)
+				.attr("dy", ".35em")
+				.text(function(d) { return d.name });				
 				
-			text.append("svg:text")
-				.attr("x", 8)
-				.attr("y", ".31em")
-				.text(function(d) { return d.name; });
-				
-			// Use elliptical arc path segments to doubly-encode directionality.
-			function tick() {
-				path.attr("d", function(d) {
-				var dx = d.target.x - d.source.x,
-					dy = d.target.y - d.source.y,
-					dr = Math.sqrt(dx * dx + dy * dy);
-				return "M" + d.source.x + "," + d.source.y + "A" + dr + "," + dr + " 0 0,1 " + d.target.x + "," + d.target.y;
-				});
-				
-			circle.attr("transform", function(d) {
-				return "translate(" + d.x + "," + d.y + ")";
+			force.on("tick", function()
+			{
+				link
+					.attr("x1", function(d) { return d.source.x; })
+					.attr("y1", function(d) { return d.source.y; })
+					.attr("x2", function(d) { return d.target.x; })
+					.attr("y2", function(d) { return d.target.y; });
+					
+				node
+					.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
 			});
-
-			text.attr("transform", function(d) {
-				return "translate(" + d.x + "," + d.y + ")";
-			});
-			}
 		});
 		

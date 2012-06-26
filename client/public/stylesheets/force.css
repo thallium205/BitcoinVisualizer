@@ -1,34 +1,8 @@
-path.link {
-  fill: none;
-  stroke: #666;
-  stroke-width: 1.5px;
+.link {
+  stroke: #ccc;
 }
 
-marker#from {
-  fill: green;
-}
-
-path.link.from {
-  stroke: green;
-}
-
-path.link.succeeds {
-  stroke-dasharray: 0,2 1;
-}
-
-circle {
-  fill: #ccc;
-  stroke: #333;
-  stroke-width: 1.5px;
-}
-
-text {
-  font: 10px sans-serif;
+.node text {
   pointer-events: none;
-}
-
-text.shadow {
-  stroke: #fff;
-  stroke-width: 3px;
-  stroke-opacity: .8;
+  font: 10px sans-serif;
 }

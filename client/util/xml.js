@@ -1,7 +1,6 @@
 module.exports = {
 
-
-xmlwriter: function XMLWriter()
+writer: function  XMLWriter()
 {
     this.XML=[];
     this.Nodes=[];
