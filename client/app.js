@@ -31,15 +31,24 @@ app.get('/api', function (req, res) {
 
 // API - block/hash
 app.get('/api/block/hash/:id.:format?', function (req, res) 
-{	
+{
+	
+		
 	var 
 	query = [
 		'START node = node:block_hashes(block_hash={blockId})',
 		'MATCH node - [rel] - neighbor ',
 		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
+	selfQuery = [
+		'START node = node:block_hashes(block_hash={blockId})',
+		'RETURN COLLECT(node) AS node'].join('\n'),
 	params = {
 		blockId: req.params.id,
-		};
+		},
+	queryResult = null,
+	selfResult = null;
+	
+	
 		
 	db.query(query, params, function callback(err, result)
 	{
@@ -49,17 +58,52 @@ app.get('/api/block/hash/:id.:format?', function (req, res)
 		}
 		
 		else
-		{	
-			if (req.params.format == 'json')
-			{
-				sendJson(result, res);				
-			}
-			else
-			{
-				sendXml(result, res);
+		{			
+			queryResult = result;
+			
+			if (queryResult != null && selfResult != null)
+			{	
+				// Combine the queries
+				queryResult[0].nodes.push(selfResult[0].node[0]);				
+				if (req.params.format == 'json')
+				{
+					sendJson(queryResult, res);				
+				}
+				else
+				{
+					sendXml(queryResult, res);
+				}
 			}
 		}
 	});
+	
+	db.query(selfQuery, params, function callback(err, result)
+	{
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{	
+			selfResult = result;
+			
+			if (queryResult != null && selfResult != null)
+			{	
+				// Combine the queries
+				queryResult[0].nodes.push(selfResult[0].node[0]);				
+				if (req.params.format == 'json')
+				{
+					sendJson(queryResult, res);				
+				}
+				else
+				{
+					sendXml(queryResult, res);
+				}
+			}
+		}
+	});
+	
 });
 
 // Format database response to gexf

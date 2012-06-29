@@ -10,80 +10,10 @@ div.navbar
 				li
 					a(href='#') What is this?
 				li  
-					a(href='#') Contact		
-			form.navbar-search.pull-right
+					a(href='#') Contact
+			form#search.navbar-search.pull-right
 				input(type='text')(placeholder='Search').search-query
 				
 div.container
-	script			
-		var width = $(window).width(),
-		height = $(window).height();		
-		
-		var svg = d3.select("body").append("svg")
-			.attr("width", width)
-			.attr("height", height);
-			
-		var force = d3.layout.force()
-			.gravity(.05)
-			.distance(100)
-			.charge(-100)
-			.size([width, height]);
-
-		d3.json("graph.json", function(json) 
-		{				
-			var d3Nodes = [];
-			var d3Links = [];
-			
-			for (var node in json.graph.nodes.node)
-			{
-				d3Nodes.push({"name":json.graph.nodes.node[node]['@'].id});				
-			}
-			
-			for (var edge in json.graph.edges.edge)
-			{
-				d3Links.push({"source":json.graph.edges.edge[edge]['@'].source, "target":json.graph.edges.edge[edge]['@'].target});
-			}			
-			
-			force
-				.nodes(d3Nodes)
-				.links(d3Links)
-				.start();		
-			
-			// alert(force.nodes());
-			
-			var link = svg.selectAll(".link")
-				.data(force.links())
-				.enter().append("line")
-				.attr("class", "link");			
-
-			var node = svg.selectAll(".node")
-				.data(force.nodes())
-				.enter().append("g")
-				.attr("class", "node")
-				.call(force.drag);
-
-			node.append("image")
-				.attr("xlink:href", "https://github.com/favicon.ico")
-				.attr("x", -8)
-				.attr("y", -8)
-				.attr("width", 16)
-				.attr("height", 16);
-
-			node.append("text")
-				.attr("dx", 12)
-				.attr("dy", ".35em")
-				.text(function(d) { return d.name });				
-				
-			force.on("tick", function()
-			{
-				link
-					.attr("x1", function(d) { return d.source.x; })
-					.attr("y1", function(d) { return d.source.y; })
-					.attr("x2", function(d) { return d.target.x; })
-					.attr("y2", function(d) { return d.target.y; });
-					
-				node
-					.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
-			});
-		});
-		
+	script
+		app();
