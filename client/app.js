@@ -29,51 +29,35 @@ app.get('/api', function (req, res) {
   res.send('API is running');
 });
 
-// API - block/hash
-app.get('/api/block/hash/:id.:format?', function (req, res) 
-{
-	
-		
+// API
+// Node
+app.get('/api/node/:id.:format?', function (req, res) 
+{		
 	var 
 	query = [
-		'START node = node:block_hashes(block_hash={blockId})',
+		'START node = node({nodeId})',
 		'MATCH node - [rel] - neighbor ',
 		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
 	selfQuery = [
-		'START node = node:block_hashes(block_hash={blockId})',
+		'START node = node({nodeId})',
 		'RETURN COLLECT(node) AS node'].join('\n'),
 	params = {
-		blockId: req.params.id,
+		nodeId: parseInt(req.params.id, 10),
 		},
 	queryResult = null,
-	selfResult = null;
-	
-	
+	selfResult = null;	
 		
 	db.query(query, params, function callback(err, result)
 	{
 		if (err)
-		{
+		{			
 			res.send(err);
 		}
 		
 		else
 		{			
 			queryResult = result;
-			
-			if (queryResult != null && selfResult != null)
-			{	
-				// Combine the queries
-				queryResult[0].nodes.push(selfResult[0].node[0]);				
-				if (req.params.format == 'json')
-				{
-					sendJson(queryResult, res);				
-				}
-				else
-				{
-					sendXml(queryResult, res);
-				}
-			}
+			sendResult(queryResult, selfResult, req, res);
 		}
 	});
 	
@@ -87,24 +71,307 @@ app.get('/api/block/hash/:id.:format?', function (req, res)
 		else
 		{	
 			selfResult = result;
-			
-			if (queryResult != null && selfResult != null)
-			{	
-				// Combine the queries
-				queryResult[0].nodes.push(selfResult[0].node[0]);				
-				if (req.params.format == 'json')
-				{
-					sendJson(queryResult, res);				
-				}
-				else
-				{
-					sendXml(queryResult, res);
-				}
-			}
+			sendResult(queryResult, selfResult, req, res);
+		}
+	});	
+});
+
+// Block hash
+app.get('/api/block/hash/:id.:format?', function (req, res) 
+{		
+	var 
+	query = [
+		'START node = node:block_hashes(block_hash={blockHash})',
+		'MATCH node - [rel] - neighbor ',
+		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
+	selfQuery = [
+		'START node = node:block_hashes(block_hash={blockHash})',
+		'RETURN COLLECT(node) AS node'].join('\n'),
+	params = {
+		blockHash: req.params.id,
+		},
+	queryResult = null,
+	selfResult = null;	
+		
+	db.query(query, params, function callback(err, result)
+	{
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{			
+			queryResult = result;
+			sendResult(queryResult, selfResult, req, res);
 		}
 	});
 	
+	db.query(selfQuery, params, function callback(err, result)
+	{
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{	
+			selfResult = result;
+			sendResult(queryResult, selfResult, req, res);
+		}
+	});	
 });
+
+// Block height
+app.get('/api/block/height/:id.:format?', function (req, res) 
+{		
+	var 
+	query = [
+		'START node = node:block_heights(block_height={blockHeight})',
+		'MATCH node - [rel] - neighbor ',
+		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
+	selfQuery = [
+		'START node = node:block_heights(block_height={blockHeight})',
+		'RETURN COLLECT(node) AS node'].join('\n'),
+	params = {
+		blockHeight: req.params.id,
+		},
+	queryResult = null,
+	selfResult = null;	
+		
+	db.query(query, params, function callback(err, result)
+	{
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{			
+			queryResult = result;
+			sendResult(queryResult, selfResult, req, res);
+		}
+	});
+	
+	db.query(selfQuery, params, function callback(err, result)
+	{
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{	
+			selfResult = result;
+			sendResult(queryResult, selfResult, req, res);
+		}
+	});	
+});
+
+// Transaction hash
+app.get('/api/trans/:id.:format?', function (req, res) 
+{		
+	var 
+	query = [
+		'START node = node:tx_hashes(tx_hash={tranHash})',
+		'MATCH node - [rel] - neighbor ',
+		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
+	selfQuery = [
+		'START node = node:tx_hashes(tx_hash={tranHash})',
+		'RETURN COLLECT(node) AS node'].join('\n'),
+	params = {
+		tranHash: req.params.id,
+		},
+	queryResult = null,
+	selfResult = null;	
+		
+	db.query(query, params, function callback(err, result)
+	{
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{			
+			queryResult = result;
+			sendResult(queryResult, selfResult, req, res);
+		}
+	});
+	
+	db.query(selfQuery, params, function callback(err, result)
+	{
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{	
+			selfResult = result;
+			sendResult(queryResult, selfResult, req, res);
+		}
+	});	
+});
+
+// Address
+app.get('/api/addr/:id.:format?', function (req, res) 
+{		
+	var 
+	query = [
+		'START node = node:addr_hashes(addr_hash={addr})',
+		'MATCH node - [rel] - neighbor ',
+		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
+	selfQuery = [
+		'START node = node:addr_hashes(addr_hash={addr})',
+		'RETURN COLLECT(node) AS node'].join('\n'),
+	params = {
+		addr: req.params.id,
+		},
+	queryResult = null,
+	selfResult = null;	
+		
+	db.query(query, params, function callback(err, result)
+	{
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{			
+			queryResult = result;
+			sendResult(queryResult, selfResult, req, res);
+		}
+	});
+	
+	db.query(selfQuery, params, function callback(err, result)
+	{
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{	
+			selfResult = result;
+			sendResult(queryResult, selfResult, req, res);
+		}
+	});	
+});
+
+// Owner
+app.get('/api/owns/:id.:format?', function (req, res) 
+{		
+	var 
+	query = [
+		'START node = node:owned_addr_hashes(owned_addr_hash={owner})',
+		'MATCH node - [rel] - neighbor ',
+		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
+	selfQuery = [
+		'START node = node:owned_addr_hashes(owned_addr_hash={owner})',
+		'RETURN COLLECT(node) AS node'].join('\n'),
+	params = {
+		owner: req.params.id,
+		},
+	queryResult = null,
+	selfResult = null;	
+		
+	db.query(query, params, function callback(err, result)
+	{
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{			
+			queryResult = result;
+			sendResult(queryResult, selfResult, req, res);
+		}
+	});
+	
+	db.query(selfQuery, params, function callback(err, result)
+	{
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{	
+			selfResult = result;
+			sendResult(queryResult, selfResult, req, res);
+		}
+	});	
+});
+
+// IPv4 Address
+app.get('/api/ipv4/:id.:format?', function (req, res) 
+{		
+	var 
+	query = [
+		'START node = node:ipv4_addrs(ipv4_addr={ip})',
+		'MATCH node - [rel] - neighbor ',
+		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
+	selfQuery = [
+		'START node = node:ipv4_addrs(ipv4_addr={ip})',
+		'RETURN COLLECT(node) AS node'].join('\n'),
+	params = {
+		ip: req.params.id,
+		},
+	queryResult = null,
+	selfResult = null;	
+		
+	db.query(query, params, function callback(err, result)
+	{
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{			
+			queryResult = result;
+			sendResult(queryResult, selfResult, req, res);
+		}
+	});
+	
+	db.query(selfQuery, params, function callback(err, result)
+	{
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{	
+			selfResult = result;
+			sendResult(queryResult, selfResult, req, res);
+		}
+	});	
+});
+
+function sendResult(queryResult, selfResult, req, res)
+{
+	if (queryResult != null && selfResult != null)
+	{	
+		// Combine the queries
+		queryResult[0].nodes.push(selfResult[0].node[0]);				
+		if (req.params.format == 'json')
+		{
+			sendJson(queryResult, res);				
+		}
+		else if (req.params.format == 'xml')
+		{
+			sendXml(queryResult, res);
+		}
+		else
+		{
+			res.send('{"error": "Must specify extension - .xml || .json"}');
+		}
+	}	
+}
 
 // Format database response to gexf
 function sendXml(result, res)
@@ -225,9 +492,19 @@ function toGexf(result)
 				xml.Attrib("label", "transaction");
 			}
 			
+			else if (result[0].nodes[node].data.hasOwnProperty("n") && result[0].nodes[node].data.hasOwnProperty("value") && result[0].nodes[node].data.hasOwnProperty("addr") && result[0].nodes[node].data.hasOwnProperty("type"))
+			{
+				xml.Attrib("label", "money");
+			}
+			
+			else if (result[0].nodes[node].data.hasOwnProperty("addr"))
+			{
+				xml.Attrib("label", "address");				
+			}
+			
 			else
 			{
-				xml.Attrib("label", "unknown");
+				xml.Attrib("label", "owner");
 			}			
 			
 			xml.BeginNode("attvalues");
