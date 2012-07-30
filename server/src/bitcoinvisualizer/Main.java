@@ -19,39 +19,61 @@ public class Main
 	private static final java.util.logging.Logger LOG = Logger.getLogger(Main.class.getName());
 
 	public static void main(String[] args)
-	{
-		// Print options
-		HelpFormatter formatter = new HelpFormatter();
-		formatter.printHelp("java -jar blockchainneo4j.jar", getOptions());
-
-		// Parse options
-		CommandLineParser parser = new GnuParser();
-		try
+	{		
+		boolean hasError = false;
+		
+		while (!hasError)
 		{
-			// Get values
-			CommandLine line = parser.parse(getOptions(), args);
-			boolean validate = true;
-			if (line.hasOption("validate"))
-				validate = Boolean.parseBoolean(line.getOptionValue("validate"));
-			GraphBuilder.StartDatabase(line.getOptionValue("path"));
-			// GraphBuilder.DownloadAndSaveBlockChain(validate);
-			// GraphBuilder.BuildHighLevelGraph();
-			// GraphBuilder.StopDatabase(); // Debug.
-			LOG.info("Completed.");
-
-			// Optional params			
-			// If the user activated the scraper
-			if (line.hasOption("scraper"))
+			// Print options
+			HelpFormatter formatter = new HelpFormatter();
+			formatter.printHelp("java -jar blockchainneo4j.jar", getOptions());
+	
+			// Parse options
+			CommandLineParser parser = new GnuParser();
+			try
 			{
-				// GraphBuilder.Scrape();
+				// Get values
+				CommandLine line = parser.parse(getOptions(), args);
+				boolean validate = true;
+				if (line.hasOption("validate"))
+					validate = Boolean.parseBoolean(line.getOptionValue("validate"));
+				if (!GraphBuilder.IsStarted())
+				{
+					GraphBuilder.StartDatabase(line.getOptionValue("path"));
+				}
+				// GraphBuilder.DownloadAndSaveBlockChain(validate);
+				// GraphBuilder.BuildHighLevelGraph();
+				// GraphBuilder.StopDatabase();
+				LOG.info("Completed.");
+	
+				// Optional params			
+				// If the user activated the scraper
+				if (line.hasOption("scraper"))
+				{
+					// GraphBuilder.Scrape();
+				}
+			}				
+	
+			catch (ParseException e)
+			{
+				LOG.log(Level.SEVERE, "Parsing failed.  Reason: " + e.getMessage(), e);
+				hasError = true;
 			}
-		}
-
-		catch (ParseException e)
-		{
-			LOG.log(Level.SEVERE, "Parsing failed.  Reason: " + e.getMessage(), e);
+			
+			// Sleep for 6 hours
+			try
+			{
+				Thread.sleep(21600000);
+			} 
+			
+			catch (InterruptedException e)
+			{
+				LOG.log(Level.SEVERE, "Thread sleep failed.  Reason: " + e.getMessage(), e);
+			}
+			
 		}
 	}
+	
 
 	/**
 	 * Creates the options menu

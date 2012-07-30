@@ -16,12 +16,20 @@ app.configure(function () {
   app.use(express.methodOverride());
   app.use(app.router);
   app.use(express.static(path.join(application_root, "public")));
-  app.use(express.errorHandler({ dumpExceptions: true, showStack: true }));
+});
+
+app.configure('production', function(){
+  app.use(express.errorHandler());
+});
+
+process.on("uncaughtException", function(err)
+{
+	console.log(err.message);
 });
 
 // Homepage Route
 app.get('/', function(req, res){
-  res.render('index.jade', { title: 'Dynamic Data from the server LAWL' });
+  res.render('index.jade', { title: 'Block Viewer' });
 });
 
 // API Route
@@ -357,7 +365,11 @@ function sendResult(queryResult, selfResult, req, res)
 	if (queryResult != null && selfResult != null)
 	{	
 		// Combine the queries
-		queryResult[0].nodes.push(selfResult[0].node[0]);				
+		for (i = 0; i < selfResult[0].node.length; i++)
+		{
+			queryResult[0].nodes.push(selfResult[0].node[i]);
+		}
+						
 		if (req.params.format == 'json')
 		{
 			sendJson(queryResult, res);				
@@ -548,10 +560,10 @@ function toGexf(result)
 		xml.EndNode();
 
 		return xml.ToString();
+		return xml.ToString();
 	}
 }
 
 // Launch server
-app.listen(3000, function(){
-  console.log("Express server listening on port %d in %s mode", app.address().port, app.settings.env);
-});
+app.listen(process.env.PORT || 3000);
+console.log("Express server listening on port %d in %s mode", app.address().port, app.settings.env);

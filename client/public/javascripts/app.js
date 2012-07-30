@@ -2,87 +2,183 @@ function app()
 {
 	var width = $(window).width(),
 	height = $(window).height();	
-		
+
 	var svg = d3.select("body").append("svg")
-		.attr("width", width)
-		.attr("height", height);
-		
-	svg.append("svg:defs").selectAll("marker")
-		.data(["succeeds", "from"])
-		.enter().append("svg:marker")
-		.attr("id", String)
-		.attr("viewBox", "0 -5 10 10")
-		.attr("refX", 25)
-		.attr("refY", -1.5)
-		.attr("markerWidth", 6)
-		.attr("markerHeight", 6)
-		.attr("orient", "auto")
-		.append("svg:path")
-		.attr("d", "M0,-5L10,0L0,5");
-		
+		.attr("width", '100%')
+		.attr("height", '89%')
+		.attr("viewBox", "0 0 100% 100%");
+
+	svg.append("svg:defs").selectAll("marker").data(["succeeds", "from", "received", "sent", "redeemed", "same_owner", "owns", "transfers"]).enter().append("svg:marker").attr("id", String).attr("viewBox", "0 -5 10 10").attr("refX", 25).attr("refY", -1.5).attr("markerWidth", 6).attr("markerHeight", 6).attr("orient", "auto").append("svg:path").attr("d", "M0,-5L10,0L0,5");
+
 	var force = d3.layout.force()
-		.gravity(.1)
-		.distance(50)
+		.gravity(.05)
+		.distance(150)
 		.charge(-400)
-		.theta(.2)
 		.size([width, height]);
-		
+
 	// Data structures
 	var nodes = {}; 
 	var links = {};	
-	
+	var nodeReqs = []; // Used to determine when to select and unselect nodes from the graph
+
 	var query = function(val)
-	{		
+	{	
+		$("#btnSubmit").button('loading');
 		if (val.length == 64)
-		{
+		{		
 			$.getJSON("http://localhost:3000/api/block/hash/" + val + ".json", function(graph)
 			{				
 				show(graph);
+				$("#btnSubmit").button('complete');
 			});		
 
 			$.getJSON("http://localhost:3000/api/trans/" + val + ".json", function(graph)
 			{				
 				show(graph);
+				$("#btnSubmit").button('complete');
 			});	
 		}
-		
+
 		else if (val.length > 30 && val.length < 36)
 		{
 			$.getJSON("http://localhost:3000/api/addr/" + val + ".json", function(graph)
 			{				
 				show(graph);
+				$("#btnSubmit").button('complete');
 			});	
 
 			$.getJSON("http://localhost:3000/api/owns/" + val + ".json", function(graph)
 			{				
 				show(graph);
+				$("#btnSubmit").button('complete');
 			});				
 		}
-		
+
 		else if (val.indexOf(".") != -1)
 		{
 			$.getJSON("http://localhost:3000/api/ipv4/" + val + ".json", function(graph)
 			{				
 				show(graph);
+				$("#btnSubmit").button('complete');
 			});
 		}
-		
+
 		else
-		{
+		{			
 			alert("Invalid input");
+			$("#btnSubmit").button('complete');
 		}
 	};
 	
+	// When a user clicks on a node
 	var nodeQuery = function(index)
-	{		
-		$.getJSON("http://localhost:3000/api/node/" + index + ".json", function(graph)
+	{	
+		var nodeIndex = $.inArray(index, nodeReqs);
+		// Add the index to the node requests array if it hasnt been requested before
+		if (nodeIndex === -1)
 		{
-			show(graph);
-		});	
+			$("#btnSubmit").button('loading');
+			nodeReqs.push(index);	
+			$.getJSON("http://localhost:3000/api/node/" + index + ".json", function(graph)
+			{
+				show(graph);
+				$("#btnSubmit").button('complete');
+			});	
+		}	
+		
+		// A user is unselecting a node they previously requested.  Lets remove it and all vertices/edges associated with it. TODO
+		else
+		{
+			var node = null;
+			// Find the node itself	
+			for (n in nodes)
+			{	
+				if (nodes[n].name === index)
+				{
+					node = nodes[n];
+					break;
+				}
+			}
+			
+			// Find the relationship to any perviously selected node
+			/*
+			var nodeRels = [];
+			for (selfNode in userReqs)
+			{				
+				for (link in links)
+				{
+					if (links[link].source.name === selfNode.name || links[link].target.name === selfNode.name)
+					{
+						// We have found the relationship that connects
+						nodeRels.push(links[link]);						
+					}
+				}
+			}
+			*/
+			
+			
+			var nodesToDelete = [];
+			nodesToDelete.push(node);
+			
+			while(nodesToDelete.length > 0)
+			{
+				var tempNode = nodesToDelete.pop();
+				for (link in links)
+				{
+					if (links[link].source.name === tempNode.name || links[link].target.name === tempNode.name)
+					{
+						// This link is connected to the node
+						for (n in nodes)
+						{
+							// We add a node to be removed
+							if (nodes[n].name === links[link].target.name || nodes[n].name === links[link].source.name)
+							{
+								// We do not want to add a user selected node to the list of nodes to delete
+								var userNode = false;
+								for (nd in nodes)
+								{
+									if (nodes[nd].name === nodeReqs)
+									{
+										userNode = true;
+									}
+								}
+								
+								if (!userNode)
+								{
+									nodesToDelete.push(nodes[n]);	
+									userNode = false;
+								}
+							}
+						}
+						
+						delete links[link];						
+					}
+				}
+				
+				// Delete the nodes			
+				for (n in nodes)
+				{
+					if (nodes[n].name === tempNode.name)
+					{
+						alert("deleting");
+						delete nodes[n];
+					}
+				}				
+			}		
+			
+			// Delete the node itself
+			// delete nodes[node];
+			
+			// Remove the node from the node requests array
+			nodeReqs.splice(nodeIndex, 1);	
+			
+			// Update the graph
+			show(getEmptyGraph());
+		}
 	}
 
 	var show = function(json)
-	{			
+	{	
 		for (var node in json.graph.nodes.node)
 		{			
 			if (!(json.graph.nodes.node[node]['@'].id in nodes))
@@ -90,16 +186,79 @@ function app()
 				nodes[json.graph.nodes.node[node]['@'].id] = {"name": json.graph.nodes.node[node]['@'].id, "data": json.graph.nodes.node[node]};
 			}			
 		}
-			
+
 		for (var edge in json.graph.edges.edge)
 		{	
 			links[json.graph.edges.edge[edge]['@'].id] = {"source": nodes[json.graph.edges.edge[edge]['@'].source], "target": nodes[json.graph.edges.edge[edge]['@'].target], "data":json.graph.edges.edge[edge]};				
 		}
+		
+		// Group large nodes into one aggregate node TODO
+		/*
+		for (node in nodes)
+		{		
+			var neighbors = getNeighbors(node);
+			var blockTypes = [];
+			var transactionTypes = [];
+			var moneyTypes = [];
+			var addressTypes = [];
+			var ownerTypes = [];
+			for (neighbor in neighbors)
+			{
+				switch(neighbor.data['@'].label)
+				{
+					case 'block':						
+						blockTypes.push(neighbor);
+						break;
+					case 'transaction':
+						transactionTypes.push(neighbor);
+						break;
+					case 'money':
+						moneyTypes.push(neighbor);
+						break;
+					case 'address':
+						addressTypes.push(neighbor);
+						break;
+					case 'owner':
+						ownerTypes.push(neighbor);
+						break;
+					default:
+						return 'unknown';
+				}
+			}
 			
+			if (blockTypes.length() > 9)
+			{
+				
+			}
+			
+			if (transactionTypes.length() > 9)
+			{
+				
+			}
+			
+			if (moneyTypes.length() > 9)
+			{
+				
+			}
+			
+			if (addressTypes.length() > 9)
+			{
+				
+			}
+			
+			if (ownerTypes.length() > 9)
+			{
+				
+			}		
+		}
+		*/
+		
+		
+		
 		force.nodes(d3.values(nodes))
 			.links(d3.values(links))
 			.start();	
-			
+
 		// Compute the data join	
 		var link = svg.selectAll(".link")
 			.data(force.links(), function(d)
@@ -107,13 +266,13 @@ function app()
 				// provides a unique index for data
 				return d.data['@'].id;
 			});
-			
+
 		// Add any incoming links
 		link.enter().append("line");
-		
+
 		// Remove any outgoing links
 		link.exit().remove();
-		
+
 		// Compute new attributes for entering and updating links
 		link.attr("class", function(d)
 		{
@@ -131,13 +290,13 @@ function app()
 			// provides a unique index for data
 			return d.data['@'].id;
 		});
-		
+
 		// Add any incoming nodes
 		node.enter().append("g");
-		
+
 		// Remove any outgoing nodes
 		node.exit().remove();
-		
+
 		// Compute new attributes for entering and updating nodes
 		node.attr("class", "node")	
 		//.each(function(d)
@@ -152,7 +311,7 @@ function app()
 		//			}
 		//			return content.join("\n");
 		//		}
-		//})
+		//	})
 		//})
 		.on("click", function(d)
 		{
@@ -196,7 +355,7 @@ function app()
 			{ 
 				// Return label based upon node type
 				switch(d.data['@'].label)
-				{						
+				{
 					case 'block':						
 						return d.data.attvalues.attvalue[0]['@'].value;
 						break;
@@ -217,7 +376,7 @@ function app()
 						return 'unknown';
 				}
 			});	
-				
+
 		force.on("tick", function()
 		{
 			link
@@ -225,17 +384,68 @@ function app()
 				.attr("y1", function(d) { return d.source.y; })
 				.attr("x2", function(d) { return d.target.x; })
 				.attr("y2", function(d) { return d.target.y; });
-					
+
 			node
 				.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
 		});	
 	};
 	
-	// Register search listener
+	// Helper functions
+	
+	// Returns an empty graph object
+	function getEmptyGraph()
+	{
+		var emptyGraph = {};
+		emptyGraph.graph = {};
+		emptyGraph.graph.edges = {};
+		emptyGraph.graph.edges.edge = [];		
+		emptyGraph.graph.nodes = {};
+		emptyGraph.graph.nodes.node = [];
+		return emptyGraph;
+	}
+	
+	// Returns the neighbor nodes given a node
+	/*
+	function getNeighbors(var node)
+	{
+		var neighborNodes = [];
+		for (link in links)
+		{
+			if (links[link].source.name === node.name || links[link].target.name === node.name)
+			{
+				// This link is connected to the node
+				for (n in nodes)
+				{
+					if (nodes[n].name === links[link].target.name)
+					{ 								
+						neighborNodes.push(node[n]);
+					}
+				}
+			}
+		}
+		
+		return neighborNodes;
+	}
+	*/
+
+	// Register listeners
 	$("#search").submit(function()
 	{
 		query($("input:first").val());
 		return false;
-	});	
+	});
+
+	$("#btnSubmit").click(function() 
+	{
+		query($("input:first").val());
+		return false;
+	});
 	
+	$("#btnClear").click(function()
+	{
+		nodes = {};
+		links = {};
+		show(getEmptyGraph());
+		return false;
+	});
 };

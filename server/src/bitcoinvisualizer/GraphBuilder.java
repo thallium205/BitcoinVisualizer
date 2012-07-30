@@ -56,6 +56,7 @@ public class GraphBuilder
 	private static GraphDatabaseAPI graphDb;
 	private static WrappingNeoServerBootstrapper srv;
 	private static Thread shutdownThread;
+	private static boolean isStarted = false;
 
 	// Index block hash
 	public static final String BLOCK_HASH = "block_hashes";
@@ -133,7 +134,7 @@ public class GraphBuilder
 	 */
 	public static void StartDatabase(final String dbPath)
 	{
-		LOG.info("Starting database...");
+		LOG.info("Starting database...");		
 		graphDb = new EmbeddedGraphDatabase(dbPath);
 		srv = new WrappingNeoServerBootstrapper(graphDb);
 		srv.start();
@@ -156,10 +157,12 @@ public class GraphBuilder
 				LOG.info("Stopping database...");
 				srv.stop();
 				graphDb.shutdown();
+				isStarted = false;
 				LOG.info("Database stopped.");
 			}
 		};
 		
+		isStarted = true;
 		LOG.info("Database started.");
 	}
 
@@ -172,7 +175,17 @@ public class GraphBuilder
 		srv.stop();
 		graphDb.shutdown();
 		Runtime.getRuntime().removeShutdownHook(shutdownThread);
+		isStarted = false;
 		LOG.info("Database stopped.");
+	}
+	
+	/**
+	 * Returns if the database is already started or not
+	 * @return
+	 */
+	public static boolean IsStarted()
+	{
+		return isStarted;
 	}
 
 	/**

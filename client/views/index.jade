@@ -8,12 +8,20 @@ div.navbar
 			a(href='#').brand Block Viewer
 			ul.nav
 				li
-					a(href='#') What is this?
+					a(href='#') FAQ
 				li  
-					a(href='#') Contact
-			form#search.navbar-search.pull-right
-				input(type='text')(placeholder='Search').search-query
-				
-div.container
+					a(href='#') API
+			form#search.navbar-search.pull-right				
+				input(id='txtInput')(type='text')(placeholder='Address / SHA hash / height')(style='width:300px').search-query
+				button(id='btnSubmit')(data-loading-text='Loading...')(data-complete-text='Search').btn.btn-primary.btn-large Search
+		form.form-inline.pull-right
+			button(id='btnFilter')(data-toggle='dropdown').btn.dropdown-toggle Filter
+				span.caret
+			ul.dropdown-menu
+				li
+					a(href='#') FAQ
+				li  
+					a(href='#') API
+			button(id='btnClear').btn Clear
 	script
 		app();
