@@ -17,6 +17,7 @@ public class BlockType
 	private String mrkl_root;
 	private Long time;
 	private Long bits;
+	private Long fee;
 	private Long nonce;
 	private Integer n_tx;
 	private Integer size;
@@ -75,6 +76,14 @@ public class BlockType
 	public void setBits(Long bits)
 	{
 		this.bits = bits;
+	}	
+	public Long getFee()
+	{
+		return fee;
+	}
+	public void setFee(Long fee)
+	{
+		this.fee = fee;
 	}
 	public Long getNonce()
 	{

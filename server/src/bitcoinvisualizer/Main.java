@@ -1,7 +1,5 @@
 package bitcoinvisualizer;
 
-import java.io.IOException;
-import java.sql.SQLException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -41,16 +39,20 @@ public class Main
 				{
 					GraphBuilder.StartDatabase(line.getOptionValue("path"));
 				}
-				// GraphBuilder.DownloadAndSaveBlockChain(validate);
-				// GraphBuilder.BuildHighLevelGraph();
+				
+				//GraphBuilder.DownloadAndSaveBlockChain(validate);
+				
+				if (line.hasOption("high"))
+				{
+		//			GraphBuilder.BuildHighLevelGraph();
+				}
 				// GraphBuilder.StopDatabase();
 				LOG.info("Completed.");
-	
-				// Optional params			
+			
 				// If the user activated the scraper
 				if (line.hasOption("scraper"))
 				{
-					// GraphBuilder.Scrape();
+			//		GraphBuilder.Scrape();
 				}
 			}				
 	
@@ -88,10 +90,12 @@ public class Main
 		Option validate = OptionBuilder.hasArg().withArgName("true/false")
 				.withDescription("Toggle the verifier which checks if the local json files form a complete blockchain.  Default: true.  Recommended.").create("validate");
 		Option scraper = OptionBuilder.withArgName("scraper").withDescription("Runs the scraper which attempts to associate bitcoin addresses to real world entities.").create("scraper");
+		Option high = OptionBuilder.withArgName("high").withDescription("Builds the high level data structure.").create("high");
 		Options options = new Options();
 		options.addOption(dbPath);
 		options.addOption(validate);
 		options.addOption(scraper);
+		options.addOption(high);
 		return options;
 	}
 }
