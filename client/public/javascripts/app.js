@@ -352,39 +352,53 @@ function app()
 		{
 			// If it is a group node we have to list what the user wants to show!
 			if (d.data['@'].label === 'group')
-			{	
-				$('#tblGroup tbody tr').click( function(e) 
+			{			
+				// Load the data into the table.  We can assume the columns and rows match up since each group-node logically grouped nodes of the same type.
+				// Load the columns
+				var columnVals = d.data['@'].group.nodes[0].data.attvalues.attvalue;
+				var columns = [];
+				for (var i = 0; i < columnVals.length; i++)
 				{
-					alert("clicked");
-					$(this).toggleClass('row_selected');
-				});
+					columns.push({'sTitle': json.graph.attributes[0].attribute[columnVals[i]['@'].for]['@'].title});
+				}
 				
+				// Load rows
+				var rowVals = d.data['@'].group.nodes;
+				var rows = [];
+				var row = [];
+				var nodeVals;
+				for (var i = 0; i < rowVals.length; i++)
+				{
+					nodeVals = rowVals[i].data.attvalues.attvalue;
+					for (var j = 0; j < nodeVals.length; j++)
+					{
+						row.push(nodeVals[j]['@'].value);
+					}
+					rows.push(row);
+					row = [];
+				}
+				
+				// Load the data table				
 				$('#tblGroup').dataTable( 
 				{
-					"aaData": [
-						/* Reduced data set */
-						[ "Trident", "Internet Explorer 4.0", "Win 95+", 4, "X" ],
-						[ "Trident", "Internet Explorer 5.0", "Win 95+", 5, "C" ],
-						[ "Trident", "Internet Explorer 5.5", "Win 95+", 5.5, "A" ],
-						[ "Trident", "Internet Explorer 6.0", "Win 98+", 6, "A" ],
-						[ "Trident", "Internet Explorer 7.0", "Win XP SP2+", 7, "A" ],
-						[ "Gecko", "Firefox 1.5", "Win 98+ / OSX.2+", 1.8, "A" ],
-						[ "Gecko", "Firefox 2", "Win 98+ / OSX.2+", 1.8, "A" ],
-						[ "Gecko", "Firefox 3", "Win 2k+ / OSX.3+", 1.9, "A" ],
-						[ "Webkit", "Safari 1.2", "OSX.3", 125.5, "A" ],
-						[ "Webkit", "Safari 1.3", "OSX.3", 312.8, "A" ],
-						[ "Webkit", "Safari 2.0", "OSX.4+", 419.3, "A" ],
-						[ "Webkit", "Safari 3.0", "OSX.4+", 522.1, "A" ]
-					],
-					"aoColumns": [
-						{ "sTitle": "Engine" },
-						{ "sTitle": "Browser" },
-						{ "sTitle": "Platform" },
-						{ "sTitle": "Version" },
-						{ "sTitle": "Grade"}
-					]
-				} );    
-
+					"sDom": "<'row'<'span6'l><'span6'f>r>t<'row'<'span6'i><'span6'p>>",
+					"sPaginationType": "bootstrap",
+					"oLanguage": {"sLengthMenu": "_MENU_ records per page"},
+					"aaData": rows,
+					"aoColumns": columns,
+					"bDestroy": true
+				});  
+				
+				// Load the click listener
+				$('#tblGroup tbody tr').live('click', function ()
+				{					
+					$(this).toggleClass('row_selected');					
+				});
+					
+				var z = $('#tblGroup');
+				
+				// Label and display the modal
+				$('#txtGroupModalTitle').html(d.data['@'].group.nodes[0].data['@'].label.charAt(0).toUpperCase() + d.data['@'].group.nodes[0].data['@'].label.slice(1) + 's');
 				$('#groupModal').modal('show');
 			}
 			
@@ -494,6 +508,7 @@ function app()
 	function groupJson(json, arr)
 	{
 		var group = {};
+		group.attributes = json.graph.attributes;
 		group.nodes  = [];
 		group.links = arr;
 		

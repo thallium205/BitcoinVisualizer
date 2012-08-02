@@ -1,6 +1,5 @@
 head
-	include ../includes/bootstrap
-	include ../includes/d3
+	include ../includes/blockviewer
 	
 div.navbar
 	div.navbar-inner
@@ -28,9 +27,9 @@ div.navbar
 div.modal.hide#groupModal
 	div.modal-header
 		button(type='button')(data-dismiss='modal').close x
-		h3 Stuff Here...
+		h3#txtGroupModalTitle
 	div.modal-body
-		table(cellpadding='0')(cellspacing='0')(border='0').table.table-striped.table-bordered#tblGroup
+		table(cellpadding='0')(cellspacing='0')(border='0').table.table-bordered#tblGroup
 	div.modal-footer		
 		a(href='#').btn.btn-primary Select
 		a(href='#').btn Select All

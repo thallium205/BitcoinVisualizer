@@ -40,11 +40,11 @@ public class Main
 					GraphBuilder.StartDatabase(line.getOptionValue("path"));
 				}
 				
-				//GraphBuilder.DownloadAndSaveBlockChain(validate);
+				// GraphBuilder.DownloadAndSaveBlockChain(validate);
 				
 				if (line.hasOption("high"))
 				{
-		//			GraphBuilder.BuildHighLevelGraph();
+					//GraphBuilder.BuildHighLevelGraph();
 				}
 				// GraphBuilder.StopDatabase();
 				LOG.info("Completed.");
@@ -52,7 +52,7 @@ public class Main
 				// If the user activated the scraper
 				if (line.hasOption("scraper"))
 				{
-			//		GraphBuilder.Scrape();
+					//GraphBuilder.Scrape();
 				}
 			}				
 	
