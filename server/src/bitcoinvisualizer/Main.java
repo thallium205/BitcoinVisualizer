@@ -17,15 +17,15 @@ public class Main
 	private static final java.util.logging.Logger LOG = Logger.getLogger(Main.class.getName());
 
 	public static void main(String[] args)
-	{		
+	{
 		boolean hasError = false;
-		
+
 		while (!hasError)
 		{
 			// Print options
 			HelpFormatter formatter = new HelpFormatter();
 			formatter.printHelp("java -jar blockchainneo4j.jar", getOptions());
-	
+
 			// Parse options
 			CommandLineParser parser = new GnuParser();
 			try
@@ -39,43 +39,45 @@ public class Main
 				{
 					GraphBuilder.StartDatabase(line.getOptionValue("path"));
 				}
-				
-				// GraphBuilder.DownloadAndSaveBlockChain(validate);
-				
-				if (line.hasOption("high"))
+
+				if (!line.hasOption("client"))
 				{
-					//GraphBuilder.BuildHighLevelGraph();
+					GraphBuilder.DownloadAndSaveBlockChain(validate);
+
+					if (line.hasOption("high"))
+					{
+						GraphBuilder.BuildHighLevelGraph();
+					}
+					// GraphBuilder.StopDatabase();
+					LOG.info("Completed.");
+
+					// If the user activated the scraper
+					if (line.hasOption("scraper"))
+					{
+						GraphBuilder.Scrape();
+					}
 				}
-				// GraphBuilder.StopDatabase();
-				LOG.info("Completed.");
-			
-				// If the user activated the scraper
-				if (line.hasOption("scraper"))
-				{
-					//GraphBuilder.Scrape();
-				}
-			}				
-	
+			}
+
 			catch (ParseException e)
 			{
 				LOG.log(Level.SEVERE, "Parsing failed.  Reason: " + e.getMessage(), e);
 				hasError = true;
 			}
-			
+
 			// Sleep for 6 hours
 			try
 			{
 				Thread.sleep(21600000);
-			} 
-			
+			}
+
 			catch (InterruptedException e)
 			{
 				LOG.log(Level.SEVERE, "Thread sleep failed.  Reason: " + e.getMessage(), e);
 			}
-			
+
 		}
 	}
-	
 
 	/**
 	 * Creates the options menu
@@ -91,11 +93,13 @@ public class Main
 				.withDescription("Toggle the verifier which checks if the local json files form a complete blockchain.  Default: true.  Recommended.").create("validate");
 		Option scraper = OptionBuilder.withArgName("scraper").withDescription("Runs the scraper which attempts to associate bitcoin addresses to real world entities.").create("scraper");
 		Option high = OptionBuilder.withArgName("high").withDescription("Builds the high level data structure.").create("high");
+		Option client = OptionBuilder.withArgName("client").withDescription("Will only run the database service and not attempt to build the blockchain.").create("client");
 		Options options = new Options();
 		options.addOption(dbPath);
 		options.addOption(validate);
 		options.addOption(scraper);
 		options.addOption(high);
+		options.addOption(client);
 		return options;
 	}
 }

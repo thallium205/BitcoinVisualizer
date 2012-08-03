@@ -354,6 +354,7 @@ function app()
 			if (d.data['@'].label === 'group')
 			{			
 				// Load the data into the table.  We can assume the columns and rows match up since each group-node logically grouped nodes of the same type.
+				
 				// Load the columns
 				var columnVals = d.data['@'].group.nodes[0].data.attvalues.attvalue;
 				var columns = [];
@@ -378,6 +379,12 @@ function app()
 					row = [];
 				}
 				
+				// Load the click listener
+				$('#tblGroup tbody tr').live('click', function ()
+				{					
+					$(this).toggleClass('row_selected');					
+				});
+				
 				// Load the data table				
 				$('#tblGroup').dataTable( 
 				{
@@ -387,23 +394,29 @@ function app()
 					"aaData": rows,
 					"aoColumns": columns,
 					"bDestroy": true
-				});  
-				
-				// Load the click listener
-				$('#tblGroup tbody tr').live('click', function ()
-				{					
-					$(this).toggleClass('row_selected');					
 				});
-					
-				var z = $('#tblGroup');
 				
 				// Label and display the modal
 				$('#txtGroupModalTitle').html(d.data['@'].group.nodes[0].data['@'].label.charAt(0).toUpperCase() + d.data['@'].group.nodes[0].data['@'].label.slice(1) + 's');
+				$('#groupModal').modal(
+				{
+						backdrop: true,
+						keyboard: true
+				}).css(
+				{
+					   'width': function () { 
+						   return ($(document).width() * .9) + 'px';  
+					   },
+					   'margin-left': function () { 
+						   return -($(this).width() / 2); 
+					   }
+				});
 				$('#groupModal').modal('show');
 			}
 			
 			else
-			{			
+			{	
+				// The user did not click on a group node.  Query the database to find this node's neighbors.
 				nodeQuery(d.name);
 			}
 		})

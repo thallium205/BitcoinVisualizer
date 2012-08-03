@@ -309,15 +309,9 @@ public class GraphBuilder
 			final Transaction tx = graphDb.beginTx();
 			try
 			{
-				int i = 0;
-				do
-				{
-					i++;
-					final Node transaction = iter.next();
-					LOG.info("Processing transaction: " + transaction.getId());
-					linkAddresses(transaction);
-				} while (i < 1000 && iter.hasNext());
-
+				final Node transaction = iter.next();
+				LOG.info("Processing transaction: " + transaction.getId());
+				linkAddresses(transaction);
 				tx.success();
 			}
 
@@ -343,15 +337,9 @@ public class GraphBuilder
 			final Transaction tx = graphDb.beginTx();
 			try
 			{
-				int i = 0;
-				do
-				{
-					i++;
-					final Node block = iter.next();
-					LOG.info("Processing block: " + block.getId());
-					createOwners(block);
-				} while (i < 1000 && iter.hasNext());
-
+				final Node block = iter.next();
+				LOG.info("Processing block: " + block.getId());
+				createOwners(block);
 				tx.success();
 			}
 
@@ -365,9 +353,9 @@ public class GraphBuilder
 			finally
 			{
 				tx.finish();
-			}
-			LOG.info("Building owners completed.");
+			}			
 		}
+		LOG.info("Building owners completed.");
 
 		// Link the owners for the highest level of the abstraction
 		LOG.info("Begin linking owners...");
@@ -1008,70 +996,37 @@ public class GraphBuilder
 
 	/**
 	 * Creates an owner if one doesn't exist and links it to the other addresses that have been identified as being owned by the same owner as this address.
+	 * CYPHER Equivalent:
 	 * 
-	 * @param block
-	 * @author jdmarble
+	 * 	START block = node(blockId) 
+		MATCH	block <- [from:from] - transaction <- [received:received] - incomingPayment <- [redeemed:redeemed] - addressRedeemer <- [owns:owns] - owner
+		RETURN 	owns, owner
 	 */
 	private static void createOwners(final Node block)
 	{
 		// All addresses that redeemed an input at a transaction in this block.
-		final TraversalDescription td = Traversal.description().relationships(BlockchainRelationships.from, Direction.INCOMING).relationships(BlockchainRelationships.received, Direction.INCOMING)
-				.relationships(AddressRelTypes.redeemed, Direction.INCOMING).evaluator(Evaluators.returnWhereLastRelationshipTypeIs(AddressRelTypes.redeemed));
+		final TraversalDescription redeemedTraversal = Traversal.description()
+				.relationships(BlockchainRelationships.from, Direction.INCOMING)
+				.relationships(BlockchainRelationships.received, Direction.INCOMING)
+				.relationships(AddressRelTypes.redeemed, Direction.INCOMING)
+				.evaluator(Evaluators.returnWhereLastRelationshipTypeIs(AddressRelTypes.redeemed));
 
-		for (final Path toAddress : td.traverse(block))
+		for (final Path toAddress : redeemedTraversal.traverse(block))
 		{
 			final Node address = toAddress.endNode();
-			// Will create an owner if one doesn't exist and link it to all
-			// of the other addresses that have been identified as being
-			// owned by the same owner as this address.
-			getOwnerOf(address);
+			// Does an owner node already own this address?
+			final Iterable<Relationship> owns = address.getRelationships(Direction.INCOMING, OwnerRelTypes.owns);
+			if (!owns.iterator().hasNext())
+			{
+				// No.  We create a relationship from owner to all the addresses it owns
+				final Iterable<Node> addresses = address.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL, AddressRelTypes.same_owner,	Direction.BOTH);
+				final Node owner = address.getGraphDatabase().createNode();
+				for (final Node owned : addresses)
+				{
+					owner.createRelationshipTo(owned, OwnerRelTypes.owns);					
+				}				
+			}			
 		}
-	}
-
-	/**
-	 * Creates unique owners.
-	 * 
-	 * @param address
-	 * @return
-	 * @author jdmarble
-	 */
-	public static Node getOwnerOf(final Node address)
-	{
-		final Node owner;
-		final List<Relationship> owns = ImmutableList.copyOf(address.getRelationships(Direction.INCOMING, OwnerRelTypes.owns));
-
-		if (owns.isEmpty())
-		{
-			owner = createOwner(address);
-		}
-
-		else
-		{
-			owner = Iterables.getOnlyElement(owns).getStartNode();
-		}
-
-		return owner;
-	}
-
-	/**
-	 * Gets all owners. Use getOnwerOf to prevent duplicates.
-	 * 
-	 * @param address
-	 * @return
-	 * @author jdmarble
-	 */
-	private static Node createOwner(final Node address)
-	{
-		final Iterable<Node> addresses = address.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL, AddressRelTypes.same_owner,
-				Direction.BOTH);
-
-		final Node owner = address.getGraphDatabase().createNode();
-
-		for (final Node owned : addresses)
-		{
-			owner.createRelationshipTo(owned, OwnerRelTypes.owns);
-		}
-		return owner;
 	}
 
 	/**
@@ -1092,7 +1047,7 @@ public class GraphBuilder
 		{
 			public boolean apply(final Node block)
 			{
-				return (Boolean) block.getProperty(Properties.main_chain.toString(), false);
+				return (Boolean) block.getProperty("main_chain", false);
 			}
 		});
 	}
@@ -1112,11 +1067,6 @@ public class GraphBuilder
 		return root.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL_BUT_START_NODE, BlockchainRelationships.succeeds, Direction.INCOMING);
 	}
 
-	public static enum Properties
-	{
-		main_chain, block_index;
-	}
-
 	/**
 	 * A lazy Iterable of all owners that have redeemed transfers at a block.
 	 * 
@@ -1127,10 +1077,14 @@ public class GraphBuilder
 	 */
 	public static Iterable<Node> getOwners(final Node block)
 	{
-		final TraversalDescription td = Traversal.description().relationships(BlockchainRelationships.from, Direction.INCOMING).relationships(BlockchainRelationships.received, Direction.INCOMING)
-				.relationships(AddressRelTypes.redeemed, Direction.INCOMING).relationships(OwnerRelTypes.owns, Direction.INCOMING).evaluator(Evaluators.atDepth(4))
+		final TraversalDescription td = Traversal.description()
+				.relationships(BlockchainRelationships.from, Direction.INCOMING)
+				.relationships(BlockchainRelationships.received, Direction.INCOMING)
+				.relationships(AddressRelTypes.redeemed, Direction.INCOMING)
+				.relationships(OwnerRelTypes.owns, Direction.INCOMING)
+				.evaluator(Evaluators.atDepth(4))
 				.evaluator(Evaluators.returnWhereLastRelationshipTypeIs(OwnerRelTypes.owns));
-
+		
 		return td.traverse(block).nodes();
 	}
 
@@ -1148,9 +1102,14 @@ public class GraphBuilder
 		}
 
 		// All addresses that redeemed an input at a transaction in this block.
-		final TraversalDescription td = Traversal.description().relationships(OwnerRelTypes.owns, Direction.OUTGOING).relationships(AddressRelTypes.redeemed, Direction.OUTGOING)
-				.relationships(BlockchainRelationships.received, Direction.OUTGOING).relationships(BlockchainRelationships.sent, Direction.OUTGOING)
-				.relationships(AddressRelTypes.redeemed, Direction.INCOMING).relationships(OwnerRelTypes.owns, Direction.INCOMING).evaluator(Evaluators.atDepth(6))
+		final TraversalDescription td = Traversal.description()
+				.relationships(OwnerRelTypes.owns, Direction.OUTGOING)
+				.relationships(AddressRelTypes.redeemed, Direction.OUTGOING)
+				.relationships(BlockchainRelationships.received, Direction.OUTGOING)
+				.relationships(BlockchainRelationships.sent, Direction.OUTGOING)
+				.relationships(AddressRelTypes.redeemed, Direction.INCOMING)
+				.relationships(OwnerRelTypes.owns, Direction.INCOMING)
+				.evaluator(Evaluators.atDepth(6))
 				.evaluator(Evaluators.returnWhereLastRelationshipTypeIs(OwnerRelTypes.owns));
 
 		for (final Path btcTransfer : td.traverse(owner))
