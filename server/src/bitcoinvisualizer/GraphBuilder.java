@@ -1095,12 +1095,6 @@ public class GraphBuilder
 	 */
 	private static void linkOwners(final Node owner)
 	{
-		// Already did this owner.
-		if (owner.hasRelationship(Direction.OUTGOING, OwnerRelTypes.transfers))
-		{
-			return;
-		}
-
 		// All addresses that redeemed an input at a transaction in this block.
 		final TraversalDescription td = Traversal.description()
 				.relationships(OwnerRelTypes.owns, Direction.OUTGOING)
@@ -1116,9 +1110,18 @@ public class GraphBuilder
 		{
 			final List<Node> nodes = ImmutableList.copyOf(btcTransfer.nodes());
 			final long value = ((Number) nodes.get(4).getProperty("value", 0)).longValue();
-
-			final Relationship transfer = owner.createRelationshipTo(btcTransfer.endNode(), OwnerRelTypes.transfers);
-			transfer.setProperty("value", value);
+			
+			// Already did this owner.  Update the value of the owner.
+			if (owner.hasRelationship(Direction.OUTGOING, OwnerRelTypes.transfers))
+			{
+				owner.setProperty("value", value);
+			}
+			
+			else
+			{
+				final Relationship transfer = owner.createRelationshipTo(btcTransfer.endNode(), OwnerRelTypes.transfers);
+				transfer.setProperty("value", value);
+			}
 		}
 	}
 }

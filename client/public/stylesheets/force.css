@@ -2,6 +2,11 @@
   stroke: #ccc;
 }
 
+.path text{
+	pointer-events: none;
+	font: 10px sans-serif;
+}
+
 .node text {
   pointer-events: none;
   font: 10px sans-serif;

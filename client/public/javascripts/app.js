@@ -5,21 +5,33 @@ function app()
 
 	var svg = d3.select("body").append("svg")
 		.attr("width", '100%')
-		.attr("height", '89%')
-		.attr("viewBox", "0 0 100% 100%");
+		.attr("height", '89%');
+		// .attr("viewBox", "0 0 90 90");
 
-	svg.append("svg:defs").selectAll("marker").data(["succeeds", "from", "received", "sent", "redeemed", "same_owner", "owns", "transfers"]).enter().append("svg:marker").attr("id", String).attr("viewBox", "0 -5 10 10").attr("refX", 25).attr("refY", -1.5).attr("markerWidth", 6).attr("markerHeight", 6).attr("orient", "auto").append("svg:path").attr("d", "M0,-5L10,0L0,5");
+	svg.append("svg:defs").selectAll("marker")
+		.data(["succeeds", "from", "received", "sent", "redeemed", "same_owner", "owns", "transfers", "identifies"])
+		.enter().append("svg:marker")
+		.attr("id", String)
+		.attr("viewBox", "0 -5 10 10")
+		.attr("refX", 25)
+		.attr("refY", -1.5)
+		.attr("markerWidth", 6)
+		.attr("markerHeight", 6)
+		.attr("orient", "auto")
+		.append("svg:path")
+		.attr("d", "M0,-5L10,0L0,5");
 
 	var force = d3.layout.force()
-		.gravity(.05)
-		.distance(150)
-		.charge(-400)
+		.gravity(.2)
+		.distance(250)
+		.charge(-1000)
 		.size([width, height]);
 
 	// Data structures
 	var nodes = {}; 
 	var links = {};	
 	var nodeReqs = []; // Used to determine when to select and unselect nodes from the graph
+	var pathData = [];
 
 	var query = function(val)
 	{	
@@ -297,35 +309,63 @@ function app()
 			.data(force.links(), function(d)
 			{
 				// provides a unique index for data
-				return d.data['@'].id;
+				return d.name;
 			});
 
 		// Add any incoming links
 		link.enter().append("line");
-
-		// Remove any outgoing links
-		link.exit().remove();
-
+		
 		// Compute new attributes for entering and updating links
+		// The line itself
 		link.attr("class", function(d)
 		{
 			return "link " + d.data['@'].label;
-		})
-		.attr("marker-end", function(d)
+		});
+		
+		// The end market
+		link.attr("marker-end", function(d)
 		{
 			return "url(#" + d.data['@'].label + ")";
-		});
+		});	
+		
+		// Remove any outgoing links
+		link.exit().remove();
 
-		// Compute the data join
+		// The path text		
+		var currentLinks = d3.values(links);
+		for (var i = 0; i < currentLinks.length; i++)
+		{		
+			var link = currentLinks[i];
+			var newLink = true;
+			var allLinks = force.links();
+			for (var j = 0; j < allLinks.length; j++)
+			{
+				var testName = allLinks[j];
+				if (link.data['@'].id === allLinks[j].data['@'].id)
+				{
+					newLink = false;
+					break;
+				}				
+			}
+			if (newLink)
+			{				
+				pathData.push(link[i]);
+			}
+		}	
+		
+		path_text = svg.selectAll(".path").data(force.links(), function(d){ return d.name;});			
+		path_text.enter().append("svg:g").append("svg:text").attr("class","path-text").text(function(d) { return d.data['@'].label; });
+		
+		// Nodes
 		var node = svg.selectAll(".node")
 		.data(force.nodes(), function(d)
 		{
 			// provides a unique index for data
 			return d.name
-		});
+		});		
 
 		// Add any incoming nodes
-		node.enter().append("g");
+		node.enter().append("svg:g");
 
 		// Remove any outgoing nodes
 		node.exit().remove();
@@ -353,8 +393,26 @@ function app()
 			// If it is a group node we have to list what the user wants to show!
 			if (d.data['@'].label === 'group')
 			{			
-				// Load the data into the table.  We can assume the columns and rows match up since each group-node logically grouped nodes of the same type.
+			
+				// Dynamically size, label, and display the modal
+				$('#groupModal').modal(
+				{
+						backdrop: true,
+						keyboard: true
+				}).css(
+				{
+					   'width': function () { 
+						   return ($(document).width() * .9) + 'px';  
+					   },
+					   'margin-left': function () { 
+						   return -($(this).width() / 2); 
+					   }
+				});
 				
+				$('#txtGroupModalTitle').html(d.data['@'].group.nodes[0].data['@'].label.charAt(0).toUpperCase() + d.data['@'].group.nodes[0].data['@'].label.slice(1) + 's');				
+				$('#groupModal').modal('show');
+			
+				// Load the data into the table.  We can assume the columns and rows match up since each group-node logically grouped nodes of the same type.				
 				// Load the columns
 				var columnVals = d.data['@'].group.nodes[0].data.attvalues.attvalue;
 				var columns = [];
@@ -396,22 +454,53 @@ function app()
 					"bDestroy": true
 				});
 				
-				// Label and display the modal
-				$('#txtGroupModalTitle').html(d.data['@'].group.nodes[0].data['@'].label.charAt(0).toUpperCase() + d.data['@'].group.nodes[0].data['@'].label.slice(1) + 's');
-				$('#groupModal').modal(
+				// Register modal button listeners
+				$("#btnModalSelect").click(function()
 				{
-						backdrop: true,
-						keyboard: true
-				}).css(
-				{
-					   'width': function () { 
-						   return ($(document).width() * .9) + 'px';  
-					   },
-					   'margin-left': function () { 
-						   return -($(this).width() / 2); 
-					   }
+					var selected = $('#tblGroup').dataTable().$('tr.row_selected');
+					
+					// If transaction:
+					for (var i = 0; i < selected.length; i++)
+					{
+						// Find each hash in the group, remove them, and send it to the graph. (to me... it seems to send anything to the graph it must be done from json)
+						var hash = selected[i].innerText.split('\t')[1];
+						for (var j = 0; j < d.data['@'].group.nodes.length; j++)
+						{
+							var n = d.data['@'].group.nodes[j];
+							if (n.data.attvalues.attvalue[1]['@'].value === hash)
+							{
+								// We have found the node.  Add the node to the graph
+								nodes[n.name] = n;
+								
+								// Remove the node from the group
+								d.data['@'].group.nodes.splice(j, 1);	
+								
+								// Now we find it's relationships, then add them to the graph visualization.
+								for (var k = 0; k < d.data['@'].group.links.length; k++)
+								{
+									var l = d.data['@'].group.links[k];
+									if (n.name === l.source || n.name === l.target)
+									{
+										// Add the link to graph	
+										var linkToAdd = {};
+										linkToAdd['@'] = {'id': l.data['@'].id, 'label': 'from', 'source': l.source, 'target': l.target};
+										linkToAdd['attvalues'] = l.data.attvalues;
+										json.graph.edges.edge.push(linkToAdd); 
+										// links[l.data['@'].id] = {"source": nodes[l.source], "target": nodes[l.target], "data": l};		// d3js despises this which is frusterating		
+										
+										// Remove the link from the group
+										d.data['@'].group.links.splice(k, 1);	
+									}
+								}						
+							}						
+						}											
+					}
+					
+					show(json);
+					
+					$('#groupModal').modal('hide')
+					return false;
 				});
-				$('#groupModal').modal('show');
 			}
 			
 			else
@@ -419,8 +508,7 @@ function app()
 				// The user did not click on a group node.  Query the database to find this node's neighbors.
 				nodeQuery(d.name);
 			}
-		})
-		.call(force.drag);		
+		});		
 
 		node.append("svg:path")
 			.attr("d", function(d)
@@ -484,27 +572,63 @@ function app()
 						return 'unknown';
 				}
 			});	
-
-		force.on("tick", function()
+			
+		var node_drag = d3.behavior.drag()
+        .on("dragstart", dragStart)
+        .on("drag", dragMove)
+        .on("dragend", dragEnd);
+		
+		node.call(node_drag);
+		force.on("tick", tick);
+		
+		function tick()
 		{
-			link
-				.attr("x1", function(d) { return d.source.x; })
+			link.attr("x1", function(d) { return d.source.x; })
 				.attr("y1", function(d) { return d.source.y; })
 				.attr("x2", function(d) { return d.target.x; })
 				.attr("y2", function(d) { return d.target.y; });
+			
+			// Line label			
+			path_text.attr("transform", function(d) 
+			{
+				var dx = (d.target.x - d.source.x),
+				dy = (d.target.y - d.source.y);
+				var dr = Math.sqrt(dx * dx + dy * dy);
+				var sinus = dy/dr;
+				var cosinus = dx/dr;
+				var l = d.data['@'].label.length*6;
+				var offset = (1 - (l / dr )) / 2;
+				var x=(d.source.x + dx*offset);
+				var y=(d.source.y + dy*offset);
+				return "translate(" + x + "," + y + ") matrix("+cosinus+", "+sinus+", "+-sinus+", "+cosinus+", 0 , 0)";
+			});
+			
+			node.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
+		}	
+		
+		function dragStart(d, i) 
+		{
+			force.stop() // stops the force auto positioning before you start dragging
+		}
 
-			node
-				.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
-		});	
+		function dragMove(d, i) 
+		{
+			d.px += d3.event.dx;
+			d.py += d3.event.dy;
+			d.x += d3.event.dx;
+			d.y += d3.event.dy; 
+			tick(); // this is the key to make it work together with updating both px,py,x,y on d !
+		}
+
+		function dragEnd(d, i) 
+		{
+			d.fixed = true; // of course set the node to fixed so the force doesn't include the node in its auto positioning stuff
+			tick();
+			force.resume();
+		}
 	};
 	
-	// Helper functions
-	// Selected row from the data table
-	function fnGetSelected( oTableLocal )
-	{
-		return oTableLocal.$('tr.row_selected');
-	}
-	
+	// Helper functions	
 	// Returns an empty graph object
 	function getEmptyGraph()
 	{
