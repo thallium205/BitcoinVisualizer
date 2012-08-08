@@ -18,6 +18,7 @@ public class Main
 
 	public static void main(String[] args)
 	{
+		CommandLine line = null;
 		boolean hasError = false;
 
 		while (!hasError)
@@ -31,7 +32,7 @@ public class Main
 			try
 			{
 				// Get values
-				CommandLine line = parser.parse(getOptions(), args);
+				line = parser.parse(getOptions(), args);
 				boolean validate = true;
 				if (line.hasOption("validate"))
 					validate = Boolean.parseBoolean(line.getOptionValue("validate"));
@@ -63,19 +64,20 @@ public class Main
 			{
 				LOG.log(Level.SEVERE, "Parsing failed.  Reason: " + e.getMessage(), e);
 				hasError = true;
+				GraphBuilder.StopDatabase();
 			}
 
 			// Sleep for 6 hours
 			try
 			{
-				Thread.sleep(21600000);
+				Thread.sleep(Long.parseLong(line.getOptionValue("time")));
 			}
 
 			catch (InterruptedException e)
 			{
 				LOG.log(Level.SEVERE, "Thread sleep failed.  Reason: " + e.getMessage(), e);
+				GraphBuilder.StopDatabase();
 			}
-
 		}
 	}
 
@@ -94,12 +96,14 @@ public class Main
 		Option scraper = OptionBuilder.withArgName("scraper").withDescription("Runs the scraper which attempts to associate bitcoin addresses to real world entities.").create("scraper");
 		Option high = OptionBuilder.withArgName("high").withDescription("Builds the high level data structure.").create("high");
 		Option client = OptionBuilder.withArgName("client").withDescription("Will only run the database service and not attempt to build the blockchain.").create("client");
+		Option time = OptionBuilder.withArgName("time").withDescription("The amount of time the program will wait before rebuilding an updated version of the graph again.").isRequired().create("time");
 		Options options = new Options();
 		options.addOption(dbPath);
 		options.addOption(validate);
 		options.addOption(scraper);
 		options.addOption(high);
 		options.addOption(client);
+		options.addOption(time);
 		return options;
 	}
 }
