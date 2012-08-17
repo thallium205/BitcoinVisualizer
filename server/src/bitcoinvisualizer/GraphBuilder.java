@@ -5,11 +5,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -25,6 +23,7 @@ import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.index.Index;
 import org.neo4j.graphdb.traversal.Evaluators;
 import org.neo4j.graphdb.traversal.TraversalDescription;
+import org.neo4j.helpers.collection.MapUtil;
 import org.neo4j.kernel.GraphDatabaseAPI;
 import org.neo4j.kernel.HighlyAvailableGraphDatabase;
 import org.neo4j.kernel.Traversal;
@@ -57,7 +56,6 @@ public class GraphBuilder
 
 	private static GraphDatabaseAPI graphDb;
 	private static WrappingNeoServerBootstrapper srv;
-	private static Map<String,String> config;
 	private static Thread shutdownThread;
 	private static boolean isStarted = false;
 
@@ -134,18 +132,12 @@ public class GraphBuilder
 	 * 
 	 * @param dbPath
 	 *            - The path where the data will be saved
+	 * @throws IOException 
 	 */
-	public static void StartDatabase(final String dbPath)
+	public static void StartDatabase(final String dbPath, final String configPath) throws IOException
 	{
 		LOG.info("Starting database...");		
-		config = new HashMap<String, String>();
-		config.put("enable_online_backup", "true");
-		config.put("ha.server_id", "1"); // 1 is master in our setup
-		config.put("ha.coordinators", "127.0.0.1:2181"); // The second element is the list of slaves.  We connect to them by port forwarding in SSH
-		config.put("ha.cluster_name", "blockviewer.cluster");
-		config.put("ha.pull_interval", "10");
-		config.put("enable_remote_shell", "true");	
-		graphDb = new HighlyAvailableGraphDatabase(dbPath, config);
+		graphDb = new HighlyAvailableGraphDatabase(dbPath, MapUtil.load(FileUtils.getFile(configPath)));
 		srv = new WrappingNeoServerBootstrapper(graphDb);
 		srv.start();
 
@@ -1105,6 +1097,12 @@ public class GraphBuilder
 	 */
 	private static void linkOwners(final Node owner)
 	{
+		// Already did this owner.
+		if (owner.hasRelationship(Direction.OUTGOING, OwnerRelTypes.transfers))
+		{
+			return;
+		}
+
 		// All addresses that redeemed an input at a transaction in this block.
 		final TraversalDescription td = Traversal.description()
 				.relationships(OwnerRelTypes.owns, Direction.OUTGOING)
@@ -1120,18 +1118,9 @@ public class GraphBuilder
 		{
 			final List<Node> nodes = ImmutableList.copyOf(btcTransfer.nodes());
 			final long value = ((Number) nodes.get(4).getProperty("value", 0)).longValue();
-			
-			// Already did this owner.  Update the value of the owner.
-			if (owner.hasRelationship(Direction.OUTGOING, OwnerRelTypes.transfers))
-			{
-				owner.setProperty("value", value);
-			}
-			
-			else
-			{
-				final Relationship transfer = owner.createRelationshipTo(btcTransfer.endNode(), OwnerRelTypes.transfers);
-				transfer.setProperty("value", value);
-			}
+
+			final Relationship transfer = owner.createRelationshipTo(btcTransfer.endNode(), OwnerRelTypes.transfers);
+			transfer.setProperty("value", value);
 		}
 	}
 }

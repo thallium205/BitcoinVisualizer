@@ -1,5 +1,6 @@
 package bitcoinvisualizer;
 
+import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -38,7 +39,7 @@ public class Main
 					validate = Boolean.parseBoolean(line.getOptionValue("validate"));
 				if (!GraphBuilder.IsStarted())
 				{
-					GraphBuilder.StartDatabase(line.getOptionValue("path"));
+					GraphBuilder.StartDatabase(line.getOptionValue("dbPath"), line.getOptionValue("configPath"));
 				}
 
 				if (!line.hasOption("client"))
@@ -65,12 +66,27 @@ public class Main
 				LOG.log(Level.SEVERE, "Parsing failed.  Reason: " + e.getMessage(), e);
 				hasError = true;
 				GraphBuilder.StopDatabase();
+			} 
+			
+			catch (IOException e)
+			{
+				LOG.log(Level.SEVERE, "Could not find files.  Reason: " + e.getMessage(), e);
+				hasError = true;
+				GraphBuilder.StopDatabase();
 			}
 
-			// Sleep for 6 hours
+			
 			try
 			{
-				Thread.sleep(Long.parseLong(line.getOptionValue("time")));
+				if (line.hasOption("time"))
+				{
+					Thread.sleep(Long.parseLong(line.getOptionValue("time")));
+				}
+				else
+				{
+					LOG.info("Sleeping for default time of 6 hours since no time was specified.");
+					Thread.sleep(21600000);
+				}				
 			}
 
 			catch (InterruptedException e)
@@ -90,15 +106,17 @@ public class Main
 	private static Options getOptions()
 	{
 		// Define options
-		Option dbPath = OptionBuilder.hasArg().withArgName("path").withDescription("The path to the neo4j graph.db directory. Ex: /home/user/Documents/neo4j/graph.db").isRequired().create("path");
+		Option dbPath = OptionBuilder.hasArg().withArgName("dbPath").withDescription("The path to the neo4j graph.db directory. Ex: /home/user/neo4j/graph.db/").isRequired().create("dbPath");
+		Option configPath = OptionBuilder.hasArg().withArgName("configPath").withDescription("The path to the neo4jconfig file. Ex: /home/user/neo4j.properties").isRequired().create("configPath");
 		Option validate = OptionBuilder.hasArg().withArgName("true/false")
 				.withDescription("Toggle the verifier which checks if the local json files form a complete blockchain.  Default: true.  Recommended.").create("validate");
 		Option scraper = OptionBuilder.withArgName("scraper").withDescription("Runs the scraper which attempts to associate bitcoin addresses to real world entities.").create("scraper");
 		Option high = OptionBuilder.withArgName("high").withDescription("Builds the high level data structure.").create("high");
 		Option client = OptionBuilder.withArgName("client").withDescription("Will only run the database service and not attempt to build the blockchain.").create("client");
-		Option time = OptionBuilder.withArgName("time").withDescription("The amount of time the program will wait before rebuilding an updated version of the graph again.").isRequired().create("time");
+		Option time = OptionBuilder.withArgName("time").withDescription("The amount of time the program will wait before rebuilding an updated version of the graph again.").create("time");
 		Options options = new Options();
 		options.addOption(dbPath);
+		options.addOption(configPath);
 		options.addOption(validate);
 		options.addOption(scraper);
 		options.addOption(high);

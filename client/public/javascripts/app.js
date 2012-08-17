@@ -13,8 +13,8 @@ function app()
 		.enter().append("svg:marker")
 		.attr("id", String)
 		.attr("viewBox", "0 -5 10 10")
-		.attr("refX", 25)
-		.attr("refY", -1.5)
+		.attr("refX", 0)
+		.attr("refY", 0)
 		.attr("markerWidth", 6)
 		.attr("markerHeight", 6)
 		.attr("orient", "auto")
@@ -30,57 +30,68 @@ function app()
 	// Data structures
 	var nodes = {}; 
 	var links = {};	
-	var nodeReqs = []; // Used to determine when to select and unselect nodes from the graph
+	var nodeReqs = []; // Used to determine if a node has already been selected.  Used to prevent duplicates of grouping
 	var pathData = [];
+	
+	var path_text = null; // Used to draw the labesl on the edges
 
 	var query = function(val)
 	{	
 		$("#btnSubmit").button('loading');
 		if (val.length == 64)
-		{		
-			$.getJSON("http://localhost:3000/api/block/hash/" + val + ".json", function(graph)
-			{				
-				show(graph);
+		{	
+			
+			$.getJSON("api/block/hash/" + val + ".json", function(graph)
+			{	
 				$("#btnSubmit").button('complete');
-			});		
+				show(graph);
+				
+			});	
+			
 
 			/*
-			$.getJSON("http://localhost:3000/api/trans/" + val + ".json", function(graph)
-			{				
-				show(graph);
+			$.getJSON("api/trans/" + val + ".json", function(graph)
+			{		
 				$("#btnSubmit").button('complete');
+				show(graph);
 			});	
 			*/
+			
+			
 		}
 
 		else if (val.length > 30 && val.length < 36)
 		{
-			$.getJSON("http://localhost:3000/api/addr/" + val + ".json", function(graph)
-			{				
-				show(graph);
+			/*
+			$.getJSON("api/addr/" + val + ".json", function(graph)
+			{	
 				$("#btnSubmit").button('complete');
+				show(graph);				
+			});
+			*/
+			
+			
+			$.getJSON("api/owns/" + val + ".json", function(graph)
+			{	
+				$("#btnSubmit").button('complete');
+				show(graph);				
 			});	
-
-			$.getJSON("http://localhost:3000/api/owns/" + val + ".json", function(graph)
-			{				
-				show(graph);
-				$("#btnSubmit").button('complete');
-			});				
+			
 		}
 
 		else if (val.indexOf(".") != -1)
 		{
-			$.getJSON("http://localhost:3000/api/ipv4/" + val + ".json", function(graph)
-			{				
-				show(graph);
+			$.getJSON("api/ipv4/" + val + ".json", function(graph)
+			{	
 				$("#btnSubmit").button('complete');
+				show(graph);				
 			});
 		}
 
 		else
-		{			
-			alert("Invalid input");
+		{	
 			$("#btnSubmit").button('complete');
+			alert("Invalid input");			
 		}
 	};
 	
@@ -93,10 +104,10 @@ function app()
 		{
 			$("#btnSubmit").button('loading');
 			nodeReqs.push(index);	
-			$.getJSON("http://localhost:3000/api/node/" + index + ".json", function(graph)
+			$.getJSON("api/node/" + index + ".json", function(graph)
 			{
-				show(graph);
 				$("#btnSubmit").button('complete');
+				show(graph);				
 			});	
 		}	
 		
@@ -130,7 +141,7 @@ function app()
 			}
 			*/
 			
-			
+			/*
 			var nodesToDelete = [];
 			nodesToDelete.push(node);
 			
@@ -188,6 +199,7 @@ function app()
 			
 			// Update the graph
 			show(getEmptyGraph());
+		*/
 		}
 	}
 
@@ -195,95 +207,118 @@ function app()
 	{		
 		// We group relationships by type if their type size is greater than 10 then we combine them //
 		// TODO - This wont work with the source or target are not the same!  This will happen when querying addresses.  >.<
-		var succeeds = [];
-		var from = [];
-		var received = [];
-		var sent = [];
-		var redeemed = [];
-		var same_owner = [];
-		var owns = [];
-		var transfers = [];
-		var identifies = [];
-		for (var edge in json.graph.edges.edge)
+		
+		// Iterate over each node, count up the edges (and their types attached to it) and group them.
+		for (var node in json.graph.nodes.node)
 		{
+			var edges = [];
+			for (var e in json.graph.edges.edge)
+			{				
+				// Check to see if edge is connected to the node and to make sure it is not a group node that is already stored in the list
+				if (json.graph.nodes.node[node]['@'].id === json.graph.edges.edge[e]['@'].source || json.graph.nodes.node[node]['@'].id === json.graph.edges.edge[e]['@'].target)
+				{	
+					edges.push(json.graph.edges.edge[e]);
+				}
+			}
+						
+			// It is connected to the node.  We now add up how many there are, and if it is greater than 9, we group them			
 			// Store each relationship type
-			switch(json.graph.edges.edge[edge]['@'].label)
-			{
-				case 'succeeds':						
-					succeeds.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
-					break;
-				case 'from':
-					from.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
-					break;
-				case 'received':
-					received.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
-					break;
-				case 'sent':
-					sent.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
-					break;
-				case 'redeemed':
-					redeemed.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
-					break;
-				case 'same_owner':
-					same_owner.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
-					break;					
-				case 'owns':
-					owns.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
-					break;					
-				case 'transfers':
-					transfers.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
-					break;	
-				case 'identifies':
-					identifies.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
-					break;	
-			} 
-		}	
-		
-		if (succeeds.length > 10)
-		{
-			json = groupJson(json, succeeds);
-		}
-		
-		if (from.length > 10)
-		{
-			json = groupJson(json, from);
-		}
-		
-		if (received.length > 10)
-		{
-			json = groupJson(json, received);
-		}
-		
-		if (sent.length > 10)
-		{
-			json = groupJson(json, sent);
-		}
+			var succeeds = [];
+			var from = [];
+			var received = [];
+			var sent = [];
+			var redeemed = [];
+			var same_owner = [];
+			var owns = [];
+			var transfers = [];
+			var identifies = [];
+			
+			for (var edge in edges)
+			{		
+				try
+				{
+					switch(json.graph.edges.edge[edge]['@'].label)
+					{
+						case 'succeeds':						
+							succeeds.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
+							break;
+						case 'from':
+							from.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
+							break;
+						case 'received':
+							received.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
+							break;
+						case 'sent':
+							sent.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
+							break;
+						case 'redeemed':
+							redeemed.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
+							break;
+						case 'same_owner':
+							same_owner.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
+							break;					
+						case 'owns':
+							owns.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
+							break;					
+						case 'transfers':
+							transfers.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
+							break;	
+						case 'identifies':
+							identifies.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
+							break;	
+					} 
+				}
+				
+				catch (err)
+				{
+				}
+			}		
 
-		if (redeemed.length > 10)
-		{
-			json = groupJson(json, redeemed);
-		}
-		
-		if (same_owner.length > 10)
-		{
-			json = groupJson(json, same_owner);
-		}
-		
-		if (owns.length > 10)
-		{
-			json = groupJson(json, owns);
-		}
-		
-		if (transfers.length > 10)
-		{
-			json = groupJson(json, transfers);
-		}
-		
-		if (identifies.length > 10)
-		{
-			json = groupJson(json, identifies);
-		}
-		// End grouping //
+			if (succeeds.length > 10)
+			{
+				json = groupJson(json, succeeds);
+			}
+			
+			if (from.length > 10)
+			{
+				json = groupJson(json, from);
+			}
+			
+			if (received.length > 10)
+			{
+				json = groupJson(json, received);
+			}
+			
+			if (sent.length > 10)
+			{
+				json = groupJson(json, sent);
+			}
+
+			if (redeemed.length > 10)
+			{
+				json = groupJson(json, redeemed);
+			}
+			
+			if (same_owner.length > 10)
+			{
+				json = groupJson(json, same_owner);
+			}
+			
+			if (owns.length > 10)
+			{
+				json = groupJson(json, owns);
+			}
+			
+			if (transfers.length > 10)
+			{
+				json = groupJson(json, transfers);
+			}
+			
+			if (identifies.length > 10)
+			{
+				json = groupJson(json, identifies);
+			}			
+		}	
 		
 		// Begin normal linking		
 		for (var node in json.graph.nodes.node)
@@ -291,12 +326,21 @@ function app()
 			if (!(json.graph.nodes.node[node]['@'].id in nodes))
 			{
 				nodes[json.graph.nodes.node[node]['@'].id] = {"name": json.graph.nodes.node[node]['@'].id, "data": json.graph.nodes.node[node]};
+				
 			}			
 		}
 
 		for (var edge in json.graph.edges.edge)
-		{	
-			links[json.graph.edges.edge[edge]['@'].id] = {"source": nodes[json.graph.edges.edge[edge]['@'].source], "target": nodes[json.graph.edges.edge[edge]['@'].target], "data":json.graph.edges.edge[edge]};				
+		{
+			// Warning - hack job.  GroupJSON function is not deleting all the links correctly.  TODO
+			if (nodes[json.graph.edges.edge[edge]['@'].source] !== undefined && nodes[json.graph.edges.edge[edge]['@'].target] !== undefined)
+			{ 
+				links[json.graph.edges.edge[edge]['@'].id] = {"source": nodes[json.graph.edges.edge[edge]['@'].source], "target": nodes[json.graph.edges.edge[edge]['@'].target], "data":json.graph.edges.edge[edge]};
+			}
+			else
+			{
+				delete json.graph.edges.edge[edge];
+			}
 		}	
 		
 		// Add the group node		
@@ -322,7 +366,7 @@ function app()
 			return "link " + d.data['@'].label;
 		});
 		
-		// The end market
+		// The end marker
 		link.attr("marker-end", function(d)
 		{
 			return "url(#" + d.data['@'].label + ")";
@@ -331,6 +375,7 @@ function app()
 		// Remove any outgoing links
 		link.exit().remove();
 
+		/*
 		// The path text		
 		var currentLinks = d3.values(links);
 		for (var i = 0; i < currentLinks.length; i++)
@@ -340,7 +385,6 @@ function app()
 			var allLinks = force.links();
 			for (var j = 0; j < allLinks.length; j++)
 			{
-				var testName = allLinks[j];
 				if (link.data['@'].id === allLinks[j].data['@'].id)
 				{
 					newLink = false;
@@ -352,9 +396,31 @@ function app()
 				pathData.push(link[i]);
 			}
 		}	
+		*/
+		/*
+		if (path_text !== null)
+		{
+			for (text in path_text)
+			{
+				text.text_content = "";
+			}
+		}
+		*/
+		path_text = svg.selectAll(".path").data(force.links(), function(d){ return d.name;});			// text_content
+		path_text.enter().append("svg:g").append("svg:text").attr("class","path-text").text(function(d, i) 
+		{
+			var v = $(this)[0];
+			if ($(this)[0].textContent === "")
+			{
+				return d.data['@'].label; 
+			}
+			else
+			{
+				return "";
+			}
+			
+		});
 		
-		path_text = svg.selectAll(".path").data(force.links(), function(d){ return d.name;});			
-		path_text.enter().append("svg:g").append("svg:text").attr("class","path-text").text(function(d) { return d.data['@'].label; });
 		
 		// Nodes
 		var node = svg.selectAll(".node")
@@ -372,25 +438,34 @@ function app()
 
 		// Compute new attributes for entering and updating nodes
 		node.attr("class", "node")	
-		//.each(function(d)
-		//{
-			// Popover content
-		//	$(this).popover({'title': d.data['@'].label.charAt(0).toUpperCase() + d.data['@'].label.slice(1), 'content': function()
-		//		{
-		//			var content = [];
-		//			for (var val in d.data.attvalues.attvalue)
-		//			{
-		//				content.push(json.graph.attributes[0].attribute[d.data.attvalues.attvalue[val]["@"].for]["@"].title + ": " + d.data.attvalues.attvalue[val]["@"].value);
-		//			}
-		//			return content.join("\n");
-		//		}
-		//	})
-		//})
+		
+		// Enable popover content for each node
+		.each(function(d)
+		{		
+			$(this).popover({'title': d.data['@'].label.charAt(0).toUpperCase() + d.data['@'].label.slice(1), 'placement': 'top', 'delay': { 'show': 0, 'hide': 100 }, 'content': function()
+				{
+					var content = [];
+					if (d.data['@'].label === 'group')
+					{
+						content.push("# of Nodes: " + d.data['@'].group.nodes.length);
+					}
+					
+					else
+					{					
+						for (var val in d.data.attvalues.attvalue)
+						{
+							content.push(json.graph.attributes[0].attribute[d.data.attvalues.attvalue[val]["@"].for]["@"].title + ": " + d.data.attvalues.attvalue[val]["@"].value + "<br \/>");
+						}
+					}
+					return content.join("\n");
+				}
+			})
+		})
 		
 		// On node click
 		.on("click", function(d)
 		{
-			// If it is a group node we have to list what the user wants to show!
+			// The user clicked on a group node
 			if (d.data['@'].label === 'group')
 			{			
 			
@@ -414,12 +489,20 @@ function app()
 			
 				// Load the data into the table.  We can assume the columns and rows match up since each group-node logically grouped nodes of the same type.				
 				// Load the columns
-				var columnVals = d.data['@'].group.nodes[0].data.attvalues.attvalue;
+				var columnVals = d.data['@'].group.nodes[0].data.attvalues.attvalue;			
 				var columns = [];
-				for (var i = 0; i < columnVals.length; i++)
+				// Some columnVals only have a single row and do not return an array but a signle object...
+				if (columnVals instanceof Array) 
 				{
-					columns.push({'sTitle': json.graph.attributes[0].attribute[columnVals[i]['@'].for]['@'].title});
+					for (var i = 0; i < columnVals.length; i++)
+					{
+						columns.push({'sTitle': json.graph.attributes[0].attribute[columnVals[i]['@'].for]['@'].title});
+					}
 				}
+				else 
+				{
+					columns.push({'sTitle': json.graph.attributes[0].attribute[columnVals['@'].for]['@'].title});
+				}			
 				
 				// Load rows
 				var rowVals = d.data['@'].group.nodes;
@@ -429,9 +512,17 @@ function app()
 				for (var i = 0; i < rowVals.length; i++)
 				{
 					nodeVals = rowVals[i].data.attvalues.attvalue;
-					for (var j = 0; j < nodeVals.length; j++)
+					// Just like columnvals, sometimes it is of a single value and thus not an array
+					if (nodeVals instanceof Array)
 					{
-						row.push(nodeVals[j]['@'].value);
+						for (var j = 0; j < nodeVals.length; j++)
+						{
+							row.push(nodeVals[j]['@'].value);
+						}
+					}
+					else
+					{
+						row.push(nodeVals['@'].value);
 					}
 					rows.push(row);
 					row = [];
@@ -449,8 +540,8 @@ function app()
 					"sDom": "<'row'<'span6'l><'span6'f>r>t<'row'<'span6'i><'span6'p>>",
 					"sPaginationType": "bootstrap",
 					"oLanguage": {"sLengthMenu": "_MENU_ records per page"},
-					"aaData": rows,
 					"aoColumns": columns,
+					"aaData": rows,					
 					"bDestroy": true
 				});
 				
@@ -458,46 +549,38 @@ function app()
 				$("#btnModalSelect").click(function()
 				{
 					var selected = $('#tblGroup').dataTable().$('tr.row_selected');
-					
-					// If transaction:
+				
 					for (var i = 0; i < selected.length; i++)
-					{
-						// Find each hash in the group, remove them, and send it to the graph. (to me... it seems to send anything to the graph it must be done from json)
-						var hash = selected[i].innerText.split('\t')[1];
-						for (var j = 0; j < d.data['@'].group.nodes.length; j++)
+					{						
+						var index = selected[i]._DT_RowIndex;
+						var n = d.data['@'].group.nodes[index];
+
+						// We have found the node.  Add the node to the graph
+						nodes[n.name] = n;
+
+						// Remove the node from the group
+						d.data['@'].group.nodes.splice(j, 1);	
+								
+						// Now we find it's relationships, then add them to the graph visualization.
+						for (var k = 0; k < d.data['@'].group.links.length; k++)
 						{
-							var n = d.data['@'].group.nodes[j];
-							if (n.data.attvalues.attvalue[1]['@'].value === hash)
+							var l = d.data['@'].group.links[k];
+							if (n.name === l.source || n.name === l.target)
 							{
-								// We have found the node.  Add the node to the graph
-								nodes[n.name] = n;
+								// Add the link to graph	
+								var linkToAdd = {};
+								linkToAdd['@'] = {'id': l.data['@'].id, 'label': l.data['@'].label, 'source': l.source, 'target': l.target};
+								linkToAdd['attvalues'] = l.data.attvalues;
+								json.graph.edges.edge.push(linkToAdd); 
+								// links[l.data['@'].id] = {"source": nodes[l.source], "target": nodes[l.target], "data": l};		// d3js despises this which is frusterating		
 								
-								// Remove the node from the group
-								d.data['@'].group.nodes.splice(j, 1);	
-								
-								// Now we find it's relationships, then add them to the graph visualization.
-								for (var k = 0; k < d.data['@'].group.links.length; k++)
-								{
-									var l = d.data['@'].group.links[k];
-									if (n.name === l.source || n.name === l.target)
-									{
-										// Add the link to graph	
-										var linkToAdd = {};
-										linkToAdd['@'] = {'id': l.data['@'].id, 'label': 'from', 'source': l.source, 'target': l.target};
-										linkToAdd['attvalues'] = l.data.attvalues;
-										json.graph.edges.edge.push(linkToAdd); 
-										// links[l.data['@'].id] = {"source": nodes[l.source], "target": nodes[l.target], "data": l};		// d3js despises this which is frusterating		
-										
-										// Remove the link from the group
-										d.data['@'].group.links.splice(k, 1);	
-									}
-								}						
-							}						
-						}											
+								// Remove the link from the group
+								d.data['@'].group.links.splice(k, 1);	
+							}
+						}						
 					}
 					
-					show(json);
-					
+					show(json);					
 					$('#groupModal').modal('hide')
 					return false;
 				});
@@ -508,6 +591,9 @@ function app()
 				// The user did not click on a group node.  Query the database to find this node's neighbors.
 				nodeQuery(d.name);
 			}
+			
+			// We unfix the node so it can dynamically move around;
+			d.fixed = false;
 		});		
 
 		node.append("svg:path")
@@ -542,7 +628,7 @@ function app()
 			.style("stroke", "none");
 
 		node.append("text")
-			.attr("dx", 12)
+			.attr("dx", 20)
 			.attr("dy", ".35em")
 			.text(function(d) 
 			{ 
@@ -556,7 +642,7 @@ function app()
 						return d.data.attvalues.attvalue[4]['@'].value;
 						break;
 					case 'money':
-						return d.data.attvalues.attvalue[1]['@'].value;
+						return d.data.attvalues.attvalue[1]['@'].value / 100000000 + " BTC";
 						break;
 					case 'address':
 						return d.data.attvalues.attvalue['@'].value;
@@ -565,8 +651,8 @@ function app()
 						// TODO.  We need to find the edgtes connected to this vertices witht the label of identifies and display that, else, owner
 						return "owner";
 						break;
-					case 'group':
-						return d.data['@'].group.nodes.length + " Transactions";  // TODO
+					case 'group':						
+						return d.data['@'].group.nodes.length + " " + d.data['@'].group.nodes[0].data['@'].label.charAt(0).toUpperCase() + d.data['@'].group.nodes[0].data['@'].label.slice(1) + 's'; // We can assume the first node label is the same as the rest since its a group
 						break;
 					default:
 						return 'unknown';
@@ -583,11 +669,6 @@ function app()
 		
 		function tick()
 		{
-			link.attr("x1", function(d) { return d.source.x; })
-				.attr("y1", function(d) { return d.source.y; })
-				.attr("x2", function(d) { return d.target.x; })
-				.attr("y2", function(d) { return d.target.y; });
-			
 			// Line label			
 			path_text.attr("transform", function(d) 
 			{
@@ -596,19 +677,24 @@ function app()
 				var dr = Math.sqrt(dx * dx + dy * dy);
 				var sinus = dy/dr;
 				var cosinus = dx/dr;
-				var l = d.data['@'].label.length*6;
+				var l = d.data['@'].label.length * 6;
 				var offset = (1 - (l / dr )) / 2;
 				var x=(d.source.x + dx*offset);
 				var y=(d.source.y + dy*offset);
 				return "translate(" + x + "," + y + ") matrix("+cosinus+", "+sinus+", "+-sinus+", "+cosinus+", 0 , 0)";
-			});
+			});	
+			
+			link.attr("x1", function(d) { return d.source.x; })
+				.attr("y1", function(d) { return d.source.y; })
+				.attr("x2", function(d) { return d.target.x; })
+				.attr("y2", function(d) { return d.target.y; });
 			
 			node.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
 		}	
 		
 		function dragStart(d, i) 
 		{
-			force.stop() // stops the force auto positioning before you start dragging
+			force.friction(0);
 		}
 
 		function dragMove(d, i) 
@@ -622,9 +708,8 @@ function app()
 
 		function dragEnd(d, i) 
 		{
-			d.fixed = true; // of course set the node to fixed so the force doesn't include the node in its auto positioning stuff
-			tick();
-			force.resume();
+			d.fixed = true; // of course set the node to fixed so the force doesn't include the node in its auto positioning stuff					
+			force.friction(.9);
 		}
 	};
 	
@@ -653,16 +738,19 @@ function app()
 		// We can make this assumption since we are only parsing newly added data to the graph which will be at most a length of one depth, not the entire graph!
 		var isIncoming;
 		var nodeId;
+		var edgeLabel;
 		if (arr[0].source === arr[1].source)
 		{
 			isIncoming = false;
 			nodeId = arr[0].source;
+			edgeLabel = arr[0].data['@'].label;
 		}
 		
 		else if (arr[0].target === arr[1].target)
 		{
 			isIncoming = true;
 			nodeId = arr[0].target
+			edgeLabel = arr[0].data['@'].label;
 		}
 		
 		// Create errors
@@ -678,7 +766,7 @@ function app()
 			for (var node in json.graph.nodes.node)
 			{		
 				// We do not delete the last node in the list as this is the node that the user has selected! (Kinda hackey TODO)
-				if (parseInt(node) !== json.graph.nodes.node.length - 1 && (json.graph.nodes.node[node]['@'].id == group.links[link].source || json.graph.nodes.node[node]['@'].id == group.links[link].target))
+				if (parseInt(node) !== json.graph.nodes.node.length - 1 && (json.graph.nodes.node[node]['@'].id === group.links[link].source || json.graph.nodes.node[node]['@'].id === group.links[link].target))
 				{
 					// Add the node to the group
 					group.nodes.push({"name": json.graph.nodes.node[node]['@'].id, "data": json.graph.nodes.node[node]});
@@ -705,13 +793,12 @@ function app()
 		// We need to reinsert the object back into the raw json because d3js does some kind of object memeory reference call and it considers our nodeToLink to be a different object
 		// than what is pulled in the json object in normal linking
 		if (isIncoming)
-		{
-			json.graph.edges.edge.push({'@': {'id': Math.floor((Math.random()*1000000000)+10000000), 'label': 'from', 'source': groupNode.name, 'target': nodeId}}); // TODO
-		}
+		{			
+			json.graph.edges.edge.push({'@': {'id': Math.floor((Math.random()*1000000000)+10000000), 'label': edgeLabel, 'source': groupNode.name, 'target': nodeId}});		}
 		
 		else
 		{
-			json.graph.edges.edge.push({'@': {'id': Math.floor((Math.random()*1000000000)+10000000), 'label': 'from', 'source': nodeId, 'target': groupNode.name}}); // TODO
+			json.graph.edges.edge.push({'@': {'id': Math.floor((Math.random()*1000000000)+10000000), 'label': edgeLabel, 'source': nodeId, 'target': groupNode.name}});
 		}		
 		
 		// Insert our group node and link into the data structure

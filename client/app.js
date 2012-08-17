@@ -27,6 +27,8 @@ process.on("uncaughtException", function(err)
 	console.log(err.message);
 });
 
+app.enable("jsonp callback");
+
 // Homepage Route
 app.get('/', function(req, res){
   res.render('index.jade', { title: 'Block Viewer' });
@@ -372,33 +374,36 @@ function sendResult(queryResult, selfResult, req, res)
 						
 		if (req.params.format == 'json')
 		{
-			sendJson(queryResult, res);				
+			sendJson(queryResult, res, req);				
 		}
-		else if (req.params.format == 'xml')
-		{
-			sendXml(queryResult, res);
-		}
+		
 		else
 		{
-			res.send('{"error": "Must specify extension - .xml || .json"}');
+			sendXml(queryResult, res, req);
 		}
 	}	
 }
 
 // Format database response to gexf
-function sendXml(result, res)
+function sendXml(result, res, req)
 {
+	res.setHeader('content-type', 'application/gexf+xml');
 	res.send(toGexf(result));
 }
 
 // Format database response to gexf json
-function sendJson(result, res)
+function sendJson(result, res, req)
 {	
 	var parser = new xml2js.Parser();		
-		parser.parseString(toGexf(result), function (err, result) 
+	parser.parseString(toGexf(result), function (err, result) 
+	{	
+		if (err)
 		{
-			res.send(JSON.stringify(result, null, 4));
-		});
+			return res.send(err);
+		}
+		
+		res.send(JSON.stringify(result, null, 4));
+	});
 }
 
 function toGexf(result)
@@ -560,10 +565,9 @@ function toGexf(result)
 		xml.EndNode();
 
 		return xml.ToString();
-		return xml.ToString();
 	}
 }
 
 // Launch server
-app.listen(process.env.PORT || 3000);
+app.listen(process.env.PORT || 8080);
 console.log("Express server listening on port %d in %s mode", app.address().port, app.settings.env);
