@@ -44,19 +44,27 @@ public class Main
 
 				if (!line.hasOption("client"))
 				{
-					GraphBuilder.DownloadAndSaveBlockChain(validate);
-
-					if (line.hasOption("high"))
+					try
 					{
-						GraphBuilder.BuildHighLevelGraph();
-					}
-					// GraphBuilder.StopDatabase();
-					LOG.info("Completed.");
+						GraphBuilder.DownloadAndSaveBlockChain(validate);
+						
+						if (line.hasOption("high"))
+						{
+							GraphBuilder.BuildHighLevelGraph();
+						}
+						// GraphBuilder.StopDatabase();
+						LOG.info("Completed.");
 
-					// If the user activated the scraper
-					if (line.hasOption("scraper"))
+						// If the user activated the scraper
+						if (line.hasOption("scraper"))
+						{
+							GraphBuilder.Scrape();
+						}
+					} 
+					
+					catch (Exception e)
 					{
-						GraphBuilder.Scrape();
+						LOG.severe("Graph Build Failed.  Skipping, but not shutting down database.");
 					}
 				}
 			}
@@ -80,7 +88,8 @@ public class Main
 			{
 				if (line.hasOption("time"))
 				{
-					Thread.sleep(Long.parseLong(line.getOptionValue("time")));
+					LOG.info("Sleeping for: " + line.getOptionValue("time") + " ms");					
+					Thread.sleep(Long.parseLong(line.getOptionValue("time")));					
 				}
 				else
 				{
@@ -113,7 +122,7 @@ public class Main
 		Option scraper = OptionBuilder.withArgName("scraper").withDescription("Runs the scraper which attempts to associate bitcoin addresses to real world entities.").create("scraper");
 		Option high = OptionBuilder.withArgName("high").withDescription("Builds the high level data structure.").create("high");
 		Option client = OptionBuilder.withArgName("client").withDescription("Will only run the database service and not attempt to build the blockchain.").create("client");
-		Option time = OptionBuilder.withArgName("time").withDescription("The amount of time the program will wait before rebuilding an updated version of the graph again.").create("time");
+		Option time = OptionBuilder.hasArg().withArgName("time").withDescription("The amount of time the program will wait before rebuilding an updated version of the graph again.").create("time");
 		Options options = new Options();
 		options.addOption(dbPath);
 		options.addOption(configPath);

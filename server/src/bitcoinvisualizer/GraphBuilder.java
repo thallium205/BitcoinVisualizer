@@ -196,13 +196,24 @@ public class GraphBuilder
 	 * maintains a local json repository by downloading it directly from the API. Then, it persists the json blocks to the datastore from these local json files.
 	 * 
 	 * @author John
+	 * @throws Exception 
 	 * 
 	 */
-	public static void DownloadAndSaveBlockChain(boolean doValidate)
+	public static void DownloadAndSaveBlockChain(boolean doValidate) throws Exception
 	{
 		LOG.info("Begin building block chain...");
 		// We find the latest block from the internet
-		LatestBlock latestInternetBlock = Fetcher.GetLatest();
+		LatestBlock latestInternetBlock;
+		
+		try
+		{
+			latestInternetBlock = Fetcher.GetLatest();
+		} 
+		
+		catch (Exception e)
+		{
+			throw e;
+		}
 		LOG.info("Latest block from the internet is: " + latestInternetBlock.getHeight());
 
 		// The latest block index that exists in the bitcoin blockchain

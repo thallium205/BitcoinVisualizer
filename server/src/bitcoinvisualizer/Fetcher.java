@@ -192,8 +192,9 @@ public class Fetcher
 	/**
 	 * Downloads the latest block from the API.  
 	 * @return
+	 * @throws Exception 
 	 */
-	public static LatestBlock GetLatest()
+	public static LatestBlock GetLatest() throws Exception
 	{
 		LOG.info("Downloading latest block value from the internet...");
 		URL url;
@@ -207,32 +208,12 @@ public class Fetcher
 			JSONValue json = new JSONParser(reader).nextValue();
 			return (LatestBlock) JSONMapper.toJava(json, LatestBlock.class);
 		}
-
-		catch (MalformedURLException e)
+		
+		catch (Exception e)
 		{
 			LOG.log(Level.SEVERE, "Fetcher failed to retrieve latest block value. Aborting.  Reason: " + e.getMessage(), e);
-		}
-
-		catch (IOException e)
-		{
-			LOG.log(Level.SEVERE, "Fetcher failed to retrieve latest block value. Aborting.  Reason: " + e.getMessage(), e);
-		}
-
-		catch (TokenStreamException e)
-		{
-			LOG.log(Level.SEVERE, "Fetcher failed to retrieve latest block value. Aborting.  Reason: " + e.getMessage(), e);
-		}
-
-		catch (RecognitionException e)
-		{
-			LOG.log(Level.SEVERE, "Fetcher failed to retrieve latest block value. Aborting.  Reason: " + e.getMessage(), e);
-		}
-
-		catch (MapperException e)
-		{
-			LOG.log(Level.SEVERE, "Fetcher failed to retrieve latest block value. Aborting.  Reason: " + e.getMessage(), e);
-		}
-		return null;
+			throw e;
+		}		
 	}
 
 	/**

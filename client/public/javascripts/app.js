@@ -3,97 +3,20 @@ function app()
 	var width = $(window).width(),
 	height = $(window).height();	
 
-	var svg = d3.select("body").append("svg")
-		.attr("width", '100%')
-		.attr("height", '89%');
-		// .attr("viewBox", "0 0 90 90");
-
-	svg.append("svg:defs").selectAll("marker")
-		.data(["succeeds", "from", "received", "sent", "redeemed", "same_owner", "owns", "transfers", "identifies"])
-		.enter().append("svg:marker")
-		.attr("id", String)
-		.attr("viewBox", "0 -5 10 10")
-		.attr("refX", 0)
-		.attr("refY", 0)
-		.attr("markerWidth", 6)
-		.attr("markerHeight", 6)
-		.attr("orient", "auto")
-		.append("svg:path")
-		.attr("d", "M0,-5L10,0L0,5");
-
-	var force = d3.layout.force()
-		.gravity(.2)
-		.distance(250)
-		.charge(-1000)
-		.size([width, height]);
-
 	// Data structures
 	var nodes = {}; 
 	var links = {};	
 	var nodeReqs = []; // Used to determine if a node has already been selected.  Used to prevent duplicates of grouping
-	var pathData = [];
+	var pathData = [];	
+	var path_text = null; // Used to draw the labels on the edges
+	var isDynamic = true;
 	
-	var path_text = null; // Used to draw the labesl on the edges
-
-	var query = function(val)
-	{	
-		$("#btnSubmit").button('loading');
-		if (val.length == 64)
-		{	
-			
-			$.getJSON("api/block/hash/" + val + ".json", function(graph)
-			{	
-				$("#btnSubmit").button('complete');
-				show(graph);
-				
-			});	
-			
-
-			/*
-			$.getJSON("api/trans/" + val + ".json", function(graph)
-			{		
-				$("#btnSubmit").button('complete');
-				show(graph);
-			});	
-			*/
-			
-			
-		}
-
-		else if (val.length > 30 && val.length < 36)
-		{
-			/*
-			$.getJSON("api/addr/" + val + ".json", function(graph)
-			{	
-				$("#btnSubmit").button('complete');
-				show(graph);				
-			});
-			*/
-			
-			
-			$.getJSON("api/owns/" + val + ".json", function(graph)
-			{	
-				$("#btnSubmit").button('complete');
-				show(graph);				
-			});	
-			
-		}
-
-		else if (val.indexOf(".") != -1)
-		{
-			$.getJSON("api/ipv4/" + val + ".json", function(graph)
-			{	
-				$("#btnSubmit").button('complete');
-				show(graph);				
-			});
-		}
-
-		else
-		{	
-			$("#btnSubmit").button('complete');
-			alert("Invalid input");			
-		}
-	};
+	var force = self.force = d3.layout.force()
+	.gravity(.2)
+	.distance(250)
+	.charge(-1000)
+	.size([width, height])
+	.start();
 	
 	// When a user clicks on a node
 	var nodeQuery = function(index)
@@ -102,12 +25,12 @@ function app()
 		// Add the index to the node requests array if it hasnt been requested before
 		if (nodeIndex === -1)
 		{
-			$("#btnSubmit").button('loading');
+			//$("#btnSubmit").button('loading');
 			nodeReqs.push(index);	
 			$.getJSON("api/node/" + index + ".json", function(graph)
 			{
-				$("#btnSubmit").button('complete');
-				show(graph);				
+				//$("#btnSubmit").button('complete');
+				showDynamic(graph);				
 			});	
 		}	
 		
@@ -203,8 +126,27 @@ function app()
 		}
 	}
 
-	var show = function(json)
-	{		
+	var showDynamic = function(json)
+	{
+		jQuery('#v').empty();
+		
+		var svg = d3.select("#v").append("svg:svg")
+		.attr("viewBox", "0 0 " + width + " " + height)
+		.attr("preserveAspectRatio", "xMidYMid meet");
+		
+		svg.append("svg:defs").selectAll("marker")
+			.data(["succeeds", "from", "received", "sent", "redeemed", "same_owner", "owns", "transfers", "identifies"])
+			.enter().append("svg:marker")
+			.attr("id", String)
+			.attr("viewBox", "0 -5 10 10")
+			.attr("refX", 0)
+			.attr("refY", 0)
+			.attr("markerWidth", 6)
+			.attr("markerHeight", 6)
+			.attr("orient", "auto")
+			.append("svg:path")
+			.attr("d", "M0,-5L10,0L0,5");
+
 		// We group relationships by type if their type size is greater than 10 then we combine them //
 		// TODO - This wont work with the source or target are not the same!  This will happen when querying addresses.  >.<
 		
@@ -406,28 +348,25 @@ function app()
 			}
 		}
 		*/
-		path_text = svg.selectAll(".path").data(force.links(), function(d){ return d.name;});			// text_content
-		path_text.enter().append("svg:g").append("svg:text").attr("class","path-text").text(function(d, i) 
-		{
-			var v = $(this)[0];
-			if ($(this)[0].textContent === "")
-			{
-				return d.data['@'].label; 
-			}
-			else
-			{
-				return "";
-			}
-			
-		});
 		
+		path_text = svg.selectAll(".path").data(force.links(), function(d){ return d.name;}).enter().append("svg:g");
 		
+		path_text.append("svg:text")
+					.attr("class","path-text shadow")
+					.text(function(d) { return d.data['@'].label; });
+
+			path_text.append("svg:text")
+					.attr("class","path-text")
+					.text(function(d) { return d.data['@'].label; });
+					
+		// path_text.enter().append("svg:g").append("svg:text").attr("class","path-text").text(function(d) { return d.data['@'].label; });				
+
 		// Nodes
 		var node = svg.selectAll(".node")
 		.data(force.nodes(), function(d)
 		{
 			// provides a unique index for data
-			return d.name
+			return d.name;
 		});		
 
 		// Add any incoming nodes
@@ -442,7 +381,7 @@ function app()
 		// Enable popover content for each node
 		.each(function(d)
 		{		
-			$(this).popover({'title': d.data['@'].label.charAt(0).toUpperCase() + d.data['@'].label.slice(1), 'placement': 'top', 'delay': { 'show': 0, 'hide': 100 }, 'content': function()
+			$(this).popover({'title': d.data['@'].label.charAt(0).toUpperCase() + d.data['@'].label.slice(1), 'placement': 'top', 'delay': { 'show': 100, 'hide': 0 }, 'content': function()
 				{
 					var content = [];
 					if (d.data['@'].label === 'group')
@@ -580,7 +519,7 @@ function app()
 						}						
 					}
 					
-					show(json);					
+					showDynamic(json);					
 					$('#groupModal').modal('hide')
 					return false;
 				});
@@ -833,23 +772,71 @@ function app()
 	*/
 
 	// Register listeners
-	$("#search").submit(function()
-	{
-		query($("input:first").val());
-		return false;
+	
+	// Main address hook TODO - Cleanup needed badly
+	$.address.change(function(event) 
+	{	
+		$.getJSON("api" + event.value + ".json", function(graph)
+		{	
+			showDynamic(graph);				
+		});
 	});
-
-	$("#btnSubmit").click(function() 
+	
+	$('a').address(function() 
 	{
-		query($("input:first").val());
-		return false;
+		var val = $(this).attr('href').replace(/^#/, '');
+		switch(val)
+		{
+			case 'block':
+				if ($("input:first").val().length === 64)
+				{
+					return "/block/hash/" + $("input:first").val();					
+				}
+				else
+				{
+					return "/block/height/" + $("input:first").val();	
+				}
+				break;
+			case 'trans':
+				return "/trans/" + $("input:first").val();
+				break;
+			case 'addr':
+				return "/addr/" + $("input:first").val();
+				break;
+			case 'owns':
+				return "/owns/" + $("input:first").val();
+				break;
+			case 'ipv4':
+				return "/ipv4/" + $("input:first").val();
+				break;
+			default:
+				return $(this).attr('href').replace(/^#/, '');
+		}		
 	});
 	
 	$("#btnClear").click(function()
 	{
 		nodes = {};
 		links = {};
-		show(getEmptyGraph());
+		showDynamic(getEmptyGraph());
 		return false;
 	});
+	
+	/*
+	$("#btnDynamic").click(function()
+	{
+		isDynamic = true;	
+		query($("input:first").val());		
+	});
+						
+	$("#btnStatic").click(function()
+	{
+		isDynamic = false;
+		query($("input:first").val());
+	});
+
+					div(data-toggle='buttons-radio').btn-group.pull-left.form-inline
+						button(type='button')#btnDynamic.btn Dynamic
+						button(type='button')#btnStatic.btn Static
+	*/						
 };

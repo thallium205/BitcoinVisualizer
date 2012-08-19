@@ -54,7 +54,7 @@ public class Scraper
 		String url = "https://bitcointalk.org/index.php?action=profile;u=";
 
 		// Import the security certificate
-		System.setProperty("javax.net.ssl.trustStore", "cert/bitcointalk.jks");
+		System.setProperty("javax.net.ssl.trustStore", "cert/bitcointalk2013.jks");
 
 		// Get latest member user id, set that as upper bound
 		int last_internet_userId = getLatestUid();

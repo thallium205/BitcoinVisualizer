@@ -1,29 +1,38 @@
 head
 	include ../includes/blockviewer
-	
-div.navbar
-	div.navbar-inner
-		div.container
-			a(href='#').brand Block Viewer
-			ul.nav
-				li
-					a(href='#') FAQ
-				li  
-					a(href='#') API
-			form#search.navbar-search.pull-right.form-inline				
-				input(id='txtInput')(type='text')(placeholder='Address / SHA hash / height')(style='width:300px').search-query
-				button(id='btnSubmit')(data-loading-text='Loading...')(data-complete-text='Search').btn.btn-primary.btn-large Search
-		form.form-inline.pull-right
-			button(id='btnFilter')(data-toggle='dropdown').btn.dropdown-toggle Filter
-				span.caret
-			ul.dropdown-menu
-				li
-					a(href='#') FAQ
-				li  
-					a(href='#') API
-			button(id='btnClear').btn Clear	
+
+body	
+	div.navbar
+		div.navbar-inner
+			div.container
+				a(href='#').brand Block Viewer
+				ul.nav
+					li
+						a(href='#faq') FAQ
+					li  
+						a(href='#api') API
+				form#search.navbar-search.pull-right.form-inline
+					button(id='btnClear').btn Clear
+					input(id='txtInput')(type='text')(placeholder='Address / SHA hash / height')(style='width:500px').search-query	
+					div.btn-group.pull-right.form-inline
+						button(data-toggle='dropdown')(id='btnSubmit')(data-loading-text='Loading...')(data-complete-text='Search')(href='#').btn.dropdown-toggle.btn-primary.btn-large Search
+							span.caret
+						ul.dropdown-menu
+							li
+								a(href='#addr') Address							
+							li
+								a(href='#block') Block						
+							li
+								a(href='#ipv4') IPv4
+							li								
+								a(href='#owns') Owner Address
+							li
+								a(href='#trans') Transaction
+													
+	div(id='v')
 	script
 		app();
+	
 div.modal.hide#groupModal
 	div.modal-header
 		button(type='button')(data-dismiss='modal').close x
