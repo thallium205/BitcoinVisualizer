@@ -9,11 +9,11 @@ import java.util.ArrayList;
  */
 public class LatestBlock
 {
-	String hash;
-	Long time;
-	Integer block_index;
-	Integer height;
-	ArrayList<Integer> txIndexes;
+	private String hash;
+	private Long time;
+	private Integer block_index;
+	private Integer height;
+	private ArrayList<Integer> txIndexes;
 	
 	public String getHash()
 	{

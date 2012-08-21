@@ -152,13 +152,14 @@ function app()
 		
 		// Iterate over each node, count up the edges (and their types attached to it) and group them.
 		for (var node in json.graph.nodes.node)
-		{
+		{			
 			var edges = [];
 			for (var e in json.graph.edges.edge)
 			{				
 				// Check to see if edge is connected to the node and to make sure it is not a group node that is already stored in the list
 				if (json.graph.nodes.node[node]['@'].id === json.graph.edges.edge[e]['@'].source || json.graph.nodes.node[node]['@'].id === json.graph.edges.edge[e]['@'].target)
 				{	
+					
 					edges.push(json.graph.edges.edge[e]);
 				}
 			}
@@ -267,8 +268,7 @@ function app()
 		{			
 			if (!(json.graph.nodes.node[node]['@'].id in nodes))
 			{
-				nodes[json.graph.nodes.node[node]['@'].id] = {"name": json.graph.nodes.node[node]['@'].id, "data": json.graph.nodes.node[node]};
-				
+				nodes[json.graph.nodes.node[node]['@'].id] = {"name": json.graph.nodes.node[node]['@'].id, "data": json.graph.nodes.node[node]};				
 			}			
 		}
 
@@ -393,7 +393,14 @@ function app()
 					{					
 						for (var val in d.data.attvalues.attvalue)
 						{
-							content.push(json.graph.attributes[0].attribute[d.data.attvalues.attvalue[val]["@"].for]["@"].title + ": " + d.data.attvalues.attvalue[val]["@"].value + "<br \/>");
+							try
+							{
+								content.push(json.graph.attributes[0].attribute[d.data.attvalues.attvalue[val]["@"].for]["@"].title + ": " + d.data.attvalues.attvalue[val]["@"].value + "<br \/>");
+							}
+							catch (err)
+							{
+								// TODO
+							}
 						}
 					}
 					return content.join("\n");
@@ -707,6 +714,27 @@ function app()
 				// We do not delete the last node in the list as this is the node that the user has selected! (Kinda hackey TODO)
 				if (parseInt(node) !== json.graph.nodes.node.length - 1 && (json.graph.nodes.node[node]['@'].id === group.links[link].source || json.graph.nodes.node[node]['@'].id === group.links[link].target))
 				{
+					var alreadyInGraph = false;
+					// If the node is already in the graph, we don't add it to our group node, but we do delete it from the json blob.  We also do not remove the links
+					/*
+					for (n in nodes)
+					{
+						if (nodes[n].name === json.graph.nodes.node[n]['@'].id)
+						{
+							// It already exists somewhere else in the graph.  We delete it from the incoming json blob as to not make a duplicate
+							delete json.graph.nodes.node[node];
+							// We do not add it to the group node, and we also do not remove the actual link
+							alreadyInGraph = true;
+							break;
+						}
+					}
+					
+					if (alreadyInGraph)
+					{
+						break;
+					}
+					*/
+					
 					// Add the node to the group
 					group.nodes.push({"name": json.graph.nodes.node[node]['@'].id, "data": json.graph.nodes.node[node]});
 					

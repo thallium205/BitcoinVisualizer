@@ -20,6 +20,7 @@ import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.ReturnableEvaluator;
 import org.neo4j.graphdb.StopEvaluator;
 import org.neo4j.graphdb.Transaction;
+import org.neo4j.graphdb.Traverser.Order;
 import org.neo4j.graphdb.index.Index;
 import org.neo4j.graphdb.traversal.Evaluators;
 import org.neo4j.graphdb.traversal.TraversalDescription;
@@ -93,7 +94,12 @@ public class GraphBuilder
 	public static final String IPV4 = "ipv4_addrs";
 	public static final String IPV4_KEY = "ipv4_addr";
 	static Index<Node> ipv4_addrs;
-
+	
+	// Reference node indexes
+	private static final String LAST_BLOCK_HASH = "last_block_hash";
+	private static final String LAST_LINKED_TRANSACTION_BLOCK_NODEID = "last_linked_transaction_block_nodeId";
+	private static final String LAST_LINKED_OWNER_BUILD_BLOCK_NODEID = "last_linked_owner_build_block_nodeId";
+	private static final String LAST_LINKED_OWNER_LINK_BLOCK_NODEID = "last_linked_owner_link_block_nodeId";
 	/**
 	 * Represents the basic relationships of the low-level model.
 	 * 
@@ -230,7 +236,7 @@ public class GraphBuilder
 
 		// We now find the latest block persisted to the database
 		LOG.info("Finding the last block saved in the datastore...");
-		Node latestDatabaseBlock = getLatestDatabaseBlockNode();
+		Node latestDatabaseBlock = getLatestDatabaseBlockNodeByHash(LAST_BLOCK_HASH);
 		if (latestDatabaseBlock.hasProperty("block_index"))
 			lastDatabaseBlockIndex = (Integer) latestDatabaseBlock.getProperty("block_index");
 		else
@@ -275,7 +281,7 @@ public class GraphBuilder
 				latestDatabaseBlock = persistBlockNode(currentBlock, latestDatabaseBlock);
 				
 				// Update the metadata node of the last database block
-				graphDb.getReferenceNode().setProperty("last_database_block", currentBlock.getHash());
+				graphDb.getReferenceNode().setProperty(LAST_BLOCK_HASH, currentBlock.getHash());
 				
 				// Update the previous block node to the current one and repeat
 				lastDatabaseBlockIndex = currentBlock.getBlock_index();
@@ -312,19 +318,22 @@ public class GraphBuilder
 	 * @author jdmarble
 	 */
 	public static void BuildHighLevelGraph()
-	{
+	{	
 		LOG.info("Begin building high level graph...");
+		
 		// Add addresses to redeemed transfers and link those addresses together when
 		// the owner is the same.
 		LOG.info("Linking addresses...");
-		for (final Iterator<Node> iter = getTransactions().iterator(); iter.hasNext();)
+		
+		for (final Node transaction : getLatestTransactions(getLatestDatabaseBlockNodeByNodeId(LAST_LINKED_TRANSACTION_BLOCK_NODEID).getId()))
 		{
 			final Transaction tx = graphDb.beginTx();
 			try
 			{
-				final Node transaction = iter.next();
-				LOG.info("Processing transaction: " + transaction.getId());
+				LOG.info("Processing transaction: " + (String) transaction.getProperty("hash"));
 				linkAddresses(transaction);
+				// We need to get the block node id from this transaction.  There is only one block to a transaction
+				graphDb.getReferenceNode().setProperty(LAST_LINKED_TRANSACTION_BLOCK_NODEID, transaction.traverse(Order.BREADTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, BlockchainRelationships.from, Direction.OUTGOING).iterator().next().getId());
 				tx.success();
 			}
 
@@ -340,19 +349,20 @@ public class GraphBuilder
 				tx.finish();
 			}
 		}
-		LOG.info("Linking addresses completed.");
+		LOG.info("Linking addresses completed.");		
 
 		// Go through all addresses and create an owner for each connected component
 		// NOTE: ALL addresses must be created and linked BEFORE this pass.
 		LOG.info("Begin building owners for all linked addresses...");
-		for (final Iterator<Node> iter = getMainBlocks().iterator(); iter.hasNext();)
+		
+		for (final Node block : getLatestMainBlocks(getLatestDatabaseBlockNodeByNodeId(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID).getId()))
 		{
 			final Transaction tx = graphDb.beginTx();
 			try
 			{
-				final Node block = iter.next();
-				LOG.info("Processing block: " + block.getId());
+				LOG.info("Processing block: " + (Integer) block.getProperty("height"));
 				createOwners(block);
+				graphDb.getReferenceNode().setProperty(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID, block.getId());
 				tx.success();
 			}
 
@@ -371,8 +381,8 @@ public class GraphBuilder
 		LOG.info("Building owners completed.");
 
 		// Link the owners for the highest level of the abstraction
-		LOG.info("Begin linking owners...");
-		for (final Node block : getMainBlocks())
+		LOG.info("Begin linking owners...");		
+		for (final Node block : getLatestMainBlocks(getLatestDatabaseBlockNodeByNodeId(LAST_LINKED_OWNER_LINK_BLOCK_NODEID).getId()))
 		{
 			final Transaction tx = graphDb.beginTx();
 			try
@@ -381,6 +391,7 @@ public class GraphBuilder
 				{
 					LOG.info("Processing owner: " + owner.getId());
 					linkOwners(owner);
+					graphDb.getReferenceNode().setProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID, block.getId());
 					tx.success();
 				}
 			}
@@ -517,11 +528,11 @@ public class GraphBuilder
 	 * @return The latest block node stored from the datastore.
 	 * @author John
 	 */
-	private static Node getLatestDatabaseBlockNode()
+	private static Node getLatestDatabaseBlockNodeByHash(String property)
 	{
-		if (graphDb.getReferenceNode().hasProperty("last_database_block"))
+		if (graphDb.getReferenceNode().hasProperty(property))
 		{
-			return block_hashes.query(BLOCK_HASH_KEY, (String) graphDb.getReferenceNode().getProperty("last_database_block")).getSingle();
+			return block_hashes.query(BLOCK_HASH_KEY, (String) graphDb.getReferenceNode().getProperty(property)).getSingle();
 		}
 
 		else
@@ -529,6 +540,20 @@ public class GraphBuilder
 			return graphDb.getReferenceNode();
 		}
 	}
+	
+	private static Node getLatestDatabaseBlockNodeByNodeId(String property)
+	{
+		if (graphDb.getReferenceNode().hasProperty(property))
+		{
+			return graphDb.getNodeById((Long) graphDb.getReferenceNode().getProperty(property));
+		}
+
+		else
+		{
+			return graphDb.getReferenceNode();
+		}
+	}
+
 
 	/**
 	 * Scans the disk to make sure that the blockchain and that there are no missing blocks.
@@ -865,7 +890,7 @@ public class GraphBuilder
 	 * @return all transactions from the given block.
 	 * @author jdmarble
 	 */
-	public static Iterable<Node> getTransactions(final Node block)
+	private static Iterable<Node> getTransactions(final Node block)
 	{
 		return block.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, BlockchainRelationships.from, Direction.INCOMING);
 	}
@@ -878,7 +903,7 @@ public class GraphBuilder
 	 * @return all transactions from the given blocks.
 	 * @author jdmarble
 	 */
-	public static Iterable<Node> getTransactions(final Iterable<Node> blocks)
+	private static Iterable<Node> getLatestTransactions(final Iterable<Node> blocks)
 	{
 		final Iterable<Iterable<Node>> transactionGroups = FluentIterable.from(blocks).transform(new GetTransactions());
 		return Iterables.concat(transactionGroups);
@@ -890,9 +915,9 @@ public class GraphBuilder
 	 * @return all transactions from the main blocks.
 	 * @author jdmarble
 	 */
-	public static Iterable<Node> getTransactions()
+	private static Iterable<Node> getLatestTransactions(long blockNodeId)
 	{
-		return getTransactions(getMainBlocks());
+		return getLatestTransactions(getLatestMainBlocks(blockNodeId));
 	}
 
 	/**
@@ -920,7 +945,7 @@ public class GraphBuilder
 	 * @param graphDb
 	 * @author jdmarble
 	 */
-	public static void linkAddresses(final Node transaction)
+	private static void linkAddresses(final Node transaction)
 	{
 		// Bake the traverser so it can be iterated over multiple times.
 		final Iterable<Node> transfers = ImmutableList.copyOf(getInputs(transaction));
@@ -928,8 +953,8 @@ public class GraphBuilder
 
 		for (final Node transfer : transfers)
 		{
-			final Iterable<Relationship> existingRedeemers = transfer.getRelationships(Direction.INCOMING, AddressRelTypes.redeemed);
-			if (Iterables.size(existingRedeemers) == 0)
+			final Iterator<Relationship> existingRedeemers = transfer.getRelationships(Direction.INCOMING, AddressRelTypes.redeemed).iterator();
+			if (!existingRedeemers.hasNext())
 			{
 				final String address = (String) transfer.getProperty(TransferProperties.addr.toString(), null);
 				if (address != null)
@@ -960,7 +985,7 @@ public class GraphBuilder
 	 * @return
 	 * @author jdmarble
 	 */
-	public static Node getAddress(final String address)
+	private static Node getAddress(final String address)
 	{
 		final Node existing = owned_addresses.get(OWNED_ADDRESS_HASH_KEY, address).getSingle();
 
@@ -1001,7 +1026,7 @@ public class GraphBuilder
 	 * @return
 	 * @author jdmarble
 	 */
-	public static Iterable<Node> getInputs(final Node transaction)
+	private static Iterable<Node> getInputs(final Node transaction)
 	{
 		return transaction.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, BlockchainRelationships.received,
 				Direction.INCOMING);
@@ -1028,14 +1053,15 @@ public class GraphBuilder
 		{
 			final Node address = toAddress.endNode();
 			// Does an owner node already own this address?
-			final Iterable<Relationship> owns = address.getRelationships(Direction.INCOMING, OwnerRelTypes.owns);
-			if (!owns.iterator().hasNext())
+			final Iterator<Relationship> owns = address.getRelationships(Direction.INCOMING, OwnerRelTypes.owns).iterator();
+			if (!owns.hasNext())
 			{
 				// No.  We create a relationship from owner to all the addresses it owns
 				final Iterable<Node> addresses = address.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL, AddressRelTypes.same_owner,	Direction.BOTH);
 				final Node owner = address.getGraphDatabase().createNode();
 				for (final Node owned : addresses)
 				{
+					
 					owner.createRelationshipTo(owned, OwnerRelTypes.owns);					
 				}				
 			}			
@@ -1043,7 +1069,7 @@ public class GraphBuilder
 	}
 
 	/**
-	 * A lazy Iterable of all "main" blocks in the database.
+	 * A lazy Iterable of all "main" blocks in the database from the given nodeId.
 	 * 
 	 * These blocks are those in the longest chain.
 	 * 
@@ -1052,9 +1078,9 @@ public class GraphBuilder
 	 * @return all main blocks in the database in breadth first order.
 	 * @author jdmarble
 	 */
-	public static Iterable<Node> getMainBlocks()
+	private static Iterable<Node> getLatestMainBlocks(long nodeId)
 	{
-		final Iterable<Node> blocks = getBlocks();
+		final Iterable<Node> blocks = getLatestBlocks(nodeId);
 
 		return FluentIterable.from(blocks).filter(new Predicate<Node>()
 		{
@@ -1066,18 +1092,17 @@ public class GraphBuilder
 	}
 
 	/**
-	 * A lazy Iterable of all blocks in the database.
+	 * A lazy Iterable of all the blocks after the one given in nodeId. 
 	 * 
 	 * @param graphDb
 	 *            the database to get blocks from.
-	 * @return all blocks in the database in breadth first order.
+	 * @return all blocks in the database in breadth first order from the given nodeId.
 	 * @author jdmarble
 	 */
-	public static Iterable<Node> getBlocks()
+	private static Iterable<Node> getLatestBlocks(long nodeId)
 	{
-		final Node root = graphDb.getReferenceNode();
-
-		return root.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL_BUT_START_NODE, BlockchainRelationships.succeeds, Direction.INCOMING);
+		final Node block = graphDb.getNodeById(nodeId);
+		return block.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL_BUT_START_NODE, BlockchainRelationships.succeeds, Direction.INCOMING);
 	}
 
 	/**
@@ -1088,7 +1113,7 @@ public class GraphBuilder
 	 * @return all owners from the given block.
 	 * @author jdmarble
 	 */
-	public static Iterable<Node> getOwners(final Node block)
+	private static Iterable<Node> getOwners(final Node block)
 	{
 		final TraversalDescription td = Traversal.description()
 				.relationships(BlockchainRelationships.from, Direction.INCOMING)

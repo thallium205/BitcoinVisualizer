@@ -18,8 +18,8 @@ public class TransactionType
 	private Integer tx_index;
 	private Long time;
 	
-	ArrayList<InputType> inputs;
-	ArrayList<OutputType> out;	
+	private ArrayList<InputType> inputs;
+	private ArrayList<OutputType> out;	
 	
 	public String getHash()
 	{

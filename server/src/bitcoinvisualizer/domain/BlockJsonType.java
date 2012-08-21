@@ -9,8 +9,8 @@ import com.sdicons.json.model.JSONValue;
  */
 public class BlockJsonType
 {
-	private BlockType blockType;
-	private JSONValue blockJson;
+	private final BlockType blockType;
+	private final JSONValue blockJson;
 	
 	public BlockJsonType(bitcoinvisualizer.domain.BlockType blockType2, JSONValue blockJson)
 	{

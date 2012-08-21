@@ -11,8 +11,7 @@ public class OutputType
 	private String addr2;
 	private String addr3;
 	private Long value;
-	private Integer type;
-	
+	private Integer type;	
 	
 	public String getAddr()
 	{
