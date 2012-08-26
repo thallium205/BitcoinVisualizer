@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
@@ -275,7 +276,7 @@ public class GraphBuilder
 			try
 			{
 				currentBlock = getNextBlockFromDisk(lastDatabaseBlockIndex, latestRemoteBlockIndex);
-				LOG.info("Persisting Block: " + currentBlock.getBlock_index());
+				LOG.info("Persisting Block: " + currentBlock.getHeight());
 
 				// We save the block node and set it to the latestDatabaseBlock
 				latestDatabaseBlock = persistBlockNode(currentBlock, latestDatabaseBlock);
@@ -316,15 +317,48 @@ public class GraphBuilder
 	 * Builds the high level abstraction of the block chain.
 	 * 
 	 * @author jdmarble
+	 * @throws FetcherException 
+	 * @throws IOException 
 	 */
-	public static void BuildHighLevelGraph()
+	public static void BuildHighLevelGraph() throws FetcherException, IOException
 	{	
 		LOG.info("Begin building high level graph...");
 		
-		// Add addresses to redeemed transfers and link those addresses together when
-		// the owner is the same.
-		LOG.info("Linking addresses...");
+		// Add addresses to redeemed transfers and link those addresses together when the owner is the same.		
+		LOG.info("Checking to make sure the latest block used to link addresses is still a part of the main chain...");		
 		
+		// Check to make sure all 3 components of the high-level builder have resolved on the same block.  If they haven't, then we skip this step	
+		// This step is required because the last block we originally thought was part of the main chain can become an orphan block later.
+		if (graphDb.getReferenceNode().hasProperty(LAST_LINKED_TRANSACTION_BLOCK_NODEID) && graphDb.getReferenceNode().hasProperty(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID) && graphDb.getReferenceNode().hasProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID))
+		{			
+			final Object lastLinkedBlockNodeId = graphDb.getReferenceNode().getProperty(LAST_LINKED_TRANSACTION_BLOCK_NODEID);
+			final Object lastLinkedOwnerBlockNodeId = graphDb.getReferenceNode().getProperty(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID);
+			final Object lastLinkedOwnerLinkBlockNodeId =  graphDb.getReferenceNode().getProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID);
+			
+			if (lastLinkedBlockNodeId.equals(lastLinkedOwnerBlockNodeId) && lastLinkedOwnerBlockNodeId.equals(lastLinkedOwnerLinkBlockNodeId))
+			{
+				final Transaction tx = graphDb.beginTx();
+				checkAndFixIfLastPersistedHighLevelBlockIsOrpahn();
+				tx.success();
+				tx.finish();
+			}
+			
+			else
+			{
+				LOG.warning("All 3 components of the high-level builder do not match.  This could be the result of an unsucessful high-level graph build.  Continuing...");
+			}
+		}
+		
+		else
+		{
+			LOG.info("The reference block does not have high level property information stored.  This is usually the result of a first-time run before any data has been added.");
+		}
+		
+			
+		LOG.info("Latest high level orphan block check completed.");
+
+		
+		LOG.info("Linking addresses...");
 		for (final Node transaction : getLatestTransactions(getLatestDatabaseBlockNodeByNodeId(LAST_LINKED_TRANSACTION_BLOCK_NODEID).getId()))
 		{
 			final Transaction tx = graphDb.beginTx();
@@ -351,6 +385,9 @@ public class GraphBuilder
 		}
 		LOG.info("Linking addresses completed.");		
 
+		
+		
+		
 		// Go through all addresses and create an owner for each connected component
 		// NOTE: ALL addresses must be created and linked BEFORE this pass.
 		LOG.info("Begin building owners for all linked addresses...");
@@ -410,6 +447,7 @@ public class GraphBuilder
 		}
 		LOG.info("Linking owners completed.");
 		LOG.info("Building high level graph completed.");
+		
 	}
 	
 	/**
@@ -430,6 +468,118 @@ public class GraphBuilder
 		}
 		
 		LOG.info("Scraping complete.");		
+	}
+	
+	/**
+	 * Checks to see if the last block processed by the high level graph builder is still part of the main chain.  If it isnt, this function will remove all high level data from each block in the orphaned chain.
+	 * @throws IOException 
+	 * @throws FetcherException 
+	 */
+	private static void checkAndFixIfLastPersistedHighLevelBlockIsOrpahn() throws IOException, FetcherException
+	{		
+		final Node lastHighLevelBlockProcessed = graphDb.getNodeById(getLatestDatabaseBlockNodeByNodeId(LAST_LINKED_TRANSACTION_BLOCK_NODEID).getId());
+		final BlockJsonType rawBlockFromInternet = Fetcher.GetBlock((String) lastHighLevelBlockProcessed.getProperty("hash"));
+		
+		if ((Boolean) lastHighLevelBlockProcessed.getProperty("main_chain") != rawBlockFromInternet.getBlockType().getMain_chain())
+		{
+			LOG.info("Block: " + (Integer) lastHighLevelBlockProcessed.getProperty("height") + " has become an orphan.  Begin deleting high level information from it."); 
+			// The block we at one point thought was part of the main chain is actually an orphan block.  We need to 	
+			// 1) Delete the high-level graph data we built in our last run for each of these orphan blocks 
+			removeHighLevelDataFromBlock(lastHighLevelBlockProcessed);
+			// 2) Overwrite our stale data on disk
+			LOG.info("Overwriting JSON store with the latest information from the API.");
+			FileUtils.writeStringToFile(new File(rawBlockFromInternet.getBlockType().getBlock_index() + ".json"), rawBlockFromInternet.getBlockJson().render(true));
+			lastHighLevelBlockProcessed.setProperty("main_chain", false);
+			// 3) Go backward down the chain until our data and the API's data agrees.		
+			for (Node block : lastHighLevelBlockProcessed.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL_BUT_START_NODE, BlockchainRelationships.succeeds, Direction.OUTGOING))
+			{
+				final BlockJsonType nextPreviosRawBlockFromInternet = Fetcher.GetBlock((String) block.getProperty("hash"));
+				if ((Boolean)block.getProperty("main_chain") == nextPreviosRawBlockFromInternet.getBlockType().getMain_chain())
+				{
+					LOG.info("Block: " + (Integer) block.getProperty("height") + " is not an orphan.  Local database has reached an agreement with the block chain.");
+					// Our data agrees with the API.  This is the last block we have processed that is in the main chain.  Update our values:
+					graphDb.getReferenceNode().setProperty(LAST_LINKED_TRANSACTION_BLOCK_NODEID, block.getId());
+					graphDb.getReferenceNode().setProperty(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID, block.getId());
+					graphDb.getReferenceNode().setProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID, block.getId());
+					break;					
+				}
+				
+				else
+				{
+					LOG.info("Block: " + (String) block.getProperty("height") + " is also an orphan.  Begin deleting high level information from it also."); 
+					removeHighLevelDataFromBlock(lastHighLevelBlockProcessed);
+					FileUtils.writeStringToFile(new File(nextPreviosRawBlockFromInternet.getBlockType().getBlock_index() + ".json"), nextPreviosRawBlockFromInternet.getBlockJson().render(true));
+					block.setProperty("main_chain", false);
+				}
+				
+			}			
+		}		
+	}
+	
+	/**
+	 * Removes all high level information from a block.
+	 * @param block
+	 */	
+	private static void removeHighLevelDataFromBlock(Node block)
+	{		
+		HashSet<Node> redeemedNodes = new HashSet<Node>(); 
+		HashSet<Node> ownerNodes = new HashSet<Node>(); 
+		 
+		for (Node transaction : getTransactions(block))
+		{
+			for (Node input : getInputs(transaction))
+			{
+				for (Node redeemer : input.traverse(Order.BREADTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, AddressRelTypes.redeemed, Direction.INCOMING))
+				{
+					redeemedNodes.add(redeemer);
+					
+					for(Node owner : redeemer.traverse(Order.BREADTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, OwnerRelTypes.owns, Direction.INCOMING))
+					{
+						ownerNodes.add(owner);
+					}
+				}				
+			}
+		}
+		
+		// We get the inputs of each transaction in each block and remove the "redeemed" edge from it.		
+		for (Node transaction : getTransactions(block))
+		{
+			for (Node input : getInputs(transaction))
+			{
+				input.getSingleRelationship(AddressRelTypes.redeemed, Direction.INCOMING).delete();
+			}
+		}
+		
+		// Then we check the redeemers.  If they have no other "redeemed" edges to it, then we delete it and all its other edges.
+		for (Node redeemer : redeemedNodes)
+		{
+			if (!redeemer.hasRelationship(AddressRelTypes.redeemed, Direction.BOTH))
+			{
+				for (Relationship rel : redeemer.getRelationships())
+				{
+					rel.delete();
+				}
+				
+				LOG.info("Redeemer: " + redeemer.getId() + " deleted.");
+				redeemer.delete();
+				
+			}
+		}
+		
+		// Then we check the owners.  If they have no "owns" edges attached to it (from the previous redeemers deletion), then we can safely delete it and all its relationships since its a bunk owner created solely from a garbage orphan block.
+		for (Node owner : ownerNodes)
+		{
+			if (!owner.hasRelationship(OwnerRelTypes.owns, Direction.BOTH))
+			{
+				for (Relationship rel : owner.getRelationships())
+				{
+					rel.delete();
+				}
+				
+				LOG.info("Owner: " + owner.getId() + " deleted.");
+				owner.delete();
+			}
+		}			
 	}
 
 	/**
@@ -528,7 +678,7 @@ public class GraphBuilder
 	 * @return The latest block node stored from the datastore.
 	 * @author John
 	 */
-	private static Node getLatestDatabaseBlockNodeByHash(String property)
+	private static Node getLatestDatabaseBlockNodeByHash(final String property)
 	{
 		if (graphDb.getReferenceNode().hasProperty(property))
 		{
@@ -545,7 +695,14 @@ public class GraphBuilder
 	{
 		if (graphDb.getReferenceNode().hasProperty(property))
 		{
-			return graphDb.getNodeById((Long) graphDb.getReferenceNode().getProperty(property));
+			if (graphDb.getReferenceNode().getProperty(property) instanceof Long)
+			{
+				return graphDb.getNodeById((Long) graphDb.getReferenceNode().getProperty(property));
+			}
+			else
+			{
+				return graphDb.getNodeById((Integer) graphDb.getReferenceNode().getProperty(property));
+			}
 		}
 
 		else
@@ -706,7 +863,7 @@ public class GraphBuilder
 
 		// Create a relationship of this block to the parentBlock
 
-		// In the unlikely event that the previous block of the current
+		// In the event that the previous block of the current
 		// block node is not equal to the last block node's hash,
 		// then we have to traverse the graph and find the relationship.
 		// This occurs when a block is not part of the main chain, and
@@ -987,8 +1144,8 @@ public class GraphBuilder
 	 */
 	private static Node getAddress(final String address)
 	{
-		final Node existing = owned_addresses.get(OWNED_ADDRESS_HASH_KEY, address).getSingle();
-
+		final Node existing = owned_addresses.get(OWNED_ADDRESS_HASH_KEY, address).getSingle();		
+		
 		final Node result;
 		if (existing != null)
 		{
@@ -1086,7 +1243,12 @@ public class GraphBuilder
 		{
 			public boolean apply(final Node block)
 			{
-				return (Boolean) block.getProperty("main_chain", false);
+				// METHOD A
+				// If this is the first run, we ping the API and check to make sure this block is still, in fact, part of the main chain.  
+				// If it is, then we return true and merily buidl the high level graph
+				// If it is not and it has changed, we go backwards, checking each node against the API until we find a block we both agree.  This will be 
+				// the responsibility of the calling function, and not this function persay.
+				return (Boolean) block.getProperty("main_chain", false);				 
 			}
 		});
 	}

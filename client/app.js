@@ -47,10 +47,11 @@ app.get('/api/node/:id.:format?', function (req, res)
 	query = [
 		'START node = node({nodeId})',
 		'MATCH node - [rel] - neighbor ',
-		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
+		'RETURN neighbor AS nodes, rel AS edges',
+		'LIMIT 5000'].join('\n'),		
 	selfQuery = [
 		'START node = node({nodeId})',
-		'RETURN COLLECT(node) AS node'].join('\n'),
+		'RETURN node AS nodes'].join('\n'),
 	params = {
 		nodeId: parseInt(req.params.id, 10),
 		},
@@ -58,7 +59,7 @@ app.get('/api/node/:id.:format?', function (req, res)
 	selfResult = null;	
 		
 	db.query(query, params, function callback(err, result)
-	{
+	{		
 		if (err)
 		{			
 			res.send(err);
@@ -72,7 +73,7 @@ app.get('/api/node/:id.:format?', function (req, res)
 	});
 	
 	db.query(selfQuery, params, function callback(err, result)
-	{
+	{		
 		if (err)
 		{
 			res.send(err);
@@ -93,10 +94,11 @@ app.get('/api/block/hash/:id.:format?', function (req, res)
 	query = [
 		'START node = node:block_hashes(block_hash={blockHash})',
 		'MATCH node - [rel] - neighbor ',
-		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
+		'RETURN neighbor AS nodes, rel AS edges',
+		'LIMIT 5000'].join('\n'),		
 	selfQuery = [
 		'START node = node:block_hashes(block_hash={blockHash})',
-		'RETURN COLLECT(node) AS node'].join('\n'),
+		'RETURN node AS nodes'].join('\n'),
 	params = {
 		blockHash: req.params.id,
 		},
@@ -139,10 +141,11 @@ app.get('/api/block/height/:id.:format?', function (req, res)
 	query = [
 		'START node = node:block_heights(block_height={blockHeight})',
 		'MATCH node - [rel] - neighbor ',
-		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
+		'RETURN neighbor AS nodes, rel AS edges',
+		'LIMIT 5000'].join('\n'),		
 	selfQuery = [
 		'START node = node:block_heights(block_height={blockHeight})',
-		'RETURN COLLECT(node) AS node'].join('\n'),
+		'RETURN node AS nodes'].join('\n'),
 	params = {
 		blockHeight: req.params.id,
 		},
@@ -185,10 +188,11 @@ app.get('/api/trans/:id.:format?', function (req, res)
 	query = [
 		'START node = node:tx_hashes(tx_hash={tranHash})',
 		'MATCH node - [rel] - neighbor ',
-		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
+		'RETURN neighbor AS nodes, rel AS edges',
+		'LIMIT 5000'].join('\n'),		
 	selfQuery = [
 		'START node = node:tx_hashes(tx_hash={tranHash})',
-		'RETURN COLLECT(node) AS node'].join('\n'),
+		'RETURN node AS nodes'].join('\n'),
 	params = {
 		tranHash: req.params.id,
 		},
@@ -231,10 +235,11 @@ app.get('/api/addr/:id.:format?', function (req, res)
 	query = [
 		'START node = node:addr_hashes(addr_hash={addr})',
 		'MATCH node - [rel] - neighbor ',
-		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
+		'RETURN neighbor AS nodes, rel AS edges',
+		'LIMIT 5000'].join('\n'),		
 	selfQuery = [
 		'START node = node:addr_hashes(addr_hash={addr})',
-		'RETURN COLLECT(node) AS node'].join('\n'),
+		'RETURN node AS nodes'].join('\n'),
 	params = {
 		addr: req.params.id,
 		},
@@ -277,10 +282,11 @@ app.get('/api/owns/:id.:format?', function (req, res)
 	query = [
 		'START node = node:owned_addr_hashes(owned_addr_hash={owner})',
 		'MATCH node - [rel] - neighbor ',
-		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
+		'RETURN neighbor AS nodes, rel AS edges',
+		'LIMIT 5000'].join('\n'),		
 	selfQuery = [
 		'START node = node:owned_addr_hashes(owned_addr_hash={owner})',
-		'RETURN COLLECT(node) AS node'].join('\n'),
+		'RETURN node AS nodes'].join('\n'),
 	params = {
 		owner: req.params.id,
 		},
@@ -323,10 +329,11 @@ app.get('/api/ipv4/:id.:format?', function (req, res)
 	query = [
 		'START node = node:ipv4_addrs(ipv4_addr={ip})',
 		'MATCH node - [rel] - neighbor ',
-		'RETURN COLLECT(neighbor) AS nodes, COLLECT(rel) AS edges'].join('\n'),		
+		'RETURN neighbor AS nodes, rel AS edges',
+		'LIMIT 5000'].join('\n'),		
 	selfQuery = [
 		'START node = node:ipv4_addrs(ipv4_addr={ip})',
-		'RETURN COLLECT(node) AS node'].join('\n'),
+		'RETURN node AS nodes'].join('\n'),
 	params = {
 		ip: req.params.id,
 		},
@@ -366,11 +373,10 @@ function sendResult(queryResult, selfResult, req, res)
 {
 	if (queryResult != null && selfResult != null)
 	{	
-		// Combine the queries
-		for (i = 0; i < selfResult[0].node.length; i++)
+		for (i = 0; i < selfResult.length; i++)
 		{
-			queryResult[0].nodes.push(selfResult[0].node[i]);
-		}
+			queryResult.push(selfResult[i]);
+		}	
 						
 		if (req.params.format == 'json')
 		{
@@ -409,7 +415,7 @@ function sendJson(result, res, req)
 function toGexf(result)
 {
 	if (result != null)
-	{	
+	{			
 		// Improvised hashset for unique node and edge attributes since different types of nodes are in each result
 		var nodeAttr = {}; 
 		var edgeAttr = {};
@@ -431,25 +437,38 @@ function toGexf(result)
 		xml.EndNode();
 		xml.BeginNode("graph");
 		xml.Attrib("defaultedgetype", "directed");
+		
+		// Begin attributes
 		xml.BeginNode("attributes");
 		xml.Attrib("class", "node");
-		// Begin node attributes loop
-		
-		// Get all the unique node attributes	(todo - use a hashset?)
-		for (node in result[0].nodes)
-		{				
-			for (prop in result[0].nodes[node].data)
+	
+		// Get all the unique node and edge attributes	(todo - use a hashset?)
+
+		for (obj in result)
+		{	
+			if (result[obj].nodes !== undefined)
 			{
-				nodeAttr[prop] = "";
-			}	
-		}		
+				for (prop in result[obj].nodes.data)
+				{
+					nodeAttr[prop] = "";
+				}	
+			}
+
+			if (result[obj].edges !== undefined)
+			{
+				for (prop in result[obj].edges.data)
+				{				
+					edgeAttr[prop] = "";
+				}
+			}
+		}
 		
 		// Bind each unique node attribute to a numeric id		
 		var i = 0;
 		for (attr in nodeAttr)
-		{
+		{	
 			if (nodeAttr.hasOwnProperty(attr))
-			{ 		
+			{ 	
 				nodeAttr[attr] = i;				
 				xml.BeginNode("attribute");
 				xml.Attrib("id", i.toString());
@@ -462,16 +481,6 @@ function toGexf(result)
 		xml.EndNode();
 		xml.BeginNode("attributes");
 		xml.Attrib("class", "edge");
-		// Begin edge attributes loop
-		
-		// Get all the unique edge attributes	(todo - use a hashset?)		
-		for (edge in result[0].edges)
-		{				
-			for (prop in result[0].edges[edge].data)
-			{
-				edgeAttr[prop] = "";
-			}	
-		}
 		
 		// Bind each unique edge attribute to a numeric id
 		i = 0;
@@ -488,76 +497,90 @@ function toGexf(result)
 				i++;
 			}
 		}		
-		xml.EndNode();
+		xml.EndNode();	
 		
 		// Begin nodes
-		xml.BeginNode("nodes");		
-		// Define the nodes and bind their attribute values to the node attribute list
-		for (node in result[0].nodes)
-		{		
-			xml.BeginNode("node");
-			xml.Attrib("id", result[0].nodes[node].self.match(/\/node\/(.*)/)[1].toString());
-			
-			// Determine what kind of node this is
-			if (result[0].nodes[node].data.hasOwnProperty("block_index"))
+		xml.BeginNode("nodes");	
+		for (obj in result)
+		{
+			if (result[obj].nodes !== undefined)
 			{
-				xml.Attrib("label", "block");
-			}
-			
-			else if (result[0].nodes[node].data.hasOwnProperty("tx_index"))
-			{
-				xml.Attrib("label", "transaction");
-			}
-			
-			else if (result[0].nodes[node].data.hasOwnProperty("n") && result[0].nodes[node].data.hasOwnProperty("value") && result[0].nodes[node].data.hasOwnProperty("addr") && result[0].nodes[node].data.hasOwnProperty("type"))
-			{
-				xml.Attrib("label", "money");
-			}
-			
-			else if (result[0].nodes[node].data.hasOwnProperty("addr"))
-			{
-				xml.Attrib("label", "address");				
-			}
-			
-			else
-			{
-				xml.Attrib("label", "owner");
-			}			
-			
-			xml.BeginNode("attvalues");
-			for (prop in result[0].nodes[node].data)
-			{		
-				xml.BeginNode("attvalue");
-				xml.Attrib("for", nodeAttr[prop].toString());
-				xml.Attrib("value", result[0].nodes[node].data[prop].toString());
-				xml.EndNode();				
-			}
-			xml.EndNode();
-			xml.EndNode();
+				xml.BeginNode("node");
+				xml.Attrib("id", result[obj].nodes.self.match(/\/node\/(.*)/)[1].toString());
+				// Determine what kind of node this is
+				if (result[obj].nodes.data.hasOwnProperty("block_index"))
+				{
+					xml.Attrib("label", "block");
+				}
+				
+				else if (result[obj].nodes.data.hasOwnProperty("tx_index"))
+				{
+					xml.Attrib("label", "transaction");
+				}
+				
+				else if (result[obj].nodes.data.hasOwnProperty("n") && result[obj].nodes.data.hasOwnProperty("value") && result[obj].nodes.data.hasOwnProperty("addr") && result[obj].nodes.data.hasOwnProperty("type"))
+				{
+					xml.Attrib("label", "money");
+				}
+				
+				else if (result[obj].nodes.data.hasOwnProperty("addr"))
+				{
+					xml.Attrib("label", "address");				
+				}
+				
+				else
+				{
+					xml.Attrib("label", "owner");
+				}
+				
+				xml.BeginNode("attvalues");
+				
+				for (prop in result[obj].nodes.data)
+				{
+					xml.BeginNode("attvalue");
+					xml.Attrib("for", nodeAttr[prop].toString());
+					xml.Attrib("value", result[obj].nodes.data[prop].toString());
+					xml.EndNode();				
+				}			
+				xml.EndNode();
+				
+				xml.EndNode();	
+			}	
 		}		
-		xml.EndNode();
+		xml.EndNode();		
 		
 		// Begin edges
 		xml.BeginNode("edges");
-		// Define the edges and bind their attribute values to the edge attribute list
-		for (edge in result[0].edges)
+		for (obj in result)
 		{
-			xml.BeginNode("edge");
-			xml.Attrib("id", result[0].edges[edge].self.match(/\/relationship\/(.*)/)[1].toString());
-			xml.Attrib("label", result[0].edges[edge].type);
-			// xml.Attrib("type", "directed");  // TODO
-			xml.Attrib("source", result[0].edges[edge].start.match(/\/node\/(.*)/)[1].toString());
-			xml.Attrib("target", result[0].edges[edge].end.match(/\/node\/(.*)/)[1].toString());
-			xml.BeginNode("attvalues");
-			for (prop in result[0].edges[edge].data)
+			if (result[obj].edges !== undefined)
 			{
-				xml.BeginNode("attvalue");
-				xml.Attrib("for", edgeAttr[prop].toString());
-				xml.Attrib("value", result[0].edges[edge].data[prop]);
-				xml.EndNode();	
-			}
-			xml.EndNode();
-			xml.EndNode();
+				xml.BeginNode("edge");
+				xml.Attrib("id", result[obj].edges.self.match(/\/relationship\/(.*)/)[1].toString());
+				xml.Attrib("label", result[obj].edges.type);
+				
+				if (result[obj].edges.type === 'same_owner')
+				{
+					xml.Attrib("type", "undirected");
+				}
+				
+				else
+				{
+					xml.Attrib("type", "directed");
+				}
+				xml.Attrib("source", result[obj].edges.start['_data'].self.match(/\/node\/(.*)/)[1].toString());
+				xml.Attrib("target", result[obj].edges.end['_data'].self.match(/\/node\/(.*)/)[1].toString());
+				xml.BeginNode("attvalues");
+				for (prop in result[obj].edges.data)
+				{
+					xml.BeginNode("attvalue");
+					xml.Attrib("for", edgeAttr[prop].toString());
+					xml.Attrib("value", result[obj].edges.data[prop].toString());
+					xml.EndNode();	
+				}
+				xml.EndNode();
+				xml.EndNode();
+			}			
 		}
 		
 		xml.EndNode();	

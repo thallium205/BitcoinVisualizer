@@ -26,8 +26,8 @@ public class Main
 		{
 			// Print options
 			HelpFormatter formatter = new HelpFormatter();
-			formatter.printHelp("java -jar blockchainneo4j.jar", getOptions());
-
+			formatter.printHelp("java -jar blockchainneo4j.jar", getOptions());			
+			
 			// Parse options
 			CommandLineParser parser = new GnuParser();
 			try
@@ -64,7 +64,7 @@ public class Main
 					
 					catch (Exception e)
 					{
-						LOG.severe("Graph Build Failed.  Skipping, but not shutting down database.");
+						LOG.log(Level.WARNING, "Graph Build Failed.  Skipping, but not shutting down database.", e);
 					}
 				}
 			}
@@ -102,7 +102,7 @@ public class Main
 			{
 				LOG.log(Level.SEVERE, "Thread sleep failed.  Reason: " + e.getMessage(), e);
 				GraphBuilder.StopDatabase();
-			}
+			}			
 		}
 	}
 

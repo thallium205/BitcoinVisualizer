@@ -158,12 +158,11 @@ function app()
 			{				
 				// Check to see if edge is connected to the node and to make sure it is not a group node that is already stored in the list
 				if (json.graph.nodes.node[node]['@'].id === json.graph.edges.edge[e]['@'].source || json.graph.nodes.node[node]['@'].id === json.graph.edges.edge[e]['@'].target)
-				{	
-					
+				{					
 					edges.push(json.graph.edges.edge[e]);
 				}
-			}
-						
+			}			
+			
 			// It is connected to the node.  We now add up how many there are, and if it is greater than 9, we group them			
 			// Store each relationship type
 			var succeeds = [];
@@ -173,15 +172,15 @@ function app()
 			var redeemed = [];
 			var same_owner = [];
 			var owns = [];
-			var transfers = [];
+			var transfers_incoming = [];
+			var transfers_outgoing = [];
 			var identifies = [];
-			
 			for (var edge in edges)
 			{		
 				try
 				{
 					switch(json.graph.edges.edge[edge]['@'].label)
-					{
+					{						
 						case 'succeeds':						
 							succeeds.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
 							break;
@@ -204,7 +203,19 @@ function app()
 							owns.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
 							break;					
 						case 'transfers':
-							transfers.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
+						
+							// We group Outgoing relationships
+							if (json.graph.nodes.node[node]['@'].id === json.graph.edges.edge[edge]['@'].source)
+							{
+								transfers_outgoing.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
+							}
+							
+							// We group Incoming relationships
+							if (json.graph.nodes.node[node]['@'].id === json.graph.edges.edge[edge]['@'].target)
+							{
+								transfers_incoming.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
+							}					
+							
 							break;	
 						case 'identifies':
 							identifies.push({"source": json.graph.edges.edge[edge]['@'].source, "target": json.graph.edges.edge[edge]['@'].target, "data":json.graph.edges.edge[edge]});
@@ -252,9 +263,14 @@ function app()
 				json = groupJson(json, owns);
 			}
 			
-			if (transfers.length > 10)
+			if (transfers_outgoing.length > 10)
 			{
-				json = groupJson(json, transfers);
+				json = groupJson(json, transfers_outgoing);
+			}
+			
+			if (transfers_incoming.length > 10)
+			{
+				json = groupJson(json, transfers_incoming);
 			}
 			
 			if (identifies.length > 10)
@@ -264,12 +280,18 @@ function app()
 		}	
 		
 		// Begin normal linking		
+		var i = 0;
 		for (var node in json.graph.nodes.node)
 		{			
 			if (!(json.graph.nodes.node[node]['@'].id in nodes))
 			{
 				nodes[json.graph.nodes.node[node]['@'].id] = {"name": json.graph.nodes.node[node]['@'].id, "data": json.graph.nodes.node[node]};				
+				i++;
 			}			
+		}
+		if (i > 5000)
+		{
+			alert("Warning: Results have been truncated in order to protect your browser and the server.  The graph may not be displayed properly as a result. Pagination coming soon...");  
 		}
 
 		for (var edge in json.graph.edges.edge)
@@ -316,48 +338,15 @@ function app()
 		
 		// Remove any outgoing links
 		link.exit().remove();
-
-		/*
-		// The path text		
-		var currentLinks = d3.values(links);
-		for (var i = 0; i < currentLinks.length; i++)
-		{		
-			var link = currentLinks[i];
-			var newLink = true;
-			var allLinks = force.links();
-			for (var j = 0; j < allLinks.length; j++)
-			{
-				if (link.data['@'].id === allLinks[j].data['@'].id)
-				{
-					newLink = false;
-					break;
-				}				
-			}
-			if (newLink)
-			{				
-				pathData.push(link[i]);
-			}
-		}	
-		*/
-		/*
-		if (path_text !== null)
-		{
-			for (text in path_text)
-			{
-				text.text_content = "";
-			}
-		}
-		*/
 		
-		path_text = svg.selectAll(".path").data(force.links(), function(d){ return d.name;}).enter().append("svg:g");
-		
+		path_text = svg.selectAll(".path").data(force.links(), function(d){ return d.name;}).enter().append("svg:g");		
 		path_text.append("svg:text")
 					.attr("class","path-text shadow")
-					.text(function(d) { return d.data['@'].label; });
+					.text(function(d) { return getEdgeLabel(d); });
 
 			path_text.append("svg:text")
 					.attr("class","path-text")
-					.text(function(d) { return d.data['@'].label; });
+					.text(function(d) { return getEdgeLabel(d); });
 					
 		// path_text.enter().append("svg:g").append("svg:text").attr("class","path-text").text(function(d) { return d.data['@'].label; });				
 
@@ -411,6 +400,9 @@ function app()
 		// On node click
 		.on("click", function(d)
 		{
+			// Hide leftover popover
+			$(this).popover('hide');
+			
 			// The user clicked on a group node
 			if (d.data['@'].label === 'group')
 			{			
@@ -437,6 +429,8 @@ function app()
 				// Load the columns
 				var columnVals = d.data['@'].group.nodes[0].data.attvalues.attvalue;			
 				var columns = [];
+				columns.push({'sTitle': 'id'}); // We want to include the id of the node
+				
 				// Some columnVals only have a single row and do not return an array but a signle object...
 				if (columnVals instanceof Array) 
 				{
@@ -445,18 +439,30 @@ function app()
 						columns.push({'sTitle': json.graph.attributes[0].attribute[columnVals[i]['@'].for]['@'].title});
 					}
 				}
-				else 
+				
+				else if (columnVals !== undefined)	 // Column values will be undefined if there were no attributes attached to the node at all			
 				{
-					columns.push({'sTitle': json.graph.attributes[0].attribute[columnVals['@'].for]['@'].title});
+					if (json.graph.attributes[0].attribute instanceof Array)
+					{
+						columns.push({'sTitle': json.graph.attributes[0].attribute[columnVals['@'].for]['@'].title});
+					}
+					
+					
+					else
+					{
+						columns.push({'sTitle': json.graph.attributes[0].attribute['@'].title});
+					}				
 				}			
+			
 				
 				// Load rows
 				var rowVals = d.data['@'].group.nodes;
-				var rows = [];
+				var rows = [];				
 				var row = [];
 				var nodeVals;
 				for (var i = 0; i < rowVals.length; i++)
 				{
+					row.push(rowVals[i].name); // Load the node id in the first column
 					nodeVals = rowVals[i].data.attvalues.attvalue;
 					// Just like columnvals, sometimes it is of a single value and thus not an array
 					if (nodeVals instanceof Array)
@@ -468,7 +474,11 @@ function app()
 					}
 					else
 					{
-						row.push(nodeVals['@'].value);
+						// It can be undefined if there is no data in a node type, such as owner.
+						if (nodeVals !== undefined)
+						{
+							row.push(nodeVals['@'].value);
+						}
 					}
 					rows.push(row);
 					row = [];
@@ -582,7 +592,7 @@ function app()
 				switch(d.data['@'].label)
 				{
 					case 'block':						
-						return d.data.attvalues.attvalue[0]['@'].value;
+						return d.data.attvalues.attvalue[7]['@'].value;
 						break;
 					case 'transaction':
 						return d.data.attvalues.attvalue[4]['@'].value;
@@ -640,7 +650,7 @@ function app()
 		
 		function dragStart(d, i) 
 		{
-			force.friction(0);
+			force.stop();
 		}
 
 		function dragMove(d, i) 
@@ -655,11 +665,34 @@ function app()
 		function dragEnd(d, i) 
 		{
 			d.fixed = true; // of course set the node to fixed so the force doesn't include the node in its auto positioning stuff					
-			force.friction(.9);
+			force.start();
 		}
 	};
 	
 	// Helper functions	
+	
+	// Returns detailed edge information for use of a label
+	function getEdgeLabel(edge)
+	{
+		if (edge.data['@'].label === 'transfers' ) // We check for undefined if it is a grouped relationship
+		{			
+			if (edge.data.attvalues != undefined)
+			{
+				return "transfers " + edge.data.attvalues.attvalue['@'].value / 100000000 + " BTC"
+			}
+				
+			// Groups do not have a calculated amount by default
+			else
+			{
+				return "transfers";
+			}
+		}
+		
+		else
+		{
+			return edge.data['@'].label
+		}
+	}
 	// Returns an empty graph object
 	function getEmptyGraph()
 	{
@@ -713,10 +746,10 @@ function app()
 			{		
 				// We do not delete the last node in the list as this is the node that the user has selected! (Kinda hackey TODO)
 				if (parseInt(node) !== json.graph.nodes.node.length - 1 && (json.graph.nodes.node[node]['@'].id === group.links[link].source || json.graph.nodes.node[node]['@'].id === group.links[link].target))
-				{
-					var alreadyInGraph = false;
+				{					
 					// If the node is already in the graph, we don't add it to our group node, but we do delete it from the json blob.  We also do not remove the links
 					/*
+					var alreadyInGraph = false;
 					for (n in nodes)
 					{
 						if (nodes[n].name === json.graph.nodes.node[n]['@'].id)
@@ -774,30 +807,6 @@ function app()
 		// Return the stripped JSON for further processing
 		return json;
 	}
-	
-	// Returns the neighbor nodes given a node
-	/*
-	function getNeighbors(var node)
-	{
-		var neighborNodes = [];
-		for (link in links)
-		{
-			if (links[link].source.name === node.name || links[link].target.name === node.name)
-			{
-				// This link is connected to the node
-				for (n in nodes)
-				{
-					if (nodes[n].name === links[link].target.name)
-					{ 								
-						neighborNodes.push(node[n]);
-					}
-				}
-			}
-		}
-		
-		return neighborNodes;
-	}
-	*/
 
 	// Register listeners
 	
