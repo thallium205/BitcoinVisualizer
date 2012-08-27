@@ -1,5 +1,16 @@
 head
 	include ../includes/blockviewer
+	
+	script
+		var _gaq = _gaq || [];
+		_gaq.push(['_setAccount', 'UA-34348879-1']);
+		_gaq.push(['_trackPageview']);
+		
+		(function() {
+		var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+		ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+		var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+		})();
 
 body	
 	div.navbar
@@ -11,11 +22,15 @@ body
 						a(href='#faq') FAQ
 					li  
 						a(href='#api') API
+					li
+						a(href='#query') Run Your Own Query
+				div.pull-left
+					p.navbar-text Donate: 14gZTuHA4xa4gJQBubn5fj3b4D4QHEDdwY				
 				form#search.navbar-search.pull-right.form-inline
 					button(id='btnClear').btn Clear
 					input(id='txtInput')(type='text')(placeholder='Address / SHA hash / height')(style='width:500px').search-query	
 					div.btn-group.pull-right.form-inline
-						button(data-toggle='dropdown')(id='btnSubmit')(data-loading-text='Loading...')(data-complete-text='Search')(href='#').btn.dropdown-toggle.btn-primary.btn-large Search
+						button(data-toggle='dropdown')(id='btnSubmit')(href='#').btn.dropdown-toggle.btn-primary.btn-large Search
 							span.caret
 						ul.dropdown-menu
 							li
@@ -28,6 +43,8 @@ body
 								a(href='#owns') Owner Address
 							li
 								a(href='#trans') Transaction
+							li
+								a(href='#node') Node ID
 													
 	div(id='v')
 	script

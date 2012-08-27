@@ -34,9 +34,19 @@ app.get('/', function(req, res){
   res.render('index.jade', { title: 'Block Viewer' });
 });
 
+// FAQ Route
+app.get('/faq', function (req, res) {
+  res.render('faq.jade',  { title: 'Block Viewer' });
+});
+
 // API Route
 app.get('/api', function (req, res) {
-  res.send('API is running');
+  res.render('api.jade',  { title: 'Block Viewer' });
+});
+
+// Query Route
+app.get('/query', function (req, res) {
+  res.render('query.jade',  { title: 'Block Viewer' });
 });
 
 // API

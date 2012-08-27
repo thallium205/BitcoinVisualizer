@@ -1,7 +1,7 @@
 function app()
 {
 	var width = $(window).width(),
-	height = $(window).height();	
+	height = $(window).height();
 
 	// Data structures
 	var nodes = {}; 
@@ -24,12 +24,12 @@ function app()
 		var nodeIndex = $.inArray(index, nodeReqs);
 		// Add the index to the node requests array if it hasnt been requested before
 		if (nodeIndex === -1)
-		{
-			//$("#btnSubmit").button('loading');
+		{			
+			$('#btnSubmit').text('Loading...');
 			nodeReqs.push(index);	
 			$.getJSON("api/node/" + index + ".json", function(graph)
 			{
-				//$("#btnSubmit").button('complete');
+				$('#btnSubmit').text('Search');
 				showDynamic(graph);				
 			});	
 		}	
@@ -405,8 +405,7 @@ function app()
 			
 			// The user clicked on a group node
 			if (d.data['@'].label === 'group')
-			{			
-			
+			{		
 				// Dynamically size, label, and display the modal
 				$('#groupModal').modal(
 				{
@@ -447,13 +446,11 @@ function app()
 						columns.push({'sTitle': json.graph.attributes[0].attribute[columnVals['@'].for]['@'].title});
 					}
 					
-					
 					else
 					{
 						columns.push({'sTitle': json.graph.attributes[0].attribute['@'].title});
 					}				
 				}			
-			
 				
 				// Load rows
 				var rowVals = d.data['@'].group.nodes;
@@ -484,14 +481,8 @@ function app()
 					row = [];
 				}
 				
-				// Load the click listener
-				$('#tblGroup tbody tr').live('click', function ()
-				{					
-					$(this).toggleClass('row_selected');					
-				});
-				
-				// Load the data table				
-				$('#tblGroup').dataTable( 
+				// Load the data table
+				var groupTable = $('#tblGroup').dataTable( 
 				{
 					"sDom": "<'row'<'span6'l><'span6'f>r>t<'row'<'span6'i><'span6'p>>",
 					"sPaginationType": "bootstrap",
@@ -504,7 +495,7 @@ function app()
 				// Register modal button listeners
 				$("#btnModalSelect").click(function()
 				{
-					var selected = $('#tblGroup').dataTable().$('tr.row_selected');
+					var selected = groupTable.$('tr.row_selected');
 				
 					for (var i = 0; i < selected.length; i++)
 					{						
@@ -813,10 +804,34 @@ function app()
 	// Main address hook TODO - Cleanup needed badly
 	$.address.change(function(event) 
 	{	
-		$.getJSON("api" + event.value + ".json", function(graph)
-		{	
-			showDynamic(graph);				
-		});
+		if (event.pathNames.length > 0)
+		{
+			if (event.pathNames[0] === 'block' || event.pathNames[0] === 'trans' || event.pathNames[0] === 'owns' || event.pathNames[0] === 'ipv4')
+			{
+				$('#btnSubmit').text('Loading...');
+				$.getJSON("api" + event.value + ".json", function(graph)
+				{	
+					$('#btnSubmit').text('Search');
+					showDynamic(graph);				
+				})
+			}
+			
+			else
+			{		
+				jQuery.ajax(
+				{
+				 url:    event.value,
+				 success: function(result)
+				 {
+					jQuery('#v').empty();
+					$('#v').html(result);
+				},
+				 async:   true
+				});         
+				
+			}
+		}
+
 	});
 	
 	$('a').address(function() 
@@ -846,8 +861,10 @@ function app()
 			case 'ipv4':
 				return "/ipv4/" + $("input:first").val();
 				break;
+			case 'node':
+				return "/node/" + $("input:first").val();
 			default:
-				return $(this).attr('href').replace(/^#/, '');
+				return val;
 		}		
 	});
 	
@@ -857,23 +874,12 @@ function app()
 		links = {};
 		showDynamic(getEmptyGraph());
 		return false;
-	});
-	
-	/*
-	$("#btnDynamic").click(function()
-	{
-		isDynamic = true;	
-		query($("input:first").val());		
-	});
-						
-	$("#btnStatic").click(function()
-	{
-		isDynamic = false;
-		query($("input:first").val());
-	});
+	});	
 
-					div(data-toggle='buttons-radio').btn-group.pull-left.form-inline
-						button(type='button')#btnDynamic.btn Dynamic
-						button(type='button')#btnStatic.btn Static
-	*/						
+	// Load the click listener on the row in the data table
+	$('#tblGroup tbody tr').live('click', function ()
+	{			
+		var row = $(this);
+		row.toggleClass('row_selected');					
+	});	
 };
