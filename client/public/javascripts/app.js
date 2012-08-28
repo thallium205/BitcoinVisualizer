@@ -806,7 +806,7 @@ function app()
 	{	
 		if (event.pathNames.length > 0)
 		{
-			if (event.pathNames[0] === 'block' || event.pathNames[0] === 'trans' || event.pathNames[0] === 'owns' || event.pathNames[0] === 'ipv4')
+			if (event.pathNames[0] === 'block' || event.pathNames[0] === 'addr' || event.pathNames[0] === 'node' ||event.pathNames[0] === 'trans' || event.pathNames[0] === 'owns' || event.pathNames[0] === 'ipv4')
 			{
 				$('#btnSubmit').text('Loading...');
 				$.getJSON("api" + event.value + ".json", function(graph)

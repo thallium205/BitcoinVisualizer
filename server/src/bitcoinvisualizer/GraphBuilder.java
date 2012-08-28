@@ -1213,12 +1213,33 @@ public class GraphBuilder
 			final Iterator<Relationship> owns = address.getRelationships(Direction.INCOMING, OwnerRelTypes.owns).iterator();
 			if (!owns.hasNext())
 			{
-				// No.  We create a relationship from owner to all the addresses it owns
-				final Iterable<Node> addresses = address.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL, AddressRelTypes.same_owner,	Direction.BOTH);
-				final Node owner = address.getGraphDatabase().createNode();
-				for (final Node owned : addresses)
+				// This address does not have an owner				
+				// We need to check to see if ANY owner has previously redeedemd ANY of the addresses in this sub graph.  Simply checking the last address so far wont work.  If ANY of these addresses has an owner,
+				// then we take that owner and add its owns edges to the new addresses				
+				
+				// Find the owner in the same_owner subgraph if it exists
+				final TraversalDescription ownerTraversal = Traversal.description()
+						.relationships(AddressRelTypes.same_owner, Direction.BOTH)
+						.relationships(OwnerRelTypes.owns, Direction.INCOMING)
+						.evaluator(Evaluators.returnWhereLastRelationshipTypeIs(OwnerRelTypes.owns));
+				
+				Node owner = null;
+				for (final Path sameOwnerNode : ownerTraversal.traverse(address))
 				{
-					
+					// This network of addresses does in fact have a single owner
+					owner = sameOwnerNode.endNode();
+					break;
+				}
+				
+				if (owner == null)
+				{
+					// This network has not been redeemed by owners at all
+					owner = graphDb.createNode();
+				}	
+				
+				final Iterable<Node> addresses = address.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL, AddressRelTypes.same_owner,	Direction.BOTH);
+				for (final Node owned : addresses)
+				{					
 					owner.createRelationshipTo(owned, OwnerRelTypes.owns);					
 				}				
 			}			
