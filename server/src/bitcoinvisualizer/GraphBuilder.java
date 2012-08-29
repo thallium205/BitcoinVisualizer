@@ -1239,8 +1239,12 @@ public class GraphBuilder
 				
 				final Iterable<Node> addresses = address.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL, AddressRelTypes.same_owner,	Direction.BOTH);
 				for (final Node owned : addresses)
-				{					
-					owner.createRelationshipTo(owned, OwnerRelTypes.owns);					
+				{
+					// Do not create duplicate edges of the same type either...
+					if (!owned.hasRelationship(OwnerRelTypes.owns, Direction.INCOMING))
+					{
+						owner.createRelationshipTo(owned, OwnerRelTypes.owns);
+					}
 				}				
 			}			
 		}
