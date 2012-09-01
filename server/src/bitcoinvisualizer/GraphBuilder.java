@@ -498,9 +498,20 @@ public class GraphBuilder
 				{
 					LOG.info("Block: " + (Integer) block.getProperty("height") + " is not an orphan.  Local database has reached an agreement with the block chain.");
 					// Our data agrees with the API.  This is the last block we have processed that is in the main chain.  Update our values:
+					graphDb.getReferenceNode().setProperty(LAST_BLOCK_HASH, block.getProperty("hash"));
 					graphDb.getReferenceNode().setProperty(LAST_LINKED_TRANSACTION_BLOCK_NODEID, block.getId());
 					graphDb.getReferenceNode().setProperty(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID, block.getId());
 					graphDb.getReferenceNode().setProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID, block.getId());
+					
+					if (isBlockchainComplete())
+					{
+						LOG.info("Orphan block successfully removed.");
+					}
+					else
+					{
+						LOG.warning("There may be a problem with the low-level JSON store.  Run validation again.");
+					}
+					
 					break;					
 				}
 				
@@ -841,9 +852,17 @@ public class GraphBuilder
 	 *            - The block preceding the currentBlock
 	 * @return - Returns the neo4j block node entity.
 	 * @author John
+	 * @throws Exception 
 	 */
-	private static Node persistBlockNode(BlockType currentBlock, Node previousBlock)
+	private static Node persistBlockNode(BlockType currentBlock, Node previousBlock) throws Exception
 	{
+		Node block = getLatestDatabaseBlockNodeByHash(currentBlock.getHash());
+		if (block.getId() != 0)
+		{
+			LOG.severe("This block has already been added to the database.  Skipping...");
+			throw new Exception("Block: " + currentBlock.getHash() + " has already been added to the low-level database.  Aborting...");
+		}
+		
 		// Persist a new block node
 		Node currentBlockNode = graphDb.createNode();
 		currentBlockNode.setProperty("hash", currentBlock.getHash());

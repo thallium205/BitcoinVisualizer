@@ -50,6 +50,21 @@ app.get('/query', function (req, res) {
 });
 
 // API
+
+// Latest
+app.get('/api/latest', function (req, res)
+{
+	db.getNodeById(0, function callback(err, result)
+	{
+		if (err)
+		{
+			return res.send(err);
+		}
+		
+		res.send(result.data.last_linked_owner_link_block_nodeId.toString());		
+	});
+});
+
 // Node
 app.get('/api/node/:id.:format?', function (req, res) 
 {		

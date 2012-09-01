@@ -12,11 +12,11 @@ function app()
 	var isDynamic = true;
 	
 	var force = self.force = d3.layout.force()
-	.gravity(.2)
-	.distance(250)
+	.gravity(.05)
+	.distance(150)
 	.charge(-1000)
 	.size([width, height])
-	.start();
+	.start();	
 	
 	// When a user clicks on a node
 	var nodeQuery = function(index)
@@ -127,7 +127,20 @@ function app()
 	}
 
 	var showDynamic = function(json)
-	{
+	{	
+		try
+		{
+			if (!(json.graph.edges.edge instanceof Array))
+			{
+				alert("You have reached the end of graph for this node!");
+				return;
+			}
+		}
+		// Dirty.  This code needs a major overhaul
+		catch (err)
+		{
+		}
+		
 		jQuery('#v').empty();
 		
 		var svg = d3.select("#v").append("svg:svg")
@@ -157,7 +170,7 @@ function app()
 			for (var e in json.graph.edges.edge)
 			{				
 				// Check to see if edge is connected to the node and to make sure it is not a group node that is already stored in the list
-				if (json.graph.nodes.node[node]['@'].id === json.graph.edges.edge[e]['@'].source || json.graph.nodes.node[node]['@'].id === json.graph.edges.edge[e]['@'].target)
+				if (json.graph.edges.edge.length > 0 && (json.graph.nodes.node[node]['@'].id === json.graph.edges.edge[e]['@'].source || json.graph.nodes.node[node]['@'].id === json.graph.edges.edge[e]['@'].target))
 				{					
 					edges.push(json.graph.edges.edge[e]);
 				}
@@ -379,11 +392,13 @@ function app()
 					}
 					
 					else
-					{					
+					{		
+						// Push the node id 
+						content.push("Node Id: " + d.data['@'].id+ "<br \/>");
 						for (var val in d.data.attvalues.attvalue)
 						{
 							try
-							{
+							{								
 								content.push(json.graph.attributes[0].attribute[d.data.attvalues.attvalue[val]["@"].for]["@"].title + ": " + d.data.attvalues.attvalue[val]["@"].value + "<br \/>");
 							}
 							catch (err)
@@ -399,10 +414,7 @@ function app()
 		
 		// On node click
 		.on("click", function(d)
-		{
-			// Hide leftover popover
-			$(this).popover('hide');
-			
+		{			
 			// The user clicked on a group node
 			if (d.data['@'].label === 'group')
 			{		
@@ -541,6 +553,9 @@ function app()
 			
 			// We unfix the node so it can dynamically move around;
 			d.fixed = false;
+			
+			// Hide leftover popover
+			$(this).popover('hide');
 		});		
 
 		node.append("svg:path")
@@ -669,7 +684,7 @@ function app()
 		{			
 			if (edge.data.attvalues != undefined)
 			{
-				return "transfers " + edge.data.attvalues.attvalue['@'].value / 100000000 + " BTC"
+				return edge.data.attvalues.attvalue['@'].value / 100000000 + " BTC"
 			}
 				
 			// Groups do not have a calculated amount by default
@@ -678,6 +693,14 @@ function app()
 				return "transfers";
 			}
 		}
+		
+		else if (edge.data['@'].label === 'identifies')
+		{
+			if (edge.data.attvalues != undefined)
+			{
+				return edge.data.attvalues.attvalue[3]['@'].value;
+			}
+		}		
 		
 		else
 		{
@@ -694,6 +717,14 @@ function app()
 		emptyGraph.graph.nodes = {};
 		emptyGraph.graph.nodes.node = [];
 		return emptyGraph;
+	}
+	
+	function showLatest()
+	{
+		$.getJSON("api/latest", function(res)
+		{
+			nodeQuery(res);
+		});	
 	}
 	
 	// Groups by link type
@@ -830,6 +861,11 @@ function app()
 				});         
 				
 			}
+		}
+		
+		else
+		{
+			showLatest();
 		}
 
 	});
