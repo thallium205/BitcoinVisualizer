@@ -38,6 +38,7 @@ import bitcoinvisualizer.domain.InputType;
 import bitcoinvisualizer.domain.LatestBlock;
 import bitcoinvisualizer.domain.OutputType;
 import bitcoinvisualizer.domain.TransactionType;
+import bitcoinvisualizer.scraper.Scraper;
 
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
@@ -421,28 +422,26 @@ public class GraphBuilder
 		LOG.info("Begin linking owners...");		
 		for (final Node block : getLatestMainBlocks(getLatestDatabaseBlockNodeByNodeId(LAST_LINKED_OWNER_LINK_BLOCK_NODEID).getId()))
 		{
-			final Transaction tx = graphDb.beginTx();
+			
+			HashSet<Long> owners = new HashSet<Long>();
 			try
 			{
 				for (final Node owner : getOwners(block))
 				{
 					LOG.info("Processing owner: " + owner.getId());
-					linkOwners(owner);
-					graphDb.getReferenceNode().setProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID, block.getId());
-					tx.success();
+					
+					// For each run, we update all our owners.
+					if (owners.add(owner.getId()))
+					{
+						relinkOwners(block, owner);
+					}											
 				}
 			}
 
 			catch (Exception e)
 			{
-				LOG.log(Level.SEVERE, "Linking owners error.", e);
-				tx.failure();
+				LOG.log(Level.SEVERE, "Linking owners error.", e);				
 				return;
-			}
-
-			finally
-			{
-				tx.finish();
 			}
 		}
 		LOG.info("Linking owners completed.");
@@ -459,10 +458,16 @@ public class GraphBuilder
 		
 		try
 		{
+			LOG.info("Scraping BitcoinTalk.org User Profiles...");
 			Scraper.BitcoinTalkProfiles(graphDb, owned_addresses);
+			LOG.info("Finished scraping BitcoinTalk.org User Profiles...");
+	
+			LOG.info("Scraping Bitcoin-OTC.com User Database...");			
+			Scraper.BitcoinOtcDatabase(graphDb, owned_addresses);
+			LOG.info("Finished scraping Bitcoin-OTC.org User Database...");
 		} 
 		
-		catch (IOException e)
+		catch (Exception e)
 		{
 			LOG.log(Level.SEVERE, "Scraping error.  Aborting...", e);
 		}
@@ -889,6 +894,7 @@ public class GraphBuilder
 		// is instead branching off (orphan block).
 		if (previousBlock.hasProperty("hash") && !((String) currentBlockNode.getProperty("prev_block")).contains((String) previousBlock.getProperty("hash")))
 		{
+			boolean blockFound = false;
 			TraversalDescription td = new TraversalDescriptionImpl();
 			td = td.breadthFirst().relationships(BlockchainRelationships.succeeds);
 			Iterable<Node> nodeTraversal = td.traverse(previousBlock).nodes();
@@ -899,8 +905,16 @@ public class GraphBuilder
 				{
 					// We have found the block. Create a relationship
 					currentBlockNode.createRelationshipTo(blockNode, BlockchainRelationships.succeeds);
+					blockFound = true;
 					break;
 				}
+			}
+			
+			if (!blockFound)
+			{
+				LOG.severe("Unable to find the previous block to block: " + currentBlockNode.getProperty("hash") + ".  Aborting!  Run block validation to ensure chain consistency.");
+				throw new Exception("Unable to find the previous block to block: " + currentBlockNode.getProperty("hash") + ".  Aborting!  Run block validation to ensure chain consistency.");
+			
 			}
 		}
 
@@ -1289,7 +1303,7 @@ public class GraphBuilder
 			{
 				// METHOD A
 				// If this is the first run, we ping the API and check to make sure this block is still, in fact, part of the main chain.  
-				// If it is, then we return true and merily buidl the high level graph
+				// If it is, then we return true and build the high level graph
 				// If it is not and it has changed, we go backwards, checking each node against the API until we find a block we both agree.  This will be 
 				// the responsibility of the calling function, and not this function persay.
 				return (Boolean) block.getProperty("main_chain", false);				 
@@ -1337,14 +1351,27 @@ public class GraphBuilder
 	 * @param owner
 	 * @author jdmarble
 	 */
-	private static void linkOwners(final Node owner)
-	{
-		// Already did this owner.
-		if (owner.hasRelationship(Direction.OUTGOING, OwnerRelTypes.transfers))
+	private static void relinkOwners(final Node block, final Node owner)
+	{		
+		// Remove all outgoing transfers relationships from this owner
+		Transaction deleteTx = graphDb.beginTx();
+		int count = 0;
+		for (Relationship transfer : owner.getRelationships(OwnerRelTypes.transfers, Direction.OUTGOING))
 		{
-			return;
+			if (count > 1000)
+			{
+				deleteTx.success();
+				deleteTx.finish();	
+				deleteTx = graphDb.beginTx();
+				count = 0;
+			}
+			
+			transfer.delete();
+			count ++;
 		}
-
+		deleteTx.success();
+		deleteTx.finish();	
+		
 		// All addresses that redeemed an input at a transaction in this block.
 		final TraversalDescription td = Traversal.description()
 				.relationships(OwnerRelTypes.owns, Direction.OUTGOING)
@@ -1356,13 +1383,30 @@ public class GraphBuilder
 				.evaluator(Evaluators.atDepth(6))
 				.evaluator(Evaluators.returnWhereLastRelationshipTypeIs(OwnerRelTypes.owns));
 
+		count = 0;
+		Transaction createTx = graphDb.beginTx();
 		for (final Path btcTransfer : td.traverse(owner))
 		{
+			if (count > 1000)
+			{
+				createTx.success();
+				createTx.finish();
+				createTx = graphDb.beginTx();
+				count = 0;
+			}
+			
 			final List<Node> nodes = ImmutableList.copyOf(btcTransfer.nodes());
 			final long value = ((Number) nodes.get(4).getProperty("value", 0)).longValue();
-
+			final long time = (Long) nodes.get(3).getSingleRelationship(BlockchainRelationships.from, Direction.OUTGOING).getEndNode().getProperty("time");
+				
 			final Relationship transfer = owner.createRelationshipTo(btcTransfer.endNode(), OwnerRelTypes.transfers);
 			transfer.setProperty("value", value);
+			transfer.setProperty("time", time);
+			count ++;
 		}
+		
+		graphDb.getReferenceNode().setProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID, block.getId());
+		createTx.success();
+		createTx.finish();
 	}
 }

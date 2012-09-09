@@ -31,7 +31,7 @@ import antlr.TokenStreamException;
 public class Fetcher
 {
 	private static final String BLOCKCHAININFOAPI = "http://blockchain.info/rawblock/";
-	private static final String SECRET = "?api_code=lpho39f1";
+	private static final String SECRET = "?api_code=LK75FDss";
 	private static final String BLOCKCHAININFOLATEST = "http://blockchain.info/latestblock";
 	private static final Logger LOG = Logger.getLogger(Fetcher.class.getName());	
 

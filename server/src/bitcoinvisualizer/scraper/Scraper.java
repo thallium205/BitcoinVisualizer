@@ -1,6 +1,11 @@
-package bitcoinvisualizer;
+package bitcoinvisualizer.scraper;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.net.URLConnection;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -20,11 +25,15 @@ import org.neo4j.graphdb.Traverser.Order;
 import org.neo4j.graphdb.index.Index;
 import org.neo4j.kernel.GraphDatabaseAPI;
 
+import bitcoinvisualizer.GraphBuilder;
 import bitcoinvisualizer.GraphBuilder.OwnerRelTypes;
 
 import com.google.bitcoin.core.Address;
 import com.google.bitcoin.core.AddressFormatException;
 import com.google.bitcoin.core.NetworkParameters;
+import com.sdicons.json.mapper.JSONMapper;
+import com.sdicons.json.model.JSONValue;
+import com.sdicons.json.parser.JSONParser;
 
 /**
  * Attempts to associate bitcoin addresses to real-world identieis and stores them in a simple sqllite database.
@@ -44,12 +53,6 @@ public class Scraper
 
 	public static void BitcoinTalkProfiles(final GraphDatabaseAPI graphDb, final Index<Node> owned_addresses) throws IOException
 	{
-		String btcAddress;
-		String name;
-		String source;
-		String contributor = "thallium205";
-		Date time = new Date();
-
 		// User profile page
 		String url = "https://bitcointalk.org/index.php?action=profile;u=";
 
@@ -61,7 +64,7 @@ public class Scraper
 
 		if (last_internet_userId != -1)
 		{
-			for (int i = graphDb.getReferenceNode().hasProperty("last_userId_scraped") ? (Integer) graphDb.getReferenceNode().getProperty("last_userId_scraped") : 0; i < last_internet_userId; i++)
+			for (int i = (Integer) graphDb.getReferenceNode().getProperty("last_bitcointalk_userId_scraped", 0); i < last_internet_userId; i++)
 			{
 				LOG.info("Begin scraping user: " + i);
 				Document profile = Jsoup.connect(url + i).get();
@@ -86,39 +89,13 @@ public class Scraper
 						if (addr != null && addr.length() > 28)
 						{
 							try
-							{
-								Address address = new Address(NetworkParameters.prodNet(), addr);
-
-								// The address is valid. Add the information associated with it to the database
-								btcAddress = address.toString();
-								name = getName(profile);
-								source = url + i;							
-								
+							{								
 								// Check to see if we have an owner entity associated with this address.  If we don't, then lucky you!
-								for (Node ownedAddr : owned_addresses.query(GraphBuilder.OWNED_ADDRESS_HASH_KEY, btcAddress))
-								{
-									if (ownedAddr.hasRelationship(ScraperRelationships.identifies, Direction.OUTGOING))
-									{
-										LOG.info("This address already has an identifiying relationship associated with it.  Skipping...");
-										break;
-									}
-																											
-									// For each ownedAddr, we find the owner node and make am identifiying relationship to it						
-									Iterable<Node> owners = ownedAddr.traverse(Order.BREADTH_FIRST,  StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, OwnerRelTypes.owns, Direction.INCOMING);						
-									for (Node owner : owners)
-									{
-										Transaction tx = graphDb.beginTx();										
-										Relationship relationship = ownedAddr.createRelationshipTo(owner, ScraperRelationships.identifies);
-										relationship.setProperty("name", name);
-										relationship.setProperty("source", source);
-										relationship.setProperty("contributor", contributor);
-										relationship.setProperty("time", time.toString());
-										graphDb.getReferenceNode().setProperty("last_userId_scraped", i);
-										tx.success();
-										tx.finish();
-										LOG.info("Owner added:\nAddress: " + btcAddress + "\nName: " + name + "\nSource: " + source + "\nTime: " + time.toString());
-									}
-								}
+								Transaction tx = graphDb.beginTx();	
+								identifyAddress(graphDb, owned_addresses, new Address(NetworkParameters.prodNet(), addr), getName(profile), url + i, "thallium205");
+								graphDb.getReferenceNode().setProperty("last_bitcointalk_userId_scraped", i);
+								tx.success();
+								tx.finish();
 							}
 
 							catch (AddressFormatException e)
@@ -129,6 +106,64 @@ public class Scraper
 					}
 				}
 				LOG.info("User: " + i + " completed.");
+			}
+		}
+	}
+	
+	public static void BitcoinOtcDatabase(final GraphDatabaseAPI graphDb, final Index<Node> owned_addresses) throws Exception
+	{
+		final URL BITCOIN_OTC_URL_DB = new URL("http://bitcoin-otc.com/viewgpg.php?outformat=json");
+		URLConnection connection = BITCOIN_OTC_URL_DB.openConnection();
+		BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+		JSONValue json;	
+		json = new JSONParser(reader).nextValue();
+		@SuppressWarnings("unchecked")
+		ArrayList<BitcoinOtcUserType> bitcoinOtcUsers = (ArrayList<BitcoinOtcUserType>) JSONMapper.toJava(json);
+		
+		for (BitcoinOtcUserType user : bitcoinOtcUsers)
+		{
+			if (user.getBitcoinaddress() != null && user.getNick() != null)
+			{
+				// That was easy.
+				Transaction tx = graphDb.beginTx();	
+				try
+				{
+					identifyAddress(graphDb, owned_addresses, new Address(NetworkParameters.prodNet(), user.getBitcoinaddress()), user.getNick(), BITCOIN_OTC_URL_DB.toString(), "thallium205");
+				} 
+				
+				catch (AddressFormatException e)
+				{
+					LOG.log(Level.INFO, user.getBitcoinaddress() + " is not a valid Bitcoin address.  Skipping.", e);							
+				}
+				
+				tx.success();
+				tx.finish();						
+			}
+		}				
+	}
+	
+	private static void identifyAddress(final GraphDatabaseAPI graphDb, final Index<Node> owned_addresses, Address address, String name, String source, String contributor)
+	{
+		Date time = new Date();
+		for (Node ownedAddr : owned_addresses.query(GraphBuilder.OWNED_ADDRESS_HASH_KEY, address.toString()))
+		{
+			if (ownedAddr.hasRelationship(ScraperRelationships.identifies, Direction.OUTGOING))
+			{
+				LOG.info("This address already has an identifiying relationship associated with it.  Skipping...");
+				break;
+			}
+																					
+			// For each ownedAddr, we find the owner node and make am identifiying relationship to it						
+			Iterable<Node> owners = ownedAddr.traverse(Order.BREADTH_FIRST,  StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, OwnerRelTypes.owns, Direction.INCOMING);						
+			for (Node owner : owners)
+			{													
+				Relationship relationship = ownedAddr.createRelationshipTo(owner, ScraperRelationships.identifies);
+				relationship.setProperty("name", name);
+				relationship.setProperty("source", source);
+				relationship.setProperty("contributor", contributor);
+				relationship.setProperty("time", time.toString());
+				
+				LOG.info("Owner added:\nAddress: " + address.toString() + "\nName: " + name + "\nSource: " + source + "\nTime: " + time.toString());
 			}
 		}
 	}

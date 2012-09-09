@@ -6,6 +6,7 @@ function app()
 	// Data structures
 	var nodes = {}; 
 	var links = {};	
+	
 	var nodeReqs = []; // Used to determine if a node has already been selected.  Used to prevent duplicates of grouping
 	var pathData = [];	
 	var path_text = null; // Used to draw the labels on the edges
