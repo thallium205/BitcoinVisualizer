@@ -157,7 +157,19 @@ public class Scraper
 			Iterable<Node> owners = ownedAddr.traverse(Order.BREADTH_FIRST,  StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, OwnerRelTypes.owns, Direction.INCOMING);						
 			for (Node owner : owners)
 			{													
-				Relationship relationship = ownedAddr.createRelationshipTo(owner, ScraperRelationships.identifies);
+				// Set the name to the owner node as well as the relationship.
+				if (owner.hasProperty("name"))
+				{
+					final String ownerName = (String) owner.getProperty("name");
+					owner.setProperty("name", ownerName + "," + name);
+				}
+				
+				else
+				{
+					owner.setProperty("name", name);
+				}							
+				
+				Relationship relationship = ownedAddr.createRelationshipTo(owner, ScraperRelationships.identifies);				
 				relationship.setProperty("name", name);
 				relationship.setProperty("source", source);
 				relationship.setProperty("contributor", contributor);

@@ -65,8 +65,121 @@ app.get('/api/latest', function (req, res)
 	});
 });
 
+// Owner
+app.get('/api/owner/addr/:id.:format?', function (req, res) 
+{
+	var 
+	ownerIdQuery = [
+		'START addr = node:owned_addr_hashes(owned_addr_hash={addr})',
+		'MATCH addr <- [:owns] - owner',
+		'RETURN ID(owner) AS id'].join('\n'),
+	sentQuery = [
+		'START addr = node:owned_addr_hashes(owned_addr_hash={addr})',
+		'MATCH addr <- [:owns] - owner - [to:transfers] -> receiver',
+		'RETURN to.time? AS time, to.value AS amount'].join('\n'),
+	receivedQuery = [
+		'START addr = node:owned_addr_hashes(owned_addr_hash={addr})',
+		'MATCH addr <- [:owns] - owner <- [from:transfers] - sender',
+		'RETURN  from.time? AS time, from.value AS amount'].join('\n'),
+	identifierQuery = [
+		'START addr = node:owned_addr_hashes(owned_addr_hash={addr})',
+		'MATCH addr <- [:owns] - owner <- [id?:identifies] - identifyingAddr',
+		'RETURN id.name AS name, id.time AS time, id.source AS source, id.contributor AS contributor, identifyingAddr.addr AS address'].join('\n'),
+	addressesQuery = [
+		'START addr = node:owned_addr_hashes(owned_addr_hash={addr})',
+		'MATCH addr <- [:owns] - owner - [:owns] -> owned',
+		'RETURN owned.addr AS address'].join('\n'),
+	params = {
+		addr: req.params.id,
+		},
+	results = {};
+	
+	db.query(ownerIdQuery, params, function callback(err, result)
+	{		
+		if (err)
+		{			
+			res.send(err);
+		}
+		
+		else
+		{			
+			results.owner = result[0].id;
+			sendResults(results, 5, req, res);
+		}
+	});
+	
+	db.query(sentQuery, params, function callback(err, result)
+	{		
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{	
+			results.sent = result;
+			sendResults(results, 5, req, res);
+		}
+	});	
+	
+	db.query(receivedQuery, params, function callback(err, result)
+	{		
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{	
+			results.received = result;
+			sendResults(results, 5, req, res);
+		}
+	});	
+	
+	db.query(identifierQuery, params, function callback(err, result)
+	{		
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{				
+			results.identifiers = result;
+			sendResults(results, 5, req, res);
+		}
+	});	
+	
+	db.query(addressesQuery, params, function callback(err, result)
+	{		
+		if (err)
+		{
+			res.send(err);
+		}
+		
+		else
+		{				
+			results.addresses = result;
+			sendResults(results, 5, req, res);
+		}
+	});
+		
+});
+
+function sendResults(results, expectedAmount, req, res)
+{
+	if (Object.keys(results).length !== expectedAmount)
+	{
+		return;
+	}
+	
+	res.send(results);	
+}
+
+// Graph API
+
 // Node
-app.get('/api/node/:id.:format?', function (req, res) 
+app.get('/api/graph/node/:id.:format?', function (req, res) 
 {		
 	var 
 	query = [
@@ -93,7 +206,7 @@ app.get('/api/node/:id.:format?', function (req, res)
 		else
 		{			
 			queryResult = result;
-			sendResult(queryResult, selfResult, req, res);
+			sendGraphResult(queryResult, selfResult, req, res);
 		}
 	});
 	
@@ -107,13 +220,13 @@ app.get('/api/node/:id.:format?', function (req, res)
 		else
 		{	
 			selfResult = result;
-			sendResult(queryResult, selfResult, req, res);
+			sendGraphResult(queryResult, selfResult, req, res);
 		}
 	});	
 });
 
 // Block hash
-app.get('/api/block/hash/:id.:format?', function (req, res) 
+app.get('/api/graph/block/hash/:id.:format?', function (req, res) 
 {		
 	var 
 	query = [
@@ -140,7 +253,7 @@ app.get('/api/block/hash/:id.:format?', function (req, res)
 		else
 		{			
 			queryResult = result;
-			sendResult(queryResult, selfResult, req, res);
+			sendGraphResult(queryResult, selfResult, req, res);
 		}
 	});
 	
@@ -154,13 +267,13 @@ app.get('/api/block/hash/:id.:format?', function (req, res)
 		else
 		{	
 			selfResult = result;
-			sendResult(queryResult, selfResult, req, res);
+			sendGraphResult(queryResult, selfResult, req, res);
 		}
 	});	
 });
 
 // Block height
-app.get('/api/block/height/:id.:format?', function (req, res) 
+app.get('/api/graph/block/height/:id.:format?', function (req, res) 
 {		
 	var 
 	query = [
@@ -187,7 +300,7 @@ app.get('/api/block/height/:id.:format?', function (req, res)
 		else
 		{			
 			queryResult = result;
-			sendResult(queryResult, selfResult, req, res);
+			sendGraphResult(queryResult, selfResult, req, res);
 		}
 	});
 	
@@ -201,13 +314,13 @@ app.get('/api/block/height/:id.:format?', function (req, res)
 		else
 		{	
 			selfResult = result;
-			sendResult(queryResult, selfResult, req, res);
+			sendGraphResult(queryResult, selfResult, req, res);
 		}
 	});	
 });
 
 // Transaction hash
-app.get('/api/trans/:id.:format?', function (req, res) 
+app.get('/api/graph/trans/:id.:format?', function (req, res) 
 {		
 	var 
 	query = [
@@ -234,7 +347,7 @@ app.get('/api/trans/:id.:format?', function (req, res)
 		else
 		{			
 			queryResult = result;
-			sendResult(queryResult, selfResult, req, res);
+			sendGraphResult(queryResult, selfResult, req, res);
 		}
 	});
 	
@@ -248,13 +361,13 @@ app.get('/api/trans/:id.:format?', function (req, res)
 		else
 		{	
 			selfResult = result;
-			sendResult(queryResult, selfResult, req, res);
+			sendGraphResult(queryResult, selfResult, req, res);
 		}
 	});	
 });
 
 // Address
-app.get('/api/addr/:id.:format?', function (req, res) 
+app.get('/api/graph/addr/:id.:format?', function (req, res) 
 {		
 	var 
 	query = [
@@ -281,7 +394,7 @@ app.get('/api/addr/:id.:format?', function (req, res)
 		else
 		{			
 			queryResult = result;
-			sendResult(queryResult, selfResult, req, res);
+			sendGraphResult(queryResult, selfResult, req, res);
 		}
 	});
 	
@@ -295,13 +408,13 @@ app.get('/api/addr/:id.:format?', function (req, res)
 		else
 		{	
 			selfResult = result;
-			sendResult(queryResult, selfResult, req, res);
+			sendGraphResult(queryResult, selfResult, req, res);
 		}
 	});	
 });
 
 // Owner
-app.get('/api/owns/:id.:format?', function (req, res) 
+app.get('/api/graph/owns/:id.:format?', function (req, res) 
 {		
 	var 
 	query = [
@@ -328,7 +441,7 @@ app.get('/api/owns/:id.:format?', function (req, res)
 		else
 		{			
 			queryResult = result;
-			sendResult(queryResult, selfResult, req, res);
+			sendGraphResult(queryResult, selfResult, req, res);
 		}
 	});
 	
@@ -342,13 +455,13 @@ app.get('/api/owns/:id.:format?', function (req, res)
 		else
 		{	
 			selfResult = result;
-			sendResult(queryResult, selfResult, req, res);
+			sendGraphResult(queryResult, selfResult, req, res);
 		}
 	});	
 });
 
 // IPv4 Address
-app.get('/api/ipv4/:id.:format?', function (req, res) 
+app.get('/api/graph/ipv4/:id.:format?', function (req, res) 
 {		
 	var 
 	query = [
@@ -375,7 +488,7 @@ app.get('/api/ipv4/:id.:format?', function (req, res)
 		else
 		{			
 			queryResult = result;
-			sendResult(queryResult, selfResult, req, res);
+			sendGraphResult(queryResult, selfResult, req, res);
 		}
 	});
 	
@@ -389,12 +502,12 @@ app.get('/api/ipv4/:id.:format?', function (req, res)
 		else
 		{	
 			selfResult = result;
-			sendResult(queryResult, selfResult, req, res);
+			sendGraphResult(queryResult, selfResult, req, res);
 		}
 	});	
 });
 
-function sendResult(queryResult, selfResult, req, res)
+function sendGraphResult(queryResult, selfResult, req, res)
 {
 	if (queryResult != null && selfResult != null)
 	{	

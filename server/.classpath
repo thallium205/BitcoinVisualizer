@@ -72,5 +72,15 @@
 	<classpathentry kind="lib" path="lib/neo4j/system/lib/stax-api-1.0.1.jar"/>
 	<classpathentry kind="lib" path="lib/neo4j/system/coordinator/lib/log4j-1.2.16.jar"/>
 	<classpathentry kind="lib" path="lib/commons-cli-1.2.jar"/>
+	<classpathentry kind="lib" path="lib/gephi/geronimo-jta_1.1_spec-1.1.1.jar"/>
+	<classpathentry kind="lib" path="lib/gephi/neo4j-jmx-1.5.jar"/>
+	<classpathentry kind="lib" path="lib/gephi/neo4j-kernel-1.5.jar"/>
+	<classpathentry kind="lib" path="lib/gephi/neo4j-management-1.5.jar"/>
+	<classpathentry kind="lib" path="lib/gephi/neo4j-udc-1.5.jar"/>
+	<classpathentry kind="lib" path="lib/gephi/org-gephi-desktop-neo4j.jar"/>
+	<classpathentry kind="lib" path="lib/gephi/org-gephi-lib-neo4j.jar"/>
+	<classpathentry kind="lib" path="lib/gephi/org-gephi-neo4j-plugin.jar"/>
+	<classpathentry kind="lib" path="lib/gephi/org-gephi-neo4j.jar"/>
+	<classpathentry kind="lib" path="lib/gephi/gephi-toolkit.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

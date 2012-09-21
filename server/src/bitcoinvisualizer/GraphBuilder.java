@@ -26,6 +26,7 @@ import org.neo4j.graphdb.index.Index;
 import org.neo4j.graphdb.traversal.Evaluators;
 import org.neo4j.graphdb.traversal.TraversalDescription;
 import org.neo4j.helpers.collection.MapUtil;
+import org.neo4j.kernel.EmbeddedGraphDatabase;
 import org.neo4j.kernel.GraphDatabaseAPI;
 import org.neo4j.kernel.HighlyAvailableGraphDatabase;
 import org.neo4j.kernel.Traversal;
@@ -102,6 +103,7 @@ public class GraphBuilder
 	private static final String LAST_LINKED_TRANSACTION_BLOCK_NODEID = "last_linked_transaction_block_nodeId";
 	private static final String LAST_LINKED_OWNER_BUILD_BLOCK_NODEID = "last_linked_owner_build_block_nodeId";
 	private static final String LAST_LINKED_OWNER_LINK_BLOCK_NODEID = "last_linked_owner_link_block_nodeId";
+	private static final String LAST_TIME_SENT = "last_time_sent";
 	/**
 	 * Represents the basic relationships of the low-level model.
 	 * 
@@ -145,7 +147,8 @@ public class GraphBuilder
 	public static void StartDatabase(final String dbPath, final String configPath) throws IOException
 	{
 		LOG.info("Starting database...");		
-		graphDb = new HighlyAvailableGraphDatabase(dbPath, MapUtil.load(FileUtils.getFile(configPath)));
+		// graphDb = new HighlyAvailableGraphDatabase(dbPath, MapUtil.load(FileUtils.getFile(configPath)));
+		graphDb = new EmbeddedGraphDatabase (dbPath);
 		srv = new WrappingNeoServerBootstrapper(graphDb);
 		srv.start();
 
@@ -419,11 +422,10 @@ public class GraphBuilder
 		LOG.info("Building owners completed.");
 
 		// Link the owners for the highest level of the abstraction
-		LOG.info("Begin linking owners...");		
+		LOG.info("Begin linking owners...");	
+		HashSet<Long> owners = new HashSet<Long>();
 		for (final Node block : getLatestMainBlocks(getLatestDatabaseBlockNodeByNodeId(LAST_LINKED_OWNER_LINK_BLOCK_NODEID).getId()))
-		{
-			
-			HashSet<Long> owners = new HashSet<Long>();
+		{		
 			try
 			{
 				for (final Node owner : getOwners(block))
@@ -1268,6 +1270,7 @@ public class GraphBuilder
 				{
 					// This network has not been redeemed by owners at all
 					owner = graphDb.createNode();
+					owner.setProperty("id", owner.getId()); // This is needed to index nodes by Gephi as the traversal doesn't pull node id's at the moment 
 				}	
 				
 				final Iterable<Node> addresses = address.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL, AddressRelTypes.same_owner,	Direction.BOTH);
@@ -1384,6 +1387,8 @@ public class GraphBuilder
 				.evaluator(Evaluators.returnWhereLastRelationshipTypeIs(OwnerRelTypes.owns));
 
 		count = 0;
+		
+		final ArrayList<Long> sentTimes = new ArrayList<Long>();
 		Transaction createTx = graphDb.beginTx();
 		for (final Path btcTransfer : td.traverse(owner))
 		{
@@ -1402,8 +1407,20 @@ public class GraphBuilder
 			final Relationship transfer = owner.createRelationshipTo(btcTransfer.endNode(), OwnerRelTypes.transfers);
 			transfer.setProperty("value", value);
 			transfer.setProperty("time", time);
+			sentTimes.add(time);
 			count ++;
 		}
+		
+		if (!sentTimes.isEmpty())
+		{
+			owner.setProperty(LAST_TIME_SENT, Collections.max(sentTimes));	
+		}
+		
+		else
+		{
+			owner.setProperty(LAST_TIME_SENT, (long) 0);
+		}
+			
 		
 		graphDb.getReferenceNode().setProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID, block.getId());
 		createTx.success();

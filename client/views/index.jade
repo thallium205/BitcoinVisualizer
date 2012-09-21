@@ -1,6 +1,5 @@
 head
-	include ../includes/blockviewer
-	
+	include ../includes/blockviewer	
 	script
 		var _gaq = _gaq || [];
 		_gaq.push(['_setAccount', 'UA-34348879-1']);
@@ -11,52 +10,38 @@ head
 		ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
 		var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
 		})();
-
-body	
-	div.navbar
+body
+	div.navbar#titlebar
 		div.navbar-inner
 			div.container
 				a(href='#').brand Block Viewer
 				ul.nav
 					li
-						a(href='#faq') FAQ
+						a(href='#') FAQ
 					li  
-						a(href='#api') API
+						a(href='#') API
 					li
-						a(href='#query') Run Your Own Query
+						a(href='#') Run Your Own Query
 				div.pull-left
 					p.navbar-text Donate: 14gZTuHA4xa4gJQBubn5fj3b4D4QHEDdwY				
-				form#search.navbar-search.pull-right.form-inline
-					button(id='btnClear').btn Clear
-					input(id='txtInput')(type='text')(placeholder='Address / SHA hash / height')(style='width:500px').search-query	
-					div.btn-group.pull-right.form-inline
-						button(data-toggle='dropdown')(id='btnSubmit')(href='#').btn.dropdown-toggle.btn-primary.btn-large Search
-							span.caret
-						ul.dropdown-menu
-							li
-								a(href='#addr') Address							
-							li
-								a(href='#block') Block						
-							li
-								a(href='#ipv4') IPv4
-							li								
-								a(href='#owns') Owner Address
-							li
-								a(href='#trans') Transaction
-							li
-								a(href='#node') Node ID
-													
-	div(id='v')
-	script
-		app();
-	
-div.modal.hide#groupModal
-	div.modal-header
-		button(type='button')(data-dismiss='modal').close x
-		h3#txtGroupModalTitle
-	div.modal-body
-		table(cellpadding='0')(cellspacing='0')(border='0').table.table-bordered#tblGroup
-	div.modal-footer		
-		a(href='#')(id='btnModalSelect').btn.btn-primary Select
-		a(data-dismiss='modal')(href='#').btn.btn-danger Select None
-		
+				form.navbar-search.pull-right.form-inline#recherche
+					input(type='text')(placeholder='Search by a Bitcoin address here')(style='width:500px').search-query#txtInput
+	div.gradient#zonecentre
+		canvas(width='0')(height='0')#carte
+		ul#ctlzoom
+			li
+				a(href='')(title='Zoom In')#zoomPlusButton
+			li#zoomSliderzone
+				div#zoomSlider
+			li
+				a(href='#')(title='Zoom Out')#zoomMinusButton
+			li
+				a(href='#')#lensButton
+			li
+				a(href='#')#edgesButton
+	div#overviewzone.gradient
+		canvas(width='0')(height='0')#overview
+	div#leftcolumn
+		div#unfold
+			a(href='#').rightarrow#aUnfold
+		div#leftcontent
