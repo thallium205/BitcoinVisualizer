@@ -14,7 +14,8 @@ public class PrevOut
 	private Long value;
 	private Integer tx_index;
 	private Integer n;
-	
+	private String addr_tag;
+	private String addr_tag_link;
 	
 	public Integer getType()
 	{
@@ -71,5 +72,21 @@ public class PrevOut
 	public void setN(Integer n)
 	{
 		this.n = n;
+	}
+	public String getAddr_tag()
+	{
+		return addr_tag;
+	}
+	public void setAddr_tag(String addr_tag)
+	{
+		this.addr_tag = addr_tag;
+	}
+	public String getAddr_tag_link()
+	{
+		return addr_tag_link;
+	}
+	public void setAddr_tag_link(String addr_tag_link)
+	{
+		this.addr_tag_link = addr_tag_link;
 	}
 }

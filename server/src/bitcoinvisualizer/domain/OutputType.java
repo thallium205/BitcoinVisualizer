@@ -12,6 +12,9 @@ public class OutputType
 	private String addr3;
 	private Long value;
 	private Integer type;	
+	private String addr_tag;
+	
+	private String addr_tag_link;
 	
 	public String getAddr()
 	{
@@ -52,5 +55,21 @@ public class OutputType
 	public void setAddr3(String addr3)
 	{
 		this.addr3 = addr3;
+	}
+	public String getAddr_tag()
+	{
+		return addr_tag;
+	}
+	public void setAddr_tag(String addr_tag)
+	{
+		this.addr_tag = addr_tag;
+	}
+	public String getAddr_tag_link()
+	{
+		return addr_tag_link;
+	}
+	public void setAddr_tag_link(String addr_tag_link)
+	{
+		this.addr_tag_link = addr_tag_link;
 	}
 }

@@ -30,8 +30,35 @@ public class Main
 			
 			// Parse options
 			CommandLineParser parser = new GnuParser();
+			
+			
 			try
 			{
+				line = parser.parse(getOptions(), args);
+			} catch (ParseException e)
+			{
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+			try
+			{
+				GraphAnalyzer.BuildTransactionStatistics(line.getOptionValue("dbPath"), line.getOptionValue("configPath"));
+				break;
+			} 
+			
+			catch (IOException e)
+			{
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+			
+			/*
+			
+			try
+			{
+				
 				// Get values
 				line = parser.parse(getOptions(), args);
 				boolean validate = true;
@@ -67,6 +94,7 @@ public class Main
 						LOG.log(Level.WARNING, "Graph Build Failed.  Skipping, but not shutting down database.", e);
 					}
 				}
+				
 			}
 
 			catch (ParseException e)
@@ -102,7 +130,10 @@ public class Main
 			{
 				LOG.log(Level.SEVERE, "Thread sleep failed.  Reason: " + e.getMessage(), e);
 				GraphBuilder.StopDatabase();
-			}			
+			}	
+			*/
+			
+				
 		}
 	}
 
@@ -123,6 +154,8 @@ public class Main
 		Option high = OptionBuilder.withArgName("high").withDescription("Builds the high level data structure.").create("high");
 		Option client = OptionBuilder.withArgName("client").withDescription("Will only run the database service and not attempt to build the blockchain.").create("client");
 		Option time = OptionBuilder.hasArg().withArgName("time").withDescription("The amount of time the program will wait before rebuilding an updated version of the graph again.").create("time");
+		Option statistics = OptionBuilder.withArgName("statistics").withDescription("Prints a CSV file in the current directory with some statistics on the block chain.").create("statistics");
+		
 		Options options = new Options();
 		options.addOption(dbPath);
 		options.addOption(configPath);
@@ -131,6 +164,7 @@ public class Main
 		options.addOption(high);
 		options.addOption(client);
 		options.addOption(time);
+		options.addOption(statistics);
 		return options;
 	}
 }

@@ -26,7 +26,6 @@ import org.neo4j.graphdb.index.Index;
 import org.neo4j.graphdb.traversal.Evaluators;
 import org.neo4j.graphdb.traversal.TraversalDescription;
 import org.neo4j.helpers.collection.MapUtil;
-import org.neo4j.kernel.EmbeddedGraphDatabase;
 import org.neo4j.kernel.GraphDatabaseAPI;
 import org.neo4j.kernel.HighlyAvailableGraphDatabase;
 import org.neo4j.kernel.Traversal;
@@ -147,8 +146,8 @@ public class GraphBuilder
 	public static void StartDatabase(final String dbPath, final String configPath) throws IOException
 	{
 		LOG.info("Starting database...");		
-		// graphDb = new HighlyAvailableGraphDatabase(dbPath, MapUtil.load(FileUtils.getFile(configPath)));
-		graphDb = new EmbeddedGraphDatabase (dbPath);
+		graphDb = new HighlyAvailableGraphDatabase(dbPath, MapUtil.load(FileUtils.getFile(configPath)));
+		//  graphDb = new EmbeddedGraphDatabase (dbPath);
 		srv = new WrappingNeoServerBootstrapper(graphDb);
 		srv.start();
 
@@ -1270,7 +1269,7 @@ public class GraphBuilder
 				{
 					// This network has not been redeemed by owners at all
 					owner = graphDb.createNode();
-					owner.setProperty("id", owner.getId()); // This is needed to index nodes by Gephi as the traversal doesn't pull node id's at the moment 
+					owner.setProperty("owner_id", owner.getId()); // This is needed to index nodes by Gephi as the traversal doesn't pull node id's at the moment 
 				}	
 				
 				final Iterable<Node> addresses = address.traverse(org.neo4j.graphdb.Traverser.Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL, AddressRelTypes.same_owner,	Direction.BOTH);
