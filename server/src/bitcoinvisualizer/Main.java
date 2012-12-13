@@ -41,24 +41,26 @@ public class Main
 				e.printStackTrace();
 			}
 			
+			
+			
+			
+			
+			
 			try
 			{
-				GraphAnalyzer.BuildTransactionStatistics(line.getOptionValue("dbPath"), line.getOptionValue("configPath"));
-				break;
-			} 
-			
-			catch (IOException e)
-			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				GraphExporter.BuildGexfFromNeo4j(line.getOptionValue("dbPath"), "C:/", 7);
 			}
+			
+			catch (Exception e)
+			{
+				LOG.log(Level.WARNING, "Build GEXF Failed.", e);
+			}
+						
 			
 			
 			/*
-			
 			try
-			{
-				
+			{				
 				// Get values
 				line = parser.parse(getOptions(), args);
 				boolean validate = true;
@@ -130,11 +132,10 @@ public class Main
 			{
 				LOG.log(Level.SEVERE, "Thread sleep failed.  Reason: " + e.getMessage(), e);
 				GraphBuilder.StopDatabase();
-			}	
+			}
 			*/
-			
-				
 		}
+		
 	}
 
 	/**

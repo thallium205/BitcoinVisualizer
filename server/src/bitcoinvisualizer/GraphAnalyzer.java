@@ -43,7 +43,7 @@ public class GraphAnalyzer
 			final BlockStatisticType statistic = new BlockStatisticType();
 			statistic.setHash((String) block.getProperty("hash"));
 			statistic.setHeight((Integer) block.getProperty("height"));
-			statistic.setTime(new Date(((Long) block.getProperty("time")) * 1000));
+			statistic.setTime((Long) block.getProperty("time"));
 			
 			final TraversalDescription monies = Traversal.description()
 					.relationships(BlockchainRelationships.from, Direction.INCOMING)
@@ -127,7 +127,7 @@ public class GraphAnalyzer
 	{
 		private String hash;
 		private Integer height;
-		private Date time;
+		private Long time;
 		private Integer unspentTransactions;
 		private Long unspentValue;
 		private Integer totalSentTransactions;
@@ -149,11 +149,11 @@ public class GraphAnalyzer
 		{
 			this.height = height;
 		}
-		public Date getTime()
+		public Long getTime()
 		{
 			return time;
 		}
-		public void setTime(Date time)
+		public void setTime(Long time)
 		{
 			this.time = time;
 		}
