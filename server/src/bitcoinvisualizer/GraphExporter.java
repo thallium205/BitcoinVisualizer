@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -43,6 +44,17 @@ import org.gephi.ranking.api.RankingController;
 import org.gephi.ranking.api.Transformer;
 import org.gephi.ranking.plugin.transformer.AbstractColorTransformer;
 import org.gephi.ranking.plugin.transformer.AbstractSizeTransformer;
+import org.gephi.statistics.plugin.ClusteringCoefficient;
+import org.gephi.statistics.plugin.ConnectedComponents;
+import org.gephi.statistics.plugin.Degree;
+import org.gephi.statistics.plugin.EigenvectorCentrality;
+import org.gephi.statistics.plugin.GraphDensity;
+import org.gephi.statistics.plugin.GraphDistance;
+import org.gephi.statistics.plugin.Hits;
+import org.gephi.statistics.plugin.Modularity;
+import org.gephi.statistics.plugin.PageRank;
+import org.gephi.statistics.plugin.WeightedDegree;
+import org.gephi.statistics.plugin.dynamic.DynamicClusteringCoefficient;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.ReturnableEvaluator;
@@ -103,8 +115,8 @@ public class GraphExporter
 		// Node Size
 		final Ranking nodeDegreeRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, Ranking.DEGREE_RANKING);
 		final AbstractSizeTransformer nodeSizeTransformer = (AbstractSizeTransformer) rankingController.getModel().getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_SIZE);
-		nodeSizeTransformer.setMinSize(3);
-		nodeSizeTransformer.setMaxSize(20);
+		nodeSizeTransformer.setMinSize(5);
+		nodeSizeTransformer.setMaxSize(10);
 		rankingController.transform(nodeDegreeRanking, nodeSizeTransformer);
 				
 		// Node Color
@@ -121,6 +133,7 @@ public class GraphExporter
 		PreviewModel previewModel = Lookup.getDefault().lookup(PreviewController.class).getModel();
 		previewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, Boolean.TRUE);
 		previewModel.getProperties().putValue(PreviewProperty.NODE_LABEL_PROPORTIONAL_SIZE, Boolean.TRUE);
+		previewModel.getProperties().putValue(PreviewProperty.NODE_LABEL_FONT, previewModel.getProperties().getFontValue(PreviewProperty.NODE_LABEL_FONT).deriveFont(8));
 		
 		// Edge Size
 		/*
@@ -144,34 +157,14 @@ public class GraphExporter
 		
 		// Edge Label
 		previewModel.getProperties().putValue(PreviewProperty.SHOW_EDGE_LABELS, Boolean.TRUE);
+		previewModel.getProperties().putValue(PreviewProperty.EDGE_LABEL_FONT, previewModel.getProperties().getFontValue(PreviewProperty.NODE_LABEL_FONT).deriveFont(8));
 		
 		LOG.info("Setting graph labels and features complete.");
 		
-		// Graph Layout
-		LOG.info("Begin graph layout...");
-		final YifanHuLayout layout = new YifanHuLayout(null, new StepDisplacement(1f));
-		layout.setGraphModel(graphModel);
-		layout.initAlgo();
-		layout.resetPropertiesValues();
-		layout.setOptimalDistance(200f);
-		 
-		for (int i = 0; i < 100 && layout.canAlgo(); i++) 
-		{
-			LOG.info(i + "/" + 100);
-			layout.goAlgo();
-		}
-		layout.endAlgo();
-		LOG.info("Graph layout complete.");
-		
-		
-		
-		
-		
-		
-		/*
+		// Graph Layout (Maybe use an auto layout?)		
+		LOG.info("Begin graph layout algorithm (OpenORD)...");
 		final OpenOrdLayout layout = new OpenOrdLayout(new OpenOrdLayoutBuilder());		
 		layout.setGraphModel(graphModel);	
-		layout.initAlgo();
 		layout.resetPropertiesValues();
 		layout.setLiquidStage(25);
 		layout.setExpansionStage(25);		
@@ -182,60 +175,116 @@ public class GraphExporter
 		layout.setNumThreads(1);
 		layout.setNumIterations(100);
 		layout.setRealTime(.2f);		
-		layout.setRandSeed(4371261193540028590L);		
-		layout.initAlgo();
-		
-		for (int i = 0; i < 100 && layout.canAlgo(); i++) {
+		layout.setRandSeed(new Random().nextLong());		
+		layout.initAlgo();		
+		for (int i = 0; i < 100 && layout.canAlgo(); i++) 
+		{
+			// LOG.info("Status: " + i + "/100");
 			layout.goAlgo();
 		}
 		layout.endAlgo();
-		*/
-		
-		
-		
-		/*
-		final ForceAtlas2 layout = new ForceAtlas2(new ForceAtlas2Builder());
-		layout.setGraphModel(graph);
-		layout.setLinLogMode(true);		
-		layout.setEdgeWeightInfluence(1.0);	
-		layout.setScalingRatio(10.0);
-		layout.setGravity(1.0);
-		layout.setBarnesHutOptimize(true);
-		layout.setThreadsCount(threadCount);
-		*/
-		
-		
+		LOG.info("Graph layout algorithm complete.");
 		
 		// Statistics
+		// Clustering Coefficient
+		LOG.info("Begin Calculating Statistics...");
+		LOG.info("Begin Clustering Coefficient...");
+		ClusteringCoefficient clusteringCoefficient = new ClusteringCoefficient();
+		clusteringCoefficient.setDirected(true);
+		clusteringCoefficient.execute(graphModel, attributeModel);
+		LOG.info("Clustering Coefficient Complete.");
+		
+		// Connected Components
+		LOG.info("Begin Connected Components...");
+		ConnectedComponents connectedComponents = new ConnectedComponents();
+		connectedComponents.setDirected(true);
+		connectedComponents.execute(graphModel, attributeModel);
+		LOG.info("Connected Components Complete.");
+		
+		// Degree
+		LOG.info("Begin Degree...");
+		Degree degree = new Degree();
+		degree.execute(graphModel, attributeModel);
+		LOG.info("Connected Degree.");
+		
+		// Eigenvector Centrality
+		LOG.info("Begin Eigenvector Centrality...");
+		EigenvectorCentrality eigenvector = new EigenvectorCentrality();
+		eigenvector.setDirected(true);
+		eigenvector.setNumRuns(100); // TODO
+		eigenvector.execute(graphModel, attributeModel);
+		LOG.info("Eigenvector Centrality Complete.");
+		
+		// Graph Density
+		LOG.info("Begin Graph Density...");
+		GraphDensity graphDensity = new GraphDensity();
+		graphDensity.setDirected(true);
+		graphDensity.execute(graphModel, attributeModel);
+		LOG.info("Graph Density Complete.");
+		
+		// Graph Distance
+		LOG.info("Begin Graph Distance...");
+		GraphDistance graphDistance = new GraphDistance();
+		graphDistance.setDirected(true);
+		graphDistance.execute(graphModel, attributeModel);
+		LOG.info("Graph Distance Complete.");
+		
+		// Hits
+		LOG.info("Begin HITS...");
+		Hits hits = new Hits();
+		hits.setUndirected(false);
+		hits.setEpsilon(.001);
+		hits.execute(graphModel, attributeModel);
+		LOG.info("HITS Complete.");
+		
+		// Modularity
+		LOG.info("Begin Modularity...");
+		Modularity modularity = new Modularity();
+		modularity.setRandom(true);
+		modularity.setUseWeight(true);
+		modularity.setResolution(1.0);
+		modularity.execute(graphModel, attributeModel);
+		LOG.info("Modularity Complete.");
+		
+		// Page Rank
+		LOG.info("Begin Page Rank...");
+		PageRank pageRank = new PageRank();
+		pageRank.setDirected(true);
+		pageRank.setProbability(.85);
+		pageRank.setEpsilon(.001);		
+		pageRank.execute(graphModel, attributeModel);
+		LOG.info("Page Rank Complete.");
+		
+		// Weighted Degree
+		LOG.info("Begin Weighted Degree...");
+		WeightedDegree weightedDegree = new WeightedDegree();
+		weightedDegree.execute(graphModel, attributeModel);
+		LOG.info("Weighted Degree Complete.");
+		LOG.info("Calculating Statistics Complete.");			
 		
 		// Export
-		LOG.info("Exporting Graph To Disk...");
+		LOG.info("Begin Exporting Graph To Disk...");
+		LOG.info("Begin PDF...");
 		final ExportController ec = Lookup.getDefault().lookup(ExportController.class);
-		try {
-			   ec.exportFile(new File("C:\\graph.pdf"));
-			} catch (IOException ex) {
-			   ex.printStackTrace();
-			   return;
-			}
+		try 
+		{
+			ec.exportFile(new File("C:\\graph.pdf"));
+		}
+		
+		catch (IOException ex) 
+		{
+			ex.printStackTrace();
+			return;
+		}
+		
 		final PDFExporter pdfExporter = (PDFExporter) ec.getExporter("pdf");
 		pdfExporter.setPageSize(PageSize.A0);
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
 		ec.exportStream(baos, pdfExporter);
 		final byte[] pdf = baos.toByteArray();
+		LOG.info("PDF Complete.");
 		
-		
-		// ExportController ec = Lookup.getDefault().lookup(ExportController.class);
-		/*
-		Exporter exporterGraphML = ec.getExporter("graphml");     //Get GraphML exporter
-		exporterGraphML.setWorkspace(graphModel.getWorkspace());
-		StringWriter stringWriter = new StringWriter();
-		ec.exportWriter(stringWriter, (CharacterExporter) exporterGraphML);
-		System.out.println(stringWriter.toString());   //Uncomment this line
-		*/
-		
-		
-		
-		// final ExportController exportController = Lookup.getDefault().lookup(ExportController.class);
+		LOG.info("Begin GEXF...");
 		final org.gephi.io.exporter.spi.GraphExporter exporter = (org.gephi.io.exporter.spi.GraphExporter) ec.getExporter("gexf");
 		exporter.setExportVisible(true); 
 		exporter.setWorkspace(graphModel.getWorkspace());
@@ -248,12 +297,8 @@ public class GraphExporter
 		{
 			LOG.log(Level.SEVERE, "Exporting GEXF Failed.", e);
 			return;
-		}		
-		LOG.info("Exporting Graph To Disk Completed.");
-	}
-	
-	public static void BuildSeadragonFromGexf(String gexfPath, String seadragonPath)
-	{
-		
+		}	
+		LOG.info("GEXF Complete.");
+		LOG.info("Exporting Graph To Disk Completed.");		
 	}
 }
