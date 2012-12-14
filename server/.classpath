@@ -82,7 +82,7 @@
 			<attribute name="javadoc_location" value="file:/E:/Workspace/BitcoinVisualizer/server/lib/gephi/"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="lib/gephi/org-gephi-neo4j-plugin.jar"/>
 	<classpathentry kind="lib" path="lib/gephi/org-gephi-layout-plugin-openord.jar"/>
+	<classpathentry kind="lib" path="lib/gephi/org-gephi-neo4j-plugin.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

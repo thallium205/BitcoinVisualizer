@@ -87,7 +87,7 @@ public class GraphExporter
 		relationshipDescription.add(new RelationshipDescription(GraphBuilder.OwnerRelTypes.transfers, Direction.BOTH));
 		final Neo4jImporter importer = new Neo4jImporterImpl();	
 		// importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, Integer.MAX_VALUE, relationshipDescription);
-		importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, 2, relationshipDescription);		
+		importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, 1, relationshipDescription);		
 		
 		// Grab the graph that was loaded from the importer			
 		final GraphModel graphModel = Lookup.getDefault().lookup(GraphController.class).getModel();
@@ -223,8 +223,9 @@ public class GraphExporter
 		ec.exportStream(baos, pdfExporter);
 		final byte[] pdf = baos.toByteArray();
 		
+		
+		// ExportController ec = Lookup.getDefault().lookup(ExportController.class);
 		/*
-		ExportController ec = Lookup.getDefault().lookup(ExportController.class);
 		Exporter exporterGraphML = ec.getExporter("graphml");     //Get GraphML exporter
 		exporterGraphML.setWorkspace(graphModel.getWorkspace());
 		StringWriter stringWriter = new StringWriter();
@@ -232,22 +233,22 @@ public class GraphExporter
 		System.out.println(stringWriter.toString());   //Uncomment this line
 		*/
 		
-		/*
-		final ExportController exportController = Lookup.getDefault().lookup(ExportController.class);
-		final org.gephi.io.exporter.spi.GraphExporter exporter = (org.gephi.io.exporter.spi.GraphExporter) exportController.getExporter("gexf");
+		
+		
+		// final ExportController exportController = Lookup.getDefault().lookup(ExportController.class);
+		final org.gephi.io.exporter.spi.GraphExporter exporter = (org.gephi.io.exporter.spi.GraphExporter) ec.getExporter("gexf");
 		exporter.setExportVisible(true); 
-		exporter.setWorkspace(workspace);
+		exporter.setWorkspace(graphModel.getWorkspace());
 		try 
 		{
-			exportController.exportFile(new File("C:\\graph.gexf"), exporter);
+			ec.exportFile(new File("C:\\graph.gexf"), exporter);
 		}
 		
 		catch (IOException e)
 		{
 			LOG.log(Level.SEVERE, "Exporting GEXF Failed.", e);
 			return;
-		}
-		*/
+		}		
 		LOG.info("Exporting Graph To Disk Completed.");
 	}
 	
