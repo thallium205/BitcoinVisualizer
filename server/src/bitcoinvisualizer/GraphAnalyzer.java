@@ -28,13 +28,9 @@ public class GraphAnalyzer
 	
 	private static GraphDatabaseAPI graphDb;
 	
-	public static void BuildTransactionStatistics(final String dbPath, final String configPath) throws IOException 
+	public static void BuildTransactionStatistics(final GraphDatabaseAPI graphDb) throws IOException 
 	{
-		LOG.info("Begin analyzing the block chain");
-		
-		// Get the database
-		graphDb = new EmbeddedGraphDatabase (dbPath);
-		
+		LOG.info("Begin analyzing the block chain");		
 		// For every block, we count the total number of transactions in it, and the total number of unredeemed transactions in it
 		final Traverser blocks = graphDb.getReferenceNode().traverse(Order.BREADTH_FIRST, StopEvaluator.END_OF_GRAPH, ReturnableEvaluator.ALL_BUT_START_NODE, GraphBuilder.BlockchainRelationships.succeeds, Direction.INCOMING);
 		final ArrayList<BlockStatisticType> blockchainStatistics = new ArrayList<BlockStatisticType>();

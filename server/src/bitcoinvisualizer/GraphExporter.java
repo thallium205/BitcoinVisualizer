@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
 import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -29,6 +31,8 @@ import org.gephi.layout.plugin.forceAtlas2.ForceAtlas2;
 import org.gephi.layout.plugin.forceAtlas2.ForceAtlas2Builder;
 import org.gephi.layout.plugin.openord.OpenOrdLayout;
 import org.gephi.layout.plugin.openord.OpenOrdLayoutBuilder;
+import org.gephi.neo4j.plugin.api.FilterDescription;
+import org.gephi.neo4j.plugin.api.FilterOperator;
 import org.gephi.neo4j.plugin.api.Neo4jImporter;
 import org.gephi.neo4j.plugin.api.RelationshipDescription;
 import org.gephi.neo4j.plugin.api.TraversalOrder;
@@ -61,6 +65,7 @@ import org.neo4j.graphdb.ReturnableEvaluator;
 import org.neo4j.graphdb.StopEvaluator;
 import org.neo4j.graphdb.Traverser.Order;
 import org.neo4j.graphdb.index.Index;
+import org.neo4j.graphdb.traversal.TraversalDescription;
 import org.neo4j.kernel.EmbeddedGraphDatabase;
 import org.neo4j.kernel.GraphDatabaseAPI;
 import org.openide.util.Lookup;
@@ -75,31 +80,58 @@ import com.itextpdf.text.PageSize;
 public class GraphExporter
 {
 	private static final Logger LOG = Logger.getLogger(GraphExporter.class.getName());
-	
-	private static GraphDatabaseAPI graphDb;
-	// Owner address hash
 	public static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
 	public static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
 	private static Index<Node> owned_addresses;
 	
-	public static void BuildGexfFromNeo4j(String dbPath, String gexfPath, int threadCount)
-	{		
+	public static void ExportBetweenTwoDates(final GraphDatabaseAPI graphDb, final String outputPath, final int threadCount, final Date from, final Date to)
+	{	
+		Export(graphDb, outputPath, threadCount, null, from, to);
+	}
+	
+	public static void ExportAtAddress(final GraphDatabaseAPI graphDb, final String outputPath, final int threadCount, final String address)
+	{
+		Export(graphDb, outputPath, threadCount, address, null, null);
+	}
+	
+	private static void Export(final GraphDatabaseAPI graphDb, final String outputpath, final int threadCount, final String address, final Date from, final Date to)
+	{
 		LOG.info("Begin Building GEXF from Neo4j");
-		LOG.info("Fetching graph...");
-		// Get the database and the owner index 
-		graphDb = new EmbeddedGraphDatabase (dbPath);
 		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH);
 		
-		// Find an owner node id by a known address.  This will be the start location of the graph traversal
-		final long ownerId = owned_addresses.query(OWNED_ADDRESS_HASH_KEY, "1DkyBEKt5S2GDtv7aQw6rQepAvnsRyHoYM").getSingle().traverse(Order.DEPTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, GraphBuilder.OwnerRelTypes.owns, Direction.INCOMING).iterator().next().getId();
+		// We export the entire graph between the two dates
+		if (address == null)
+		{
+			assert(from != null && to != null);			
+			// Find an owner node id by a known address.  This will be the start location of the graph traversal		
+			final long ownerId = owned_addresses.query(OWNED_ADDRESS_HASH_KEY, "1DkyBEKt5S2GDtv7aQw6rQepAvnsRyHoYM").getSingle().traverse(Order.DEPTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, GraphBuilder.OwnerRelTypes.owns, Direction.INCOMING).iterator().next().getId();
+			
+			// Import by traversing the entire ownership network along the "transfers" edges
+			LOG.info("Importing Ownership Network from Neo4j Database Starting With Node: " + ownerId + " ...");
+			final Collection<RelationshipDescription> relationshipDescription = new ArrayList<RelationshipDescription>();
+			relationshipDescription.add(new RelationshipDescription(GraphBuilder.OwnerRelTypes.transfers, Direction.BOTH));
+			final Collection<FilterDescription> edgeFilterDescription = new ArrayList<FilterDescription>();
+			edgeFilterDescription.add(new FilterDescription("time", FilterOperator.GREATER_OR_EQUALS, Long.toString(from.getTime() / 1000)));
+			edgeFilterDescription.add(new FilterDescription("time", FilterOperator.LESS, Long.toString(to.getTime() / 1000)));
+			final Neo4jImporter importer = new Neo4jImporterImpl();	
+			importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, Integer.MAX_VALUE, relationshipDescription, Collections.<FilterDescription>emptyList(), edgeFilterDescription, true, true);			
+		}
 		
-		// Import by traversing the entire ownership network along the "transfers" edges
-		LOG.info("Importing Ownership Network from Neo4j Database Starting With Node: " + ownerId + " ...");
-		final Collection<RelationshipDescription> relationshipDescription = new ArrayList<RelationshipDescription>();
-		relationshipDescription.add(new RelationshipDescription(GraphBuilder.OwnerRelTypes.transfers, Direction.BOTH));
-		final Neo4jImporter importer = new Neo4jImporterImpl();	
-		// importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, Integer.MAX_VALUE, relationshipDescription);
-		importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, 1, relationshipDescription);		
+		// We export a one-hop graph from the address
+		else 
+		{
+			assert(from == null && to == null);			
+			// Find an owner node id by the given address		
+			final long ownerId = owned_addresses.query(OWNED_ADDRESS_HASH_KEY, address).getSingle().traverse(Order.DEPTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, GraphBuilder.OwnerRelTypes.owns, Direction.INCOMING).iterator().next().getId();
+			
+			// Import by traversing one hop along the ownership network's "transfers" edges
+			LOG.info("Importing Ownership Network from Neo4j Database Starting With Node: " + ownerId + " ...");
+			final Collection<RelationshipDescription> relationshipDescription = new ArrayList<RelationshipDescription>();
+			relationshipDescription.add(new RelationshipDescription(GraphBuilder.OwnerRelTypes.transfers, Direction.BOTH));
+			final Neo4jImporter importer = new Neo4jImporterImpl();	
+			importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, 1, relationshipDescription);		
+		}
+		
 		
 		// Grab the graph that was loaded from the importer			
 		final GraphModel graphModel = Lookup.getDefault().lookup(GraphController.class).getModel();
@@ -271,9 +303,9 @@ public class GraphExporter
 			ec.exportFile(new File("C:\\graph.pdf"));
 		}
 		
-		catch (IOException ex) 
+		catch (IOException e) 
 		{
-			ex.printStackTrace();
+			LOG.log(Level.SEVERE, "Exporting PDF Failed.", e);
 			return;
 		}
 		

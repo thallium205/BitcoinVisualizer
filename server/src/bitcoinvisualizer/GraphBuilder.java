@@ -143,14 +143,9 @@ public class GraphBuilder
 	 *            - The path where the data will be saved
 	 * @throws IOException 
 	 */
-	public static void StartDatabase(final String dbPath, final String configPath) throws IOException
+	public static void StartDatabase(final GraphDatabaseAPI graphDb) throws IOException
 	{
-		LOG.info("Starting database...");		
-		graphDb = new HighlyAvailableGraphDatabase(dbPath, MapUtil.load(FileUtils.getFile(configPath)));
-		//  graphDb = new EmbeddedGraphDatabase (dbPath);
-		srv = new WrappingNeoServerBootstrapper(graphDb);
-		srv.start();
-
+		LOG.info("Starting database...");
 		// Load indexes
 		block_hashes = graphDb.index().forNodes(BLOCK_HASH);
 		block_heights = graphDb.index().forNodes(BLOCK_HEIGHT);
@@ -159,22 +154,6 @@ public class GraphBuilder
 		addresses = graphDb.index().forNodes(ADDRESS_HASH);
 		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH);
 		ipv4_addrs = graphDb.index().forNodes(IPV4);
-
-		// Register shutdown hook
-		shutdownThread = new Thread()
-		{
-			@Override
-			public void run()
-			{
-				LOG.info("Stopping database...");
-				srv.stop();
-				graphDb.shutdown();
-				isStarted = false;
-				LOG.info("Database stopped.");
-			}
-		};
-		
-		isStarted = true;
 		LOG.info("Database started.");
 	}
 

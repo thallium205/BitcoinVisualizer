@@ -1,6 +1,7 @@
 package bitcoinvisualizer;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -12,10 +13,19 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.commons.io.FileUtils;
+import org.neo4j.helpers.collection.MapUtil;
+import org.neo4j.kernel.GraphDatabaseAPI;
+import org.neo4j.kernel.HighlyAvailableGraphDatabase;
+import org.neo4j.server.WrappingNeoServerBootstrapper;
 
 public class Main
 {
 	private static final java.util.logging.Logger LOG = Logger.getLogger(Main.class.getName());
+	private static GraphDatabaseAPI graphDb;
+	private static WrappingNeoServerBootstrapper srv;
+	private static Thread shutdownThread;
+	
 
 	public static void main(String[] args)
 	{
@@ -27,32 +37,49 @@ public class Main
 			// Print options
 			HelpFormatter formatter = new HelpFormatter();
 			formatter.printHelp("java -jar blockchainneo4j.jar", getOptions());			
-			
-			// Parse options
-			CommandLineParser parser = new GnuParser();
-			
-			
+			CommandLineParser parser = new GnuParser();		
 			try
 			{
 				line = parser.parse(getOptions(), args);
 			} catch (ParseException e)
 			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				hasError = true;
+				LOG.log(Level.SEVERE, "Unable to parse options.", e);
 			}
 			
-			
-			
-			
-			
-			
+			// Start Neo4j
 			try
 			{
-				GraphExporter.BuildGexfFromNeo4j(line.getOptionValue("dbPath"), "C:/", 7);
+				graphDb = new HighlyAvailableGraphDatabase((line.getOptionValue("dbPath")), MapUtil.load(FileUtils.getFile(line.getOptionValue("configPath"))));
+				srv = new WrappingNeoServerBootstrapper(graphDb);
+				srv.start();
+				shutdownThread = new Thread()
+				{
+					@Override
+					public void run()
+					{
+						LOG.info("Stopping database...");
+						srv.stop();
+						graphDb.shutdown();
+						LOG.info("Database stopped.");
+					}
+				};
+			} 
+			catch (Exception e)
+			{
+				hasError = true;
+				LOG.log(Level.SEVERE, "Unable to start Neo4j.", e);
+			}
+			
+			// Graph Export
+			try
+			{
+				GraphExporter.ExportBetweenTwoDates(graphDb, "C:\\", 1, new Date((long) 1325404800 * 1000),  new Date((long) 1325491200 * 1000)); // January 1, 2012 -> January 2, 2012
 			}
 			
 			catch (Exception e)
 			{
+				hasError = true;
 				LOG.log(Level.WARNING, "Build GEXF Failed.", e);
 			}
 						
@@ -136,6 +163,11 @@ public class Main
 			*/
 		}
 		
+		LOG.info("Stopping database...");
+		srv.stop();
+		graphDb.shutdown();
+		Runtime.getRuntime().removeShutdownHook(shutdownThread);
+		LOG.info("Database stopped.");		
 	}
 
 	/**
