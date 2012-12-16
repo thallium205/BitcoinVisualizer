@@ -157,11 +157,14 @@ public class GraphModelImportConverter {
             }
 
             if (nodeTable.getColumn(neoPropertyKey).getOrigin() == AttributeOrigin.DELEGATE) {
-                attributes.setValue(neoPropertyKey, String.valueOf(neoNodeId)); // HACK because Gephi is a piece of shit sometimes
+                attributes.setValue(neoPropertyKey, neoNodeId);
             } else {
                 attributes.setValue(neoPropertyKey, neoPropertyValue);
-            }
+            }           
         }
+        
+        // Set the neo4j entity id as a property of the gephi entity.  Gephi API does not allow user to set the Id, so we have to place it here
+        attributes.setValue(PropertiesColumn.NODE_ID.getId(), neoNodeId);
     }
 
     /**
@@ -190,7 +193,7 @@ public class GraphModelImportConverter {
         AttributeTable edgeTable = attributeModel.getEdgeTable();
         Attributes attributes = gephiEdge.getEdgeData().getAttributes();
 
-        Object neoRelationshipId = neoRelationship.getId();
+        Long neoRelationshipId = neoRelationship.getId();       
         for (String neoPropertyKey : neoRelationship.getPropertyKeys()) {
             Object neoPropertyValue = neoRelationship.getProperty(neoPropertyKey);
             if (neoPropertyKey.equalsIgnoreCase("weight")) {
@@ -216,7 +219,7 @@ public class GraphModelImportConverter {
             }
         }
 
-        attributes.setValue(PropertiesColumn.NEO4J_RELATIONSHIP_TYPE.getId(), neoRelationshipId);
+        attributes.setValue(PropertiesColumn.EDGE_ID.getId(), neoRelationshipId);
     }
 
     public void createNeo4jRelationshipTypeGephiColumn() {

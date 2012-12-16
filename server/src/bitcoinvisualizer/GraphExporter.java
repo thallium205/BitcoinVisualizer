@@ -16,6 +16,7 @@ import java.util.logging.Logger;
 import org.gephi.data.attributes.api.AttributeColumn;
 import org.gephi.data.attributes.api.AttributeController;
 import org.gephi.data.attributes.api.AttributeModel;
+import org.gephi.data.properties.PropertiesColumn;
 import org.gephi.graph.api.DirectedGraph;
 import org.gephi.graph.api.GraphController;
 import org.gephi.graph.api.GraphModel;
@@ -107,7 +108,7 @@ public class GraphExporter
 			final long ownerId = owned_addresses.query(OWNED_ADDRESS_HASH_KEY, "1DkyBEKt5S2GDtv7aQw6rQepAvnsRyHoYM").getSingle().traverse(Order.DEPTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, GraphBuilder.OwnerRelTypes.owns, Direction.INCOMING).iterator().next().getId();
 			
 			// Import by traversing the entire ownership network along the "transfers" edges
-			LOG.info("Importing Ownership Network from Neo4j Database Starting With Node: " + ownerId + " ...");
+			LOG.info("Building Ownership Network from Neo4j Database From: " + from.toString() + " To: " + to.toString() + " Starting With Node: " + ownerId + " ...");
 			final Collection<RelationshipDescription> relationshipDescription = new ArrayList<RelationshipDescription>();
 			relationshipDescription.add(new RelationshipDescription(GraphBuilder.OwnerRelTypes.transfers, Direction.BOTH));
 			final Collection<FilterDescription> edgeFilterDescription = new ArrayList<FilterDescription>();
@@ -162,20 +163,14 @@ public class GraphExporter
 		rankingController.transform(nodeLastTimeSentRanking, nodeColorTransformer);		
 		
 		// Node Label
+		for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
+		{					
+			node.getNodeData().setLabel(Long.toString((Long) node.getAttributes().getValue(PropertiesColumn.NODE_ID.getId())));
+		}	
 		PreviewModel previewModel = Lookup.getDefault().lookup(PreviewController.class).getModel();
 		previewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, Boolean.TRUE);
 		previewModel.getProperties().putValue(PreviewProperty.NODE_LABEL_PROPORTIONAL_SIZE, Boolean.TRUE);
 		previewModel.getProperties().putValue(PreviewProperty.NODE_LABEL_FONT, previewModel.getProperties().getFontValue(PreviewProperty.NODE_LABEL_FONT).deriveFont(8));
-		
-		// Edge Size
-		/*
-		final AttributeColumn amountSentColumn = attributeModel.getEdgeTable().getColumn("value");
-		final Ranking edgeValueSentRanking = rankingController.getModel().getRanking(Ranking.EDGE_ELEMENT, amountSentColumn.getId());
-		final AbstractSizeTransformer edgeSizeTransformer = (AbstractSizeTransformer) rankingController.getModel().getTransformer(Ranking.EDGE_ELEMENT, Transformer.RENDERABLE_SIZE);
-		edgeSizeTransformer.setMinSize(3);
-		edgeSizeTransformer.setMaxSize(20);
-		rankingController.transform(edgeValueSentRanking, edgeSizeTransformer);
-		*/
 		
 		// Edge Color
 		final AttributeColumn edgeTimeSentColumn = attributeModel.getEdgeTable().getColumn("value");
@@ -188,6 +183,10 @@ public class GraphExporter
 		rankingController.transform(edgeTimeSentRanking, edgeColorTransformer);		
 		
 		// Edge Label
+		for (org.gephi.graph.api.Edge edge : graphModel.getGraph().getEdges())
+		{					
+			edge.getEdgeData().setLabel(Double.toString(((Long) graphDb.getRelationshipById((Long) edge.getAttributes().getValue(PropertiesColumn.EDGE_ID.getId())).getProperty("value")).doubleValue() / 100000000));
+		}		
 		previewModel.getProperties().putValue(PreviewProperty.SHOW_EDGE_LABELS, Boolean.TRUE);
 		previewModel.getProperties().putValue(PreviewProperty.EDGE_LABEL_FONT, previewModel.getProperties().getFontValue(PreviewProperty.NODE_LABEL_FONT).deriveFont(8));
 		
@@ -205,11 +204,11 @@ public class GraphExporter
 		layout.setSimmerStage(15);		
 		layout.setEdgeCut(.8f);
 		layout.setNumThreads(1);
-		layout.setNumIterations(100);
+		layout.setNumIterations(750);
 		layout.setRealTime(.2f);		
 		layout.setRandSeed(new Random().nextLong());		
 		layout.initAlgo();		
-		for (int i = 0; i < 100 && layout.canAlgo(); i++) 
+		for (int i = 0; i < 750 && layout.canAlgo(); i++) 
 		{
 			// LOG.info("Status: " + i + "/100");
 			layout.goAlgo();

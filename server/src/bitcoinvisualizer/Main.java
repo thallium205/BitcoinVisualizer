@@ -1,6 +1,7 @@
 package bitcoinvisualizer;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -41,7 +42,9 @@ public class Main
 			try
 			{
 				line = parser.parse(getOptions(), args);
-			} catch (ParseException e)
+			} 
+			
+			catch (ParseException e)
 			{
 				hasError = true;
 				LOG.log(Level.SEVERE, "Unable to parse options.", e);
@@ -74,7 +77,9 @@ public class Main
 			// Graph Export
 			try
 			{
-				GraphExporter.ExportBetweenTwoDates(graphDb, "C:\\", 1, new Date((long) 1325404800 * 1000),  new Date((long) 1325491200 * 1000)); // January 1, 2012 -> January 2, 2012
+				SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+				// GraphExporter.ExportBetweenTwoDates(graphDb, "C:\\", 1, sdf.parse("2012-01-01"),  sdf.parse("2012-01-02")); // January 1, 2012 -> January 2, 2012
+				GraphExporter.ExportAtAddress(graphDb, "C:\\", 1, "1HB5XMLmzFVj8ALj6mfBsbifRoD4miY36v");
 			}
 			
 			catch (Exception e)

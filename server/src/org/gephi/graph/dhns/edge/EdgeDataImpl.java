@@ -249,7 +249,7 @@ public class EdgeDataImpl implements EdgeData {
         if (attributes == null) {
             return null;
         }
-        return (String) attributes.getValue(PropertiesColumn.EDGE_ID.getIndex());
+        return String.valueOf(attributes.getValue(PropertiesColumn.EDGE_ID.getIndex()));
     }
 
     public float getWeight() {
