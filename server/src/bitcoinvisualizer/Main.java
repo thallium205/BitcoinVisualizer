@@ -78,8 +78,10 @@ public class Main
 			try
 			{
 				SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-				// GraphExporter.ExportBetweenTwoDates(graphDb, "C:\\", 1, sdf.parse("2012-01-01"),  sdf.parse("2012-01-02")); // January 1, 2012 -> January 2, 2012
-				GraphExporter.ExportAtAddress(graphDb, "C:\\", 1, "1HB5XMLmzFVj8ALj6mfBsbifRoD4miY36v");
+				GraphExporter.ExportBetweenTwoDates(graphDb, "C:\\", 1, sdf.parse("2012-06-01"),  sdf.parse("2012-06-02")); // January 1, 2012 -> January 2, 2012
+				// GraphExporter.ExportAtAddress(graphDb, "C:\\", 7, "1HB5XMLmzFVj8ALj6mfBsbifRoD4miY36v");
+				// 11XgbAuZA2VNq3zhaSvKcrGFTFw7vkWNJ (wiki neighbor)
+				// 1HB5XMLmzFVj8ALj6mfBsbifRoD4miY36v (wiki)
 			}
 			
 			catch (Exception e)

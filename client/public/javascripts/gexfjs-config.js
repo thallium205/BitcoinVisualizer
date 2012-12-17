@@ -6,7 +6,7 @@ setParams({
             The GEXF file to show ! -- can be overriden by adding
             a hash to the document location, e.g. index.html#celegans.gexf
         */
-	showEdges : false,
+	showEdges : true,
         /*
             Default state of the "show edges" button
         */
@@ -18,7 +18,7 @@ setParams({
         /*
             Default zoom level. At zoom = 0, the graph should fill a 800x700px zone
          */
-    curvedEdges : true,
+    curvedEdges : false,
         /*
             False for curved edges, true for straight edges
             this setting can't be changed from the User Interface

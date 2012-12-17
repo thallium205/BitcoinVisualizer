@@ -48,6 +48,7 @@ import org.gephi.ranking.api.Ranking;
 import org.gephi.ranking.api.RankingController;
 import org.gephi.ranking.api.Transformer;
 import org.gephi.ranking.plugin.transformer.AbstractColorTransformer;
+import org.gephi.ranking.plugin.transformer.AbstractColorTransformer.LinearGradient;
 import org.gephi.ranking.plugin.transformer.AbstractSizeTransformer;
 import org.gephi.statistics.plugin.ClusteringCoefficient;
 import org.gephi.statistics.plugin.ConnectedComponents;
@@ -71,6 +72,9 @@ import org.neo4j.kernel.EmbeddedGraphDatabase;
 import org.neo4j.kernel.GraphDatabaseAPI;
 import org.openide.util.Lookup;
 
+import bitcoinvisualizer.GraphBuilder.OwnerRelTypes;
+
+import com.google.common.collect.Iterables;
 import com.itextpdf.text.PageSize;
 
 /**
@@ -97,11 +101,17 @@ public class GraphExporter
 	
 	private static void Export(final GraphDatabaseAPI graphDb, final String outputpath, final int threadCount, final String address, final Date from, final Date to)
 	{
+		boolean isDateCompare;
 		LOG.info("Begin Building GEXF from Neo4j");
 		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH);
 		
-		// We export the entire graph between the two dates
 		if (address == null)
+			isDateCompare = true;
+		else
+			isDateCompare = false;
+		
+		// We export the entire graph between the two dates
+		if (isDateCompare)
 		{
 			assert(from != null && to != null);			
 			// Find an owner node id by a known address.  This will be the start location of the graph traversal		
@@ -143,23 +153,40 @@ public class GraphExporter
 		LOG.info("Setting graph labels and features...");
 		// Ranking
 		final RankingController rankingController = Lookup.getDefault().lookup(RankingController.class);
-		rankingController.setInterpolator(Interpolator.newBezierInterpolator(0, 1, 0, 1));
+		// rankingController.setInterpolator(Interpolator.newBezierInterpolator(0, 1, 0, 1)); TODO
 		
-		// Node Size
-		final Ranking nodeDegreeRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, Ranking.DEGREE_RANKING);
+		// Node Size (Gephi can be used to build degree ranking on time span queries, but neo4j needs to be queried to find node degree on address specific queries)
+		final Ranking nodeDegreeRanking;
 		final AbstractSizeTransformer nodeSizeTransformer = (AbstractSizeTransformer) rankingController.getModel().getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_SIZE);
-		nodeSizeTransformer.setMinSize(5);
-		nodeSizeTransformer.setMaxSize(10);
+		
+		if (isDateCompare)
+		{
+			nodeDegreeRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, Ranking.DEGREE_RANKING);			
+		}
+		
+		else
+		{
+			// We set a degree attribute on each gephi node
+			for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
+			{
+				node.getAttributes().setValue("globaldegree", Iterables.size(graphDb.getNodeById((Long) node.getAttributes().getValue(PropertiesColumn.NODE_ID.getId())).getRelationships(OwnerRelTypes.transfers)));
+			}
+			
+			final AttributeColumn neo4jDegreeColumn = attributeModel.getNodeTable().getColumn("globaldegree");
+			nodeDegreeRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, neo4jDegreeColumn.getId());
+		}
+		
+		nodeSizeTransformer.setMinSize(3);
+		nodeSizeTransformer.setMaxSize(20);
 		rankingController.transform(nodeDegreeRanking, nodeSizeTransformer);
-				
+		
 		// Node Color
 		final AttributeColumn lastTimeSentColumn = attributeModel.getNodeTable().getColumn("last_time_sent");
 		final Ranking nodeLastTimeSentRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, lastTimeSentColumn.getId());
 		final AbstractColorTransformer nodeColorTransformer = (AbstractColorTransformer) rankingController.getModel().getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_COLOR);
 		final float[] nodeColorPositions = {0f, 0.5f, 1f};
-		nodeColorTransformer.setColorPositions(nodeColorPositions);
-		final Color[] nodeColors = new Color[]{new Color(0x0000FF), new Color(0xFFFFFF),new Color(0x00FF00),new Color(0xFF0000)};
-		nodeColorTransformer.setColors(nodeColors);
+		final Color[] nodeColors = new Color[]{new Color(0x0000FF), new Color(0x00FF00), new Color(0xFF0000)};
+		nodeColorTransformer.setLinearGradient(new LinearGradient(nodeColors, nodeColorPositions));
 		rankingController.transform(nodeLastTimeSentRanking, nodeColorTransformer);		
 		
 		// Node Label
@@ -169,30 +196,33 @@ public class GraphExporter
 		}	
 		PreviewModel previewModel = Lookup.getDefault().lookup(PreviewController.class).getModel();
 		previewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, Boolean.TRUE);
-		previewModel.getProperties().putValue(PreviewProperty.NODE_LABEL_PROPORTIONAL_SIZE, Boolean.TRUE);
-		previewModel.getProperties().putValue(PreviewProperty.NODE_LABEL_FONT, previewModel.getProperties().getFontValue(PreviewProperty.NODE_LABEL_FONT).deriveFont(8));
+		previewModel.getProperties().putValue(PreviewProperty.NODE_LABEL_PROPORTIONAL_SIZE, Boolean.FALSE);
+		//previewModel.getProperties().putValue(PreviewProperty.NODE_LABEL_FONT, previewModel.getProperties().getFontValue(PreviewProperty.NODE_LABEL_FONT).deriveFont(8));
 		
 		// Edge Color
 		final AttributeColumn edgeTimeSentColumn = attributeModel.getEdgeTable().getColumn("value");
 		final Ranking edgeTimeSentRanking = rankingController.getModel().getRanking(Ranking.EDGE_ELEMENT, edgeTimeSentColumn.getId());
 		final AbstractColorTransformer edgeColorTransformer = (AbstractColorTransformer) rankingController.getModel().getTransformer(Ranking.EDGE_ELEMENT, Transformer.RENDERABLE_COLOR);
 		final float[] edgeColorPositions = {0f, 0.5f, 1f};
-		edgeColorTransformer.setColorPositions(edgeColorPositions);
-		final Color[] edgeColors = new Color[]{new Color(0x0000FF), new Color(0xFFFFFF),new Color(0x00FF00),new Color(0xFF0000)};
-		edgeColorTransformer.setColors(edgeColors);
+		final Color[] edgeColors = new Color[]{new Color(0x0000FF) ,new Color(0x00FF00), new Color(0xFF0000)};
+		edgeColorTransformer.setLinearGradient(new LinearGradient(edgeColors, edgeColorPositions));
 		rankingController.transform(edgeTimeSentRanking, edgeColorTransformer);		
 		
 		// Edge Label
 		for (org.gephi.graph.api.Edge edge : graphModel.getGraph().getEdges())
 		{					
-			edge.getEdgeData().setLabel(Double.toString(((Long) graphDb.getRelationshipById((Long) edge.getAttributes().getValue(PropertiesColumn.EDGE_ID.getId())).getProperty("value")).doubleValue() / 100000000));
+			edge.getEdgeData().setLabel(Double.toString(((Long) graphDb.getRelationshipById((Long) edge.getAttributes().getValue(PropertiesColumn.EDGE_ID.getId())).getProperty("value")).doubleValue() / 100000000));		
 		}		
 		previewModel.getProperties().putValue(PreviewProperty.SHOW_EDGE_LABELS, Boolean.TRUE);
-		previewModel.getProperties().putValue(PreviewProperty.EDGE_LABEL_FONT, previewModel.getProperties().getFontValue(PreviewProperty.NODE_LABEL_FONT).deriveFont(8));
+		//previewModel.getProperties().putValue(PreviewProperty.EDGE_LABEL_FONT, previewModel.getProperties().getFontValue(PreviewProperty.NODE_LABEL_FONT).deriveFont(8));
+		//previewModel.getProperties().putValue(PreviewProperty.ARROW_SIZE, 20f);
+		
+		
 		
 		LOG.info("Setting graph labels and features complete.");
 		
 		// Graph Layout (Maybe use an auto layout?)		
+		/*
 		LOG.info("Begin graph layout algorithm (OpenORD)...");
 		final OpenOrdLayout layout = new OpenOrdLayout(new OpenOrdLayoutBuilder());		
 		layout.setGraphModel(graphModel);	
@@ -215,83 +245,109 @@ public class GraphExporter
 		}
 		layout.endAlgo();
 		LOG.info("Graph layout algorithm complete.");
+		*/
+		
+		LOG.info("Begin graph layout algorithm (Force Atlas 2)...");
+		final ForceAtlas2 layout = new ForceAtlas2(new ForceAtlas2Builder());		
+		layout.setGraphModel(graphModel);	
+		layout.resetPropertiesValues();
+		layout.setLinLogMode(true);
+		layout.setThreadsCount(threadCount);
+		layout.initAlgo();		
+		for (int i = 0; i < 5000 && layout.canAlgo(); i++) 
+		{
+			layout.goAlgo();
+		}
+		
+		// We need to prevent graphs from overlapping, but we only do so once the graph is spatialized
+		layout.setAdjustSizes(true);
+		for (int i = 0; i < 500 && layout.canAlgo(); i++) 
+		{
+			layout.goAlgo();
+		}
+		
+		layout.endAlgo();
+		LOG.info("Graph layout algorithm complete.");
 		
 		// Statistics
-		// Clustering Coefficient
-		LOG.info("Begin Calculating Statistics...");
-		LOG.info("Begin Clustering Coefficient...");
-		ClusteringCoefficient clusteringCoefficient = new ClusteringCoefficient();
-		clusteringCoefficient.setDirected(true);
-		clusteringCoefficient.execute(graphModel, attributeModel);
-		LOG.info("Clustering Coefficient Complete.");
-		
-		// Connected Components
-		LOG.info("Begin Connected Components...");
-		ConnectedComponents connectedComponents = new ConnectedComponents();
-		connectedComponents.setDirected(true);
-		connectedComponents.execute(graphModel, attributeModel);
-		LOG.info("Connected Components Complete.");
-		
-		// Degree
-		LOG.info("Begin Degree...");
-		Degree degree = new Degree();
-		degree.execute(graphModel, attributeModel);
-		LOG.info("Connected Degree.");
-		
-		// Eigenvector Centrality
-		LOG.info("Begin Eigenvector Centrality...");
-		EigenvectorCentrality eigenvector = new EigenvectorCentrality();
-		eigenvector.setDirected(true);
-		eigenvector.setNumRuns(100); // TODO
-		eigenvector.execute(graphModel, attributeModel);
-		LOG.info("Eigenvector Centrality Complete.");
-		
-		// Graph Density
-		LOG.info("Begin Graph Density...");
-		GraphDensity graphDensity = new GraphDensity();
-		graphDensity.setDirected(true);
-		graphDensity.execute(graphModel, attributeModel);
-		LOG.info("Graph Density Complete.");
-		
-		// Graph Distance
-		LOG.info("Begin Graph Distance...");
-		GraphDistance graphDistance = new GraphDistance();
-		graphDistance.setDirected(true);
-		graphDistance.execute(graphModel, attributeModel);
-		LOG.info("Graph Distance Complete.");
-		
-		// Hits
-		LOG.info("Begin HITS...");
-		Hits hits = new Hits();
-		hits.setUndirected(false);
-		hits.setEpsilon(.001);
-		hits.execute(graphModel, attributeModel);
-		LOG.info("HITS Complete.");
-		
-		// Modularity
-		LOG.info("Begin Modularity...");
-		Modularity modularity = new Modularity();
-		modularity.setRandom(true);
-		modularity.setUseWeight(true);
-		modularity.setResolution(1.0);
-		modularity.execute(graphModel, attributeModel);
-		LOG.info("Modularity Complete.");
-		
-		// Page Rank
-		LOG.info("Begin Page Rank...");
-		PageRank pageRank = new PageRank();
-		pageRank.setDirected(true);
-		pageRank.setProbability(.85);
-		pageRank.setEpsilon(.001);		
-		pageRank.execute(graphModel, attributeModel);
-		LOG.info("Page Rank Complete.");
-		
-		// Weighted Degree
-		LOG.info("Begin Weighted Degree...");
-		WeightedDegree weightedDegree = new WeightedDegree();
-		weightedDegree.execute(graphModel, attributeModel);
-		LOG.info("Weighted Degree Complete.");
-		LOG.info("Calculating Statistics Complete.");			
+		if (isDateCompare)
+		{
+			// Clustering Coefficient
+			LOG.info("Begin Calculating Statistics...");
+			LOG.info("Begin Clustering Coefficient...");
+			ClusteringCoefficient clusteringCoefficient = new ClusteringCoefficient();
+			clusteringCoefficient.setDirected(true);
+			clusteringCoefficient.execute(graphModel, attributeModel);
+			LOG.info("Clustering Coefficient Complete.");
+			
+			// Connected Components
+			LOG.info("Begin Connected Components...");
+			ConnectedComponents connectedComponents = new ConnectedComponents();
+			connectedComponents.setDirected(true);
+			connectedComponents.execute(graphModel, attributeModel);
+			LOG.info("Connected Components Complete.");
+			
+			// Degree
+			LOG.info("Begin Degree...");
+			Degree degree = new Degree();
+			degree.execute(graphModel, attributeModel);			
+			LOG.info("Connected Degree.");
+			
+			// Eigenvector Centrality
+			LOG.info("Begin Eigenvector Centrality...");
+			EigenvectorCentrality eigenvector = new EigenvectorCentrality();
+			eigenvector.setDirected(true);
+			eigenvector.setNumRuns(100); // TODO
+			eigenvector.execute(graphModel, attributeModel);
+			LOG.info("Eigenvector Centrality Complete.");
+			
+			// Graph Density
+			LOG.info("Begin Graph Density...");
+			GraphDensity graphDensity = new GraphDensity();
+			graphDensity.setDirected(true);
+			graphDensity.execute(graphModel, attributeModel);
+			LOG.info("Graph Density Complete.");
+			
+			// Graph Distance
+			LOG.info("Begin Graph Distance...");
+			GraphDistance graphDistance = new GraphDistance();
+			graphDistance.setDirected(true);
+			graphDistance.execute(graphModel, attributeModel);
+			LOG.info("Graph Distance Complete.");
+			
+			// Hits
+			LOG.info("Begin HITS...");
+			Hits hits = new Hits();
+			hits.setUndirected(false);
+			hits.setEpsilon(.001);
+			hits.execute(graphModel, attributeModel);
+			LOG.info("HITS Complete.");
+			
+			// Modularity
+			LOG.info("Begin Modularity...");
+			Modularity modularity = new Modularity();
+			modularity.setRandom(true);
+			modularity.setUseWeight(true);
+			modularity.setResolution(1.0);
+			modularity.execute(graphModel, attributeModel);
+			LOG.info("Modularity Complete.");
+			
+			// Page Rank
+			LOG.info("Begin Page Rank...");
+			PageRank pageRank = new PageRank();
+			pageRank.setDirected(true);
+			pageRank.setProbability(.85);
+			pageRank.setEpsilon(.001);		
+			pageRank.execute(graphModel, attributeModel);
+			LOG.info("Page Rank Complete.");
+			
+			// Weighted Degree
+			LOG.info("Begin Weighted Degree...");
+			WeightedDegree weightedDegree = new WeightedDegree();
+			weightedDegree.execute(graphModel, attributeModel);
+			LOG.info("Weighted Degree Complete.");
+			LOG.info("Calculating Statistics Complete.");
+		}
 		
 		// Export
 		LOG.info("Begin Exporting Graph To Disk...");
