@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -26,6 +27,7 @@ import org.gephi.graph.api.GraphController;
 import org.gephi.graph.api.GraphModel;
 import org.gephi.io.exporter.api.ExportController;
 import org.gephi.io.exporter.preview.PDFExporter;
+import org.gephi.io.exporter.preview.PNGExporter;
 import org.gephi.io.exporter.spi.CharacterExporter;
 import org.gephi.io.exporter.spi.Exporter;
 import org.gephi.io.importer.api.Container;
@@ -34,6 +36,8 @@ import org.gephi.layout.plugin.force.StepDisplacement;
 import org.gephi.layout.plugin.force.yifanHu.YifanHuLayout;
 import org.gephi.layout.plugin.forceAtlas2.ForceAtlas2;
 import org.gephi.layout.plugin.forceAtlas2.ForceAtlas2Builder;
+import org.gephi.layout.plugin.labelAdjust.LabelAdjust;
+import org.gephi.layout.plugin.labelAdjust.LabelAdjustBuilder;
 import org.gephi.layout.plugin.openord.OpenOrdLayout;
 import org.gephi.layout.plugin.openord.OpenOrdLayoutBuilder;
 import org.gephi.neo4j.plugin.api.FilterDescription;
@@ -99,16 +103,26 @@ public class GraphExporter
 		SetupMysql();
 		
 		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH);
-		// Export addresses
+		// Export owners
+		HashSet<Long> owners = new HashSet<Long>();
+		owners.add(29792952L);
 		for (Node node : owned_addresses.query("*:*"))
-		{
-			ExportAtOwnerId(graphDb, threadCount, node.getId());
+		{			
+			Long ownerId = node.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId();
+			if (owners.add(ownerId))
+			{
+				ExportAtOwnerId(graphDb, threadCount, ownerId);
+			}			
 		}		
+		
+		LOG.info("Total Number of Owners Processed:" + owners.size());
 		
 		// Export days
 		
 		// Shutdown (including the database!)
 		Lookup.getDefault().lookup(ProjectController.class).closeCurrentProject();
+		
+		
 	}
 	
 	private static void ExportBetweenTwoDates(final GraphDatabaseAPI graphDb, final int threadCount, final Date from, final Date to)
@@ -182,8 +196,20 @@ public class GraphExporter
 		{
 			// We set a degree attribute on each gephi node
 			for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
-			{
-				node.getAttributes().setValue("globaldegree", Iterables.size(graphDb.getNodeById((Long) node.getAttributes().getValue(PropertiesColumn.NODE_ID.getId())).getRelationships(OwnerRelTypes.transfers)));
+			{				
+				Object label = node.getAttributes().getValue(PropertiesColumn.NODE_ID.getId());
+				if (label instanceof String)
+				{
+					node.getAttributes().setValue("globaldegree", Iterables.size(graphDb.getNodeById(Long.parseLong((String) label)).getRelationships(OwnerRelTypes.transfers)));
+				}
+				else if (label instanceof Long)
+				{
+					node.getAttributes().setValue("globaldegree", Iterables.size(graphDb.getNodeById((Long) label).getRelationships(OwnerRelTypes.transfers)));
+				}			
+				else
+				{
+					throw new ClassCastException();
+				}
 			}
 			
 			final AttributeColumn neo4jDegreeColumn = attributeModel.getNodeTable().getColumn("globaldegree");
@@ -208,8 +234,20 @@ public class GraphExporter
 		
 		// Node Label
 		for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
-		{					
-			node.getNodeData().setLabel(Long.toString((Long) node.getAttributes().getValue(PropertiesColumn.NODE_ID.getId())));
+		{		
+			Object label = node.getAttributes().getValue(PropertiesColumn.NODE_ID.getId());
+			if (label instanceof String)
+			{
+				node.getNodeData().setLabel((String)label);
+			}
+			else if (label instanceof Long)
+			{
+				node.getNodeData().setLabel(Long.toString((Long) label));
+			}			
+			else
+			{
+				throw new ClassCastException();
+			}
 		}	
 		PreviewModel previewModel = Lookup.getDefault().lookup(PreviewController.class).getModel();
 		previewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, Boolean.TRUE);
@@ -230,12 +268,25 @@ public class GraphExporter
 		
 		// Edge Label
 		for (org.gephi.graph.api.Edge edge : graphModel.getGraph().getEdges())
-		{					
-			edge.getEdgeData().setLabel(Double.toString(((Long) graphDb.getRelationshipById((Long) edge.getAttributes().getValue(PropertiesColumn.EDGE_ID.getId())).getProperty("value")).doubleValue() / 100000000));		
+		{	
+			Object label = edge.getAttributes().getValue(PropertiesColumn.EDGE_ID.getId());
+			if (label instanceof String)
+			{
+				edge.getEdgeData().setLabel(Double.toString(((Long) graphDb.getRelationshipById(Long.parseLong((String) label)).getProperty("value")).doubleValue() / 100000000));
+			}
+			else if (label instanceof Long)
+			{
+				edge.getEdgeData().setLabel(Double.toString(((Long) graphDb.getRelationshipById((Long) label).getProperty("value")).doubleValue() / 100000000));	
+			}			
+			else
+			{
+				throw new ClassCastException();
+			}				
 		}		
 		previewModel.getProperties().putValue(PreviewProperty.SHOW_EDGE_LABELS, Boolean.TRUE);
+		previewModel.getProperties().putValue(PreviewProperty.EDGE_CURVED, Boolean.FALSE);
 		//previewModel.getProperties().putValue(PreviewProperty.EDGE_LABEL_FONT, previewModel.getProperties().getFontValue(PreviewProperty.NODE_LABEL_FONT).deriveFont(8));
-		//previewModel.getProperties().putValue(PreviewProperty.ARROW_SIZE, 20f);
+		// previewModel.getProperties().putValue(PreviewProperty.ARROW_SIZE, 20f);
 		
 		
 		
@@ -274,19 +325,31 @@ public class GraphExporter
 		layout.setLinLogMode(true);
 		layout.setThreadsCount(threadCount);
 		layout.initAlgo();		
-		for (int i = 0; i < 5000 && layout.canAlgo(); i++) 
+		for (int i = 0; i < 1000 && layout.canAlgo(); i++) 
 		{
 			layout.goAlgo();
 		}
 		
 		// We need to prevent graphs from overlapping, but we only do so once the graph is spatialized
 		layout.setAdjustSizes(true);
-		for (int i = 0; i < 500 && layout.canAlgo(); i++) 
+		for (int i = 0; i < 100 && layout.canAlgo(); i++) 
 		{
 			layout.goAlgo();
 		}
 		
 		layout.endAlgo();
+		
+		// We perform a label adjust to prevent overlapping labels
+		final LabelAdjust labelAdjustLayout = new LabelAdjust(new LabelAdjustBuilder());
+		labelAdjustLayout.setGraphModel(graphModel);
+		for (int i = 0; i < 100 && labelAdjustLayout.canAlgo(); i++) 
+		{
+			labelAdjustLayout.goAlgo();
+		}
+		
+		labelAdjustLayout.endAlgo();
+		
+		
 		LOG.info("Graph layout algorithm complete.");
 		
 		// Statistics
@@ -371,25 +434,7 @@ public class GraphExporter
 		
 		// Export
 		LOG.info("Begin Exporting Graph To Disk...");
-		LOG.info("Begin PDF...");
 		final ExportController ec = Lookup.getDefault().lookup(ExportController.class);
-		try 
-		{
-			ec.exportFile(new File("C:\\graph.pdf"));
-		}
-		
-		catch (IOException e) 
-		{
-			LOG.log(Level.SEVERE, "Exporting PDF Failed.", e);
-			return;
-		}
-		
-		final PDFExporter pdfExporter = (PDFExporter) ec.getExporter("pdf");
-		pdfExporter.setPageSize(PageSize.A0);
-		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		ec.exportStream(baos, pdfExporter);
-		final byte[] pdf = baos.toByteArray();
-		LOG.info("PDF Complete.");
 		
 		LOG.info("Begin GEXF...");
 		final org.gephi.io.exporter.spi.GraphExporter exporter = (org.gephi.io.exporter.spi.GraphExporter) ec.getExporter("gexf");
@@ -406,6 +451,62 @@ public class GraphExporter
 			return;
 		}	
 		LOG.info("GEXF Complete.");
+		
+		LOG.info("Begin PDF...");
+		try 
+		{
+			ec.exportFile(new File("C:\\graph.pdf"));
+		}
+		
+		catch (IOException e) 
+		{
+			LOG.log(Level.SEVERE, "Exporting PDF Failed.", e);
+			return;
+		}
+		
+		final PDFExporter pdfExporter = (PDFExporter) ec.getExporter("pdf");
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		ec.exportStream(baos, pdfExporter);
+		try
+		{
+			baos.flush();
+			baos.close();
+		} 
+		
+		catch (IOException e)
+		{
+			LOG.log(Level.WARNING, "Unable to close the output stream on PDF export.", e);
+		}
+		
+		LOG.info("PDF Complete.");
+		
+		LOG.info("Begin PNG...");
+		try 
+		{
+			ec.exportFile(new File("C:\\graph.png"));
+		}
+		
+		catch (IOException e) 
+		{
+			LOG.log(Level.SEVERE, "Exporting PNG Failed.", e);
+			return;
+		}
+		
+		final PNGExporter pngExporter = (PNGExporter) ec.getExporter("png");
+		pngExporter.setTransparentBackground(true);
+		baos = new ByteArrayOutputStream();
+		ec.exportStream(baos, pngExporter);
+		try
+		{
+			baos.flush();
+			baos.close();
+		} 
+		
+		catch (IOException e)
+		{
+			LOG.log(Level.WARNING, "Unable to close the output stream on PNG export.", e);
+		}
+		LOG.info("PNG Complete.");
 		
 		LOG.info("Begin storing graph to MySql");
 		LOG.info("Storing graph to MySql complete.");

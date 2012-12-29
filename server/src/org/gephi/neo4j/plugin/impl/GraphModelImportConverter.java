@@ -25,6 +25,8 @@ import gnu.trove.TLongIntHashMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+
+import org.gephi.data.attributes.api.AttributeColumn;
 import org.gephi.data.attributes.api.AttributeController;
 import org.gephi.data.attributes.api.AttributeModel;
 import org.gephi.data.attributes.api.AttributeOrigin;
@@ -68,55 +70,72 @@ public class GraphModelImportConverter {
 
         ProjectController projectController = Lookup.getDefault().lookup(ProjectController.class);
 
-        Workspace currentWorkspace = projectController.newWorkspace(projectController.getCurrentProject());
-        projectController.openWorkspace(currentWorkspace);
+        // Workspace currentWorkspace = projectController.newWorkspace(projectController.getCurrentProject());
+        // projectController.openWorkspace(currentWorkspace);
 
-        currentNeo4jModel = currentWorkspace.getLookup().lookup(Neo4jGraphModel.class);
-        if (currentNeo4jModel == null) {
-            currentNeo4jModel = new Neo4jGraphModel(graphDB);
-            currentWorkspace.add(currentNeo4jModel);
+        Workspace currentWorkspace = projectController.getCurrentWorkspace();
+        projectController.cleanWorkspace(currentWorkspace);   
+        
+        if (currentNeo4jModel != null)
+        {
+        	currentWorkspace.add(currentNeo4jModel);
         }
+        
+        else
+        {
+        	currentNeo4jModel = new Neo4jGraphModel(graphDB);
+        	currentWorkspace.add(currentNeo4jModel);
+	    	 projectController.addWorkspaceListener(new WorkspaceListener() {
+	
+	             @Override
+	             public void initialize(Workspace workspace) {
+	             }
+	
+	             @Override
+	             public void select(Workspace workspace) {
+	             }
+	
+	             @Override
+	             public void unselect(Workspace workspace) {
+	             }
+	
+	             @Override
+	             public void close(Workspace workspace) {            	
+	             	// Man.. fuck you plugin for building this architecture in such a way where you need to shut down my database instance!
+	                 Neo4jGraphModel model = workspace.getLookup().lookup(Neo4jGraphModel.class);
+	                 if (model != null) {
+	                     model.graphDb.shutdown();
+	                 }
+	                 if (graphModel != null && graphModel.getWorkspace() == workspace) {
+	                     graphModel = null;
+	                     graph = null;
+	                     attributeModel = null;
+	                     currentNeo4jModel = null;
+	                 }
+	             }
+	
+	             @Override
+	             public void disable() {
+	             }
+	         });        	
+        }
+        
+
 
         GraphController graphController = Lookup.getDefault().lookup(GraphController.class);
-        graphModel = graphController.getModel();
+        graphModel = graphController.getModel();        
         graph = graphModel.getGraph();
+        
+        graph.clearEdges();
+        for (org.gephi.graph.api.Node node : graph.getNodes().toArray()) 
+        {
+        	graph.removeNode(node);
+        }
+        
 
         AttributeController attributeController = Lookup.getDefault().lookup(AttributeController.class);
         attributeModel = attributeController.getModel();
-
-        projectController.addWorkspaceListener(new WorkspaceListener() {
-
-            @Override
-            public void initialize(Workspace workspace) {
-            }
-
-            @Override
-            public void select(Workspace workspace) {
-            }
-
-            @Override
-            public void unselect(Workspace workspace) {
-            }
-
-            @Override
-            public void close(Workspace workspace) {            	
-            	// Man.. fuck you plugin for building this architecture in such a way where you need to shut down my database instance!
-                Neo4jGraphModel model = workspace.getLookup().lookup(Neo4jGraphModel.class);
-                if (model != null) {
-                    model.graphDb.shutdown();
-                }
-                if (graphModel != null && graphModel.getWorkspace() == workspace) {
-                    graphModel = null;
-                    graph = null;
-                    attributeModel = null;
-                    currentNeo4jModel = null;
-                }
-            }
-
-            @Override
-            public void disable() {
-            }
-        });
+       
 
         return singleton;
     }
@@ -161,8 +180,11 @@ public class GraphModelImportConverter {
                 attributes.setValue(neoPropertyKey, neoNodeId);
             } else {
                 attributes.setValue(neoPropertyKey, neoPropertyValue);
-            }
+            }           
         }
+        
+        // Set the neo4j entity id as a property of the gephi entity.  Gephi API does not allow user to set the Id, so we have to place it here
+        attributes.setValue(PropertiesColumn.NODE_ID.getId(), neoNodeId);
     }
 
     /**
@@ -191,7 +213,7 @@ public class GraphModelImportConverter {
         AttributeTable edgeTable = attributeModel.getEdgeTable();
         Attributes attributes = gephiEdge.getEdgeData().getAttributes();
 
-        Object neoRelationshipId = neoRelationship.getId();
+        Long neoRelationshipId = neoRelationship.getId();       
         for (String neoPropertyKey : neoRelationship.getPropertyKeys()) {
             Object neoPropertyValue = neoRelationship.getProperty(neoPropertyKey);
             if (neoPropertyKey.equalsIgnoreCase("weight")) {
@@ -217,17 +239,20 @@ public class GraphModelImportConverter {
             }
         }
 
-        attributes.setValue(PropertiesColumn.NEO4J_RELATIONSHIP_TYPE.getId(), neoRelationshipId);
+        attributes.setValue(PropertiesColumn.EDGE_ID.getId(), neoRelationshipId);
     }
 
     public void createNeo4jRelationshipTypeGephiColumn() {
-        PropertiesColumn propertiesColumn = PropertiesColumn.NEO4J_RELATIONSHIP_TYPE;
-
-        attributeModel.getEdgeTable().addColumn(propertiesColumn.getId(),
-                propertiesColumn.getTitle(),
-                AttributeType.STRING,
-                Neo4jDelegateProviderImpl.getInstance(),
-                null);
+    	PropertiesColumn propertiesColumn = PropertiesColumn.NEO4J_RELATIONSHIP_TYPE;
+    	
+    	if (!attributeModel.getEdgeTable().hasColumn(propertiesColumn.getTitle()))
+    	{
+            attributeModel.getEdgeTable().addColumn(propertiesColumn.getId(),
+                    propertiesColumn.getTitle(),
+                    AttributeType.STRING,
+                    Neo4jDelegateProviderImpl.getInstance(),
+                    null);
+    	}
     }
 
     public static GraphDatabaseService getGraphDBForCurrentWorkspace() {
