@@ -5,6 +5,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.StringWriter;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -88,24 +92,41 @@ public class GraphExporter
 	public static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
 	public static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
 	private static Index<Node> owned_addresses;
+	private final static Neo4jImporter IMPORTER = new Neo4jImporterImpl();	
 	
-	public static void ExportBetweenTwoDates(final GraphDatabaseAPI graphDb, final String outputPath, final int threadCount, final Date from, final Date to)
-	{	
-		Export(graphDb, outputPath, threadCount, null, from, to);
-	}
-	
-	public static void ExportAtAddress(final GraphDatabaseAPI graphDb, final String outputPath, final int threadCount, final String address)
+	public static void ExportOwnersAndDaysToMysql(final GraphDatabaseAPI graphDb, final int threadCount)
 	{
-		Export(graphDb, outputPath, threadCount, address, null, null);
+		SetupMysql();
+		
+		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH);
+		// Export addresses
+		for (Node node : owned_addresses.query("*:*"))
+		{
+			ExportAtOwnerId(graphDb, threadCount, node.getId());
+		}		
+		
+		// Export days
+		
+		// Shutdown (including the database!)
+		Lookup.getDefault().lookup(ProjectController.class).closeCurrentProject();
 	}
 	
-	private static void Export(final GraphDatabaseAPI graphDb, final String outputpath, final int threadCount, final String address, final Date from, final Date to)
+	private static void ExportBetweenTwoDates(final GraphDatabaseAPI graphDb, final int threadCount, final Date from, final Date to)
+	{	
+		Export(graphDb, threadCount, null, from, to);
+	}
+	
+	private static void ExportAtOwnerId(final GraphDatabaseAPI graphDb, final int threadCount, final Long ownerId)
+	{
+		Export(graphDb, threadCount, ownerId, null, null);
+	}
+	
+	private static void Export(final GraphDatabaseAPI graphDb, final int threadCount, final Long ownerId, final Date from, final Date to)
 	{
 		boolean isDateCompare;
 		LOG.info("Begin Building GEXF from Neo4j");
-		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH);
 		
-		if (address == null)
+		if (ownerId == null)
 			isDateCompare = true;
 		else
 			isDateCompare = false;
@@ -113,10 +134,7 @@ public class GraphExporter
 		// We export the entire graph between the two dates
 		if (isDateCompare)
 		{
-			assert(from != null && to != null);			
-			// Find an owner node id by a known address.  This will be the start location of the graph traversal		
-			final long ownerId = owned_addresses.query(OWNED_ADDRESS_HASH_KEY, "1DkyBEKt5S2GDtv7aQw6rQepAvnsRyHoYM").getSingle().traverse(Order.DEPTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, GraphBuilder.OwnerRelTypes.owns, Direction.INCOMING).iterator().next().getId();
-			
+			assert(from != null && to != null);					
 			// Import by traversing the entire ownership network along the "transfers" edges
 			LOG.info("Building Ownership Network from Neo4j Database From: " + from.toString() + " To: " + to.toString() + " Starting With Node: " + ownerId + " ...");
 			final Collection<RelationshipDescription> relationshipDescription = new ArrayList<RelationshipDescription>();
@@ -124,36 +142,32 @@ public class GraphExporter
 			final Collection<FilterDescription> edgeFilterDescription = new ArrayList<FilterDescription>();
 			edgeFilterDescription.add(new FilterDescription("time", FilterOperator.GREATER_OR_EQUALS, Long.toString(from.getTime() / 1000)));
 			edgeFilterDescription.add(new FilterDescription("time", FilterOperator.LESS, Long.toString(to.getTime() / 1000)));
-			final Neo4jImporter importer = new Neo4jImporterImpl();	
-			importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, Integer.MAX_VALUE, relationshipDescription, Collections.<FilterDescription>emptyList(), edgeFilterDescription, true, true);			
+			IMPORTER.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, Integer.MAX_VALUE, relationshipDescription, Collections.<FilterDescription>emptyList(), edgeFilterDescription, true, true);			
 		}
 		
 		// We export a one-hop graph from the address
 		else 
 		{
 			assert(from == null && to == null);			
-			// Find an owner node id by the given address		
-			final long ownerId = owned_addresses.query(OWNED_ADDRESS_HASH_KEY, address).getSingle().traverse(Order.DEPTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, GraphBuilder.OwnerRelTypes.owns, Direction.INCOMING).iterator().next().getId();
-			
 			// Import by traversing one hop along the ownership network's "transfers" edges
 			LOG.info("Importing Ownership Network from Neo4j Database Starting With Node: " + ownerId + " ...");
 			final Collection<RelationshipDescription> relationshipDescription = new ArrayList<RelationshipDescription>();
 			relationshipDescription.add(new RelationshipDescription(GraphBuilder.OwnerRelTypes.transfers, Direction.BOTH));
-			final Neo4jImporter importer = new Neo4jImporterImpl();	
-			importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, 1, relationshipDescription);		
+			IMPORTER.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, 1, relationshipDescription);	
 		}
 		
 		
 		// Grab the graph that was loaded from the importer			
 		final GraphModel graphModel = Lookup.getDefault().lookup(GraphController.class).getModel();
 		final DirectedGraph graph = graphModel.getDirectedGraph();
-		AttributeModel attributeModel = Lookup.getDefault().lookup(AttributeController.class).getModel();
+		AttributeModel attributeModel = Lookup.getDefault().lookup(AttributeController.class).getModel();		
 		LOG.info("Graph Imported.  Nodes: " + graph.getNodeCount() + " Edges: " + graph.getEdgeCount());	
 		
 		LOG.info("Setting graph labels and features...");
 		// Ranking
 		final RankingController rankingController = Lookup.getDefault().lookup(RankingController.class);
-		// rankingController.setInterpolator(Interpolator.newBezierInterpolator(0, 1, 0, 1)); TODO
+		// rankingController.setInterpolator(Interpolator.newBezierInterpolator(0, 1, 0, 1));
+		rankingController.setInterpolator(Interpolator.LOG2); 
 		
 		// Node Size (Gephi can be used to build degree ranking on time span queries, but neo4j needs to be queried to find node degree on address specific queries)
 		final Ranking nodeDegreeRanking;
@@ -182,12 +196,15 @@ public class GraphExporter
 		
 		// Node Color
 		final AttributeColumn lastTimeSentColumn = attributeModel.getNodeTable().getColumn("last_time_sent");
-		final Ranking nodeLastTimeSentRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, lastTimeSentColumn.getId());
-		final AbstractColorTransformer nodeColorTransformer = (AbstractColorTransformer) rankingController.getModel().getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_COLOR);
-		final float[] nodeColorPositions = {0f, 0.5f, 1f};
-		final Color[] nodeColors = new Color[]{new Color(0x0000FF), new Color(0x00FF00), new Color(0xFF0000)};
-		nodeColorTransformer.setLinearGradient(new LinearGradient(nodeColors, nodeColorPositions));
-		rankingController.transform(nodeLastTimeSentRanking, nodeColorTransformer);		
+		if (lastTimeSentColumn != null) 
+		{
+			final Ranking nodeLastTimeSentRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, lastTimeSentColumn.getId());
+			final AbstractColorTransformer nodeColorTransformer = (AbstractColorTransformer) rankingController.getModel().getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_COLOR);
+			final float[] nodeColorPositions = {0f, 0.5f, 1f};
+			final Color[] nodeColors = new Color[]{new Color(0x0000FF), new Color(0x00FF00), new Color(0xFF0000)};
+			nodeColorTransformer.setLinearGradient(new LinearGradient(nodeColors, nodeColorPositions));
+			rankingController.transform(nodeLastTimeSentRanking, nodeColorTransformer);		
+		}		
 		
 		// Node Label
 		for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
@@ -201,12 +218,15 @@ public class GraphExporter
 		
 		// Edge Color
 		final AttributeColumn edgeTimeSentColumn = attributeModel.getEdgeTable().getColumn("value");
-		final Ranking edgeTimeSentRanking = rankingController.getModel().getRanking(Ranking.EDGE_ELEMENT, edgeTimeSentColumn.getId());
-		final AbstractColorTransformer edgeColorTransformer = (AbstractColorTransformer) rankingController.getModel().getTransformer(Ranking.EDGE_ELEMENT, Transformer.RENDERABLE_COLOR);
-		final float[] edgeColorPositions = {0f, 0.5f, 1f};
-		final Color[] edgeColors = new Color[]{new Color(0x0000FF) ,new Color(0x00FF00), new Color(0xFF0000)};
-		edgeColorTransformer.setLinearGradient(new LinearGradient(edgeColors, edgeColorPositions));
-		rankingController.transform(edgeTimeSentRanking, edgeColorTransformer);		
+		if (edgeTimeSentColumn != null)
+		{
+			final Ranking edgeTimeSentRanking = rankingController.getModel().getRanking(Ranking.EDGE_ELEMENT, edgeTimeSentColumn.getId());
+			final AbstractColorTransformer edgeColorTransformer = (AbstractColorTransformer) rankingController.getModel().getTransformer(Ranking.EDGE_ELEMENT, Transformer.RENDERABLE_COLOR);
+			final float[] edgeColorPositions = {0f, 0.5f, 1f};
+			final Color[] edgeColors = new Color[]{new Color(0x0000FF) ,new Color(0x00FF00), new Color(0xFF0000)};
+			edgeColorTransformer.setLinearGradient(new LinearGradient(edgeColors, edgeColorPositions));
+			rankingController.transform(edgeTimeSentRanking, edgeColorTransformer);	
+		}	
 		
 		// Edge Label
 		for (org.gephi.graph.api.Edge edge : graphModel.getGraph().getEdges())
@@ -386,6 +406,34 @@ public class GraphExporter
 			return;
 		}	
 		LOG.info("GEXF Complete.");
+		
+		LOG.info("Begin storing graph to MySql");
+		LOG.info("Storing graph to MySql complete.");
+	
 		LOG.info("Exporting Graph To Disk Completed.");		
+	}
+	
+	/**
+	 * Sets up a mysql database and builds the tables.
+	 */
+	private static void SetupMysql()
+	{
+		try
+		{
+			Class.forName("com.mysql.jdbc.Driver");
+			Connection connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/blockviewer?user=root&password=webster");
+			Statement statement = connection.createStatement();
+			statement.execute("CREATE TABLE IF NOT EXISTS `gexfaddress` (`ownerId` int(11) NOT NULL, `gexf` blob, `time` timestamp NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`ownerId`), UNIQUE KEY `ownerId_UNIQUE` (`ownerId`)) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+		} 
+		
+		catch (SQLException e)
+		{
+			LOG.log(Level.SEVERE, "Unable to access MySQL database.", e);
+		} 
+		
+		catch (ClassNotFoundException e)
+		{
+			LOG.log(Level.SEVERE, "Unable to access MySQL database.", e);
+		}		
 	}
 }

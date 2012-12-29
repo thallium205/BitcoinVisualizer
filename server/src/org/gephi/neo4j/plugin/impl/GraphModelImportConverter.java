@@ -1,6 +1,6 @@
 /*
 Copyright 2008-2010 Gephi
-Authors : Martin Å kurla
+Authors : Martin Škurla
 Website : http://www.gephi.org
 
 This file is part of Gephi.
@@ -48,7 +48,7 @@ import org.openide.util.Lookup;
 
 /**
  *
- * @author Martin Å kurla
+ * @author Martin Škurla
  */
 public class GraphModelImportConverter {
 
@@ -99,7 +99,8 @@ public class GraphModelImportConverter {
             }
 
             @Override
-            public void close(Workspace workspace) {
+            public void close(Workspace workspace) {            	
+            	// Man.. fuck you plugin for building this architecture in such a way where you need to shut down my database instance!
                 Neo4jGraphModel model = workspace.getLookup().lookup(Neo4jGraphModel.class);
                 if (model != null) {
                     model.graphDb.shutdown();
@@ -160,11 +161,8 @@ public class GraphModelImportConverter {
                 attributes.setValue(neoPropertyKey, neoNodeId);
             } else {
                 attributes.setValue(neoPropertyKey, neoPropertyValue);
-            }           
+            }
         }
-        
-        // Set the neo4j entity id as a property of the gephi entity.  Gephi API does not allow user to set the Id, so we have to place it here
-        attributes.setValue(PropertiesColumn.NODE_ID.getId(), neoNodeId);
     }
 
     /**
@@ -193,7 +191,7 @@ public class GraphModelImportConverter {
         AttributeTable edgeTable = attributeModel.getEdgeTable();
         Attributes attributes = gephiEdge.getEdgeData().getAttributes();
 
-        Long neoRelationshipId = neoRelationship.getId();       
+        Object neoRelationshipId = neoRelationship.getId();
         for (String neoPropertyKey : neoRelationship.getPropertyKeys()) {
             Object neoPropertyValue = neoRelationship.getProperty(neoPropertyKey);
             if (neoPropertyKey.equalsIgnoreCase("weight")) {
@@ -219,7 +217,7 @@ public class GraphModelImportConverter {
             }
         }
 
-        attributes.setValue(PropertiesColumn.EDGE_ID.getId(), neoRelationshipId);
+        attributes.setValue(PropertiesColumn.NEO4J_RELATIONSHIP_TYPE.getId(), neoRelationshipId);
     }
 
     public void createNeo4jRelationshipTypeGephiColumn() {

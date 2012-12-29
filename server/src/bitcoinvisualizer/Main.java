@@ -53,7 +53,7 @@ public class Main
 			// Start Neo4j
 			try
 			{
-				graphDb = new HighlyAvailableGraphDatabase((line.getOptionValue("dbPath")), MapUtil.load(FileUtils.getFile(line.getOptionValue("configPath"))));
+				graphDb = new HighlyAvailableGraphDatabase((line.getOptionValue("dbPath")), MapUtil.load(FileUtils.getFile(line.getOptionValue("configPath"))));			
 				srv = new WrappingNeoServerBootstrapper(graphDb);
 				srv.start();
 				shutdownThread = new Thread()
@@ -77,8 +77,11 @@ public class Main
 			// Graph Export
 			try
 			{
-				SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-				GraphExporter.ExportBetweenTwoDates(graphDb, "C:\\", 1, sdf.parse("2012-06-01"),  sdf.parse("2012-06-02")); // January 1, 2012 -> January 2, 2012
+				// SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+				
+				int cores = Runtime.getRuntime().availableProcessors();			
+				GraphExporter.ExportOwnersAndDaysToMysql(graphDb, cores > 1 ? cores - 1 : cores);
+			// 	GraphExporter.ExportBetweenTwoDates(graphDb, "C:\\", 1, sdf.parse("2012-06-01"),  sdf.parse("2012-06-02")); // January 1, 2012 -> January 2, 2012
 				// GraphExporter.ExportAtAddress(graphDb, "C:\\", 7, "1HB5XMLmzFVj8ALj6mfBsbifRoD4miY36v");
 				// 11XgbAuZA2VNq3zhaSvKcrGFTFw7vkWNJ (wiki neighbor)
 				// 1HB5XMLmzFVj8ALj6mfBsbifRoD4miY36v (wiki)
