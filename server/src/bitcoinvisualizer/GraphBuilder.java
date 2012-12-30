@@ -58,8 +58,6 @@ public class GraphBuilder
 	private static final Logger LOG = Logger.getLogger(GraphBuilder.class.getName());
 
 	private static GraphDatabaseAPI graphDb;
-	private static WrappingNeoServerBootstrapper srv;
-	private static Thread shutdownThread;
 	private static boolean isStarted = false;
 
 	// Index block hash
@@ -143,10 +141,11 @@ public class GraphBuilder
 	 *            - The path where the data will be saved
 	 * @throws IOException 
 	 */
-	public static void StartDatabase(final GraphDatabaseAPI graphDb) throws IOException
+	public static void StartDatabase(GraphDatabaseAPI db) throws IOException
 	{
 		LOG.info("Starting database...");
 		// Load indexes
+		graphDb = db;
 		block_hashes = graphDb.index().forNodes(BLOCK_HASH);
 		block_heights = graphDb.index().forNodes(BLOCK_HEIGHT);
 		tx_hashes = graphDb.index().forNodes(TRANSACTION_HASH);
@@ -155,19 +154,6 @@ public class GraphBuilder
 		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH);
 		ipv4_addrs = graphDb.index().forNodes(IPV4);
 		LOG.info("Database started.");
-	}
-
-	/**
-	 * Stops the embedded neo4j instance
-	 */
-	public static void StopDatabase()
-	{
-		LOG.info("Stopping database...");
-		srv.stop();
-		graphDb.shutdown();
-		Runtime.getRuntime().removeShutdownHook(shutdownThread);
-		isStarted = false;
-		LOG.info("Database stopped.");
 	}
 	
 	/**
@@ -264,7 +250,7 @@ public class GraphBuilder
 				latestDatabaseBlock = persistBlockNode(currentBlock, latestDatabaseBlock);
 				
 				// Update the metadata node of the last database block
-				graphDb.getReferenceNode().setProperty(LAST_BLOCK_HASH, currentBlock.getHash());
+				graphDb.getNodeById(0).setProperty(LAST_BLOCK_HASH, currentBlock.getHash());
 				
 				// Update the previous block node to the current one and repeat
 				lastDatabaseBlockIndex = currentBlock.getBlock_index();
@@ -311,11 +297,11 @@ public class GraphBuilder
 		
 		// Check to make sure all 3 components of the high-level builder have resolved on the same block.  If they haven't, then we skip this step	
 		// This step is required because the last block we originally thought was part of the main chain can become an orphan block later.
-		if (graphDb.getReferenceNode().hasProperty(LAST_LINKED_TRANSACTION_BLOCK_NODEID) && graphDb.getReferenceNode().hasProperty(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID) && graphDb.getReferenceNode().hasProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID))
+		if (graphDb.getNodeById(0).hasProperty(LAST_LINKED_TRANSACTION_BLOCK_NODEID) && graphDb.getNodeById(0).hasProperty(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID) && graphDb.getNodeById(0).hasProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID))
 		{			
-			final Object lastLinkedBlockNodeId = graphDb.getReferenceNode().getProperty(LAST_LINKED_TRANSACTION_BLOCK_NODEID);
-			final Object lastLinkedOwnerBlockNodeId = graphDb.getReferenceNode().getProperty(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID);
-			final Object lastLinkedOwnerLinkBlockNodeId =  graphDb.getReferenceNode().getProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID);
+			final Object lastLinkedBlockNodeId = graphDb.getNodeById(0).getProperty(LAST_LINKED_TRANSACTION_BLOCK_NODEID);
+			final Object lastLinkedOwnerBlockNodeId = graphDb.getNodeById(0).getProperty(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID);
+			final Object lastLinkedOwnerLinkBlockNodeId =  graphDb.getNodeById(0).getProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID);
 			
 			if (lastLinkedBlockNodeId.equals(lastLinkedOwnerBlockNodeId) && lastLinkedOwnerBlockNodeId.equals(lastLinkedOwnerLinkBlockNodeId))
 			{
@@ -349,7 +335,7 @@ public class GraphBuilder
 				LOG.info("Processing transaction: " + (String) transaction.getProperty("hash"));
 				linkAddresses(transaction);
 				// We need to get the block node id from this transaction.  There is only one block to a transaction
-				graphDb.getReferenceNode().setProperty(LAST_LINKED_TRANSACTION_BLOCK_NODEID, transaction.traverse(Order.BREADTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, BlockchainRelationships.from, Direction.OUTGOING).iterator().next().getId());
+				graphDb.getNodeById(0).setProperty(LAST_LINKED_TRANSACTION_BLOCK_NODEID, transaction.traverse(Order.BREADTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, BlockchainRelationships.from, Direction.OUTGOING).iterator().next().getId());
 				tx.success();
 			}
 
@@ -381,7 +367,7 @@ public class GraphBuilder
 			{
 				LOG.info("Processing block: " + (Integer) block.getProperty("height"));
 				createOwners(block);
-				graphDb.getReferenceNode().setProperty(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID, block.getId());
+				graphDb.getNodeById(0).setProperty(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID, block.getId());
 				tx.success();
 			}
 
@@ -483,10 +469,10 @@ public class GraphBuilder
 				{
 					LOG.info("Block: " + (Integer) block.getProperty("height") + " is not an orphan.  Local database has reached an agreement with the block chain.");
 					// Our data agrees with the API.  This is the last block we have processed that is in the main chain.  Update our values:
-					graphDb.getReferenceNode().setProperty(LAST_BLOCK_HASH, block.getProperty("hash"));
-					graphDb.getReferenceNode().setProperty(LAST_LINKED_TRANSACTION_BLOCK_NODEID, block.getId());
-					graphDb.getReferenceNode().setProperty(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID, block.getId());
-					graphDb.getReferenceNode().setProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID, block.getId());
+					graphDb.getNodeById(0).setProperty(LAST_BLOCK_HASH, block.getProperty("hash"));
+					graphDb.getNodeById(0).setProperty(LAST_LINKED_TRANSACTION_BLOCK_NODEID, block.getId());
+					graphDb.getNodeById(0).setProperty(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID, block.getId());
+					graphDb.getNodeById(0).setProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID, block.getId());
 					
 					if (isBlockchainComplete())
 					{
@@ -675,35 +661,35 @@ public class GraphBuilder
 	 * @author John
 	 */
 	private static Node getLatestDatabaseBlockNodeByHash(final String property)
-	{
-		if (graphDb.getReferenceNode().hasProperty(property))
+	{		
+		if (graphDb.getNodeById(0).hasProperty(property))
 		{
-			return block_hashes.query(BLOCK_HASH_KEY, (String) graphDb.getReferenceNode().getProperty(property)).getSingle();
+			return block_hashes.query(BLOCK_HASH_KEY, (String) graphDb.getNodeById(0).getProperty(property)).getSingle();
 		}
 
 		else
 		{
-			return graphDb.getReferenceNode();
+			return graphDb.getNodeById(0);
 		}
 	}
 	
 	private static Node getLatestDatabaseBlockNodeByNodeId(String property)
 	{
-		if (graphDb.getReferenceNode().hasProperty(property))
+		if (graphDb.getNodeById(0).hasProperty(property))
 		{
-			if (graphDb.getReferenceNode().getProperty(property) instanceof Long)
+			if (graphDb.getNodeById(0).getProperty(property) instanceof Long)
 			{
-				return graphDb.getNodeById((Long) graphDb.getReferenceNode().getProperty(property));
+				return graphDb.getNodeById((Long) graphDb.getNodeById(0).getProperty(property));
 			}
 			else
 			{
-				return graphDb.getNodeById((Integer) graphDb.getReferenceNode().getProperty(property));
+				return graphDb.getNodeById((Integer) graphDb.getNodeById(0).getProperty(property));
 			}
 		}
 
 		else
 		{
-			return graphDb.getReferenceNode();
+			return graphDb.getNodeById(0);
 		}
 	}
 
@@ -1015,7 +1001,7 @@ public class GraphBuilder
 	 */
 	private static void persistInput(InputType input, Node transacstionNode)
 	{
-		PrevOut prevOut = input.getPrev_out();
+		final PrevOut prevOut = input.getPrev_out();
 
 		// Sometimes old blockchain data is bunk, so we ignore these anomalies
 		if (prevOut == null)
@@ -1038,18 +1024,21 @@ public class GraphBuilder
 					for (int i = 0; i < moneyNodes.length; i++)
 					{
 						// Is this the money node we're looking for!?
-						if (moneyNodes[i].hasProperty("addr") && moneyNodes[i].hasProperty("n") && ((String) moneyNodes[i].getProperty("addr")).contains(prevOut.getAddr())
-								&& ((Integer) moneyNodes[i].getProperty("n") == prevOut.getN()))
+						// Sometimes transactinos are malformed but are included in a block (af32bb06f12f2ae5fdb7face7cd272be67c923e86b7a66a76ded02d954c2f94d), so we check to make sure we skip those
+						if (prevOut.getAddr() != null)
 						{
-							// We have found the money node that redeemed this one. Create the relationship.
-							moneyNodes[i].createRelationshipTo(transacstionNode, BlockchainRelationships.received);
-							break;
+							if (moneyNodes[i].hasProperty("addr") && moneyNodes[i].hasProperty("n") && ((String) moneyNodes[i].getProperty("addr")).contains(prevOut.getAddr())
+									&& ((Integer) moneyNodes[i].getProperty("n") == prevOut.getN()))
+							{
+								// We have found the money node that redeemed this one. Create the relationship.
+								moneyNodes[i].createRelationshipTo(transacstionNode, BlockchainRelationships.received);
+								break;
+							}
 						}
 					}
 				}
 			}
-		}
-
+		}		
 	}
 
 	/**
@@ -1400,7 +1389,7 @@ public class GraphBuilder
 		}
 			
 		
-		graphDb.getReferenceNode().setProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID, block.getId());
+		graphDb.getNodeById(0).setProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID, block.getId());
 		createTx.success();
 		createTx.finish();
 	}

@@ -74,28 +74,6 @@ public class Main
 				LOG.log(Level.SEVERE, "Unable to start Neo4j.", e);
 			}
 			
-			// Graph Export
-			try
-			{
-				// SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-				
-				int cores = Runtime.getRuntime().availableProcessors();			
-				GraphExporter.ExportOwnersAndDaysToMysql(graphDb, cores > 1 ? cores - 1 : cores);
-			// 	GraphExporter.ExportBetweenTwoDates(graphDb, "C:\\", 1, sdf.parse("2012-06-01"),  sdf.parse("2012-06-02")); // January 1, 2012 -> January 2, 2012
-				// GraphExporter.ExportAtAddress(graphDb, "C:\\", 7, "1HB5XMLmzFVj8ALj6mfBsbifRoD4miY36v");
-				// 11XgbAuZA2VNq3zhaSvKcrGFTFw7vkWNJ (wiki neighbor)
-				// 1HB5XMLmzFVj8ALj6mfBsbifRoD4miY36v (wiki)
-			}
-			
-			catch (Exception e)
-			{
-				hasError = true;
-				LOG.log(Level.WARNING, "Build GEXF Failed.", e);
-			}
-						
-			
-			
-			/*
 			try
 			{				
 				// Get values
@@ -105,7 +83,7 @@ public class Main
 					validate = Boolean.parseBoolean(line.getOptionValue("validate"));
 				if (!GraphBuilder.IsStarted())
 				{
-					GraphBuilder.StartDatabase(line.getOptionValue("dbPath"), line.getOptionValue("configPath"));
+					GraphBuilder.StartDatabase(graphDb);
 				}
 
 				if (!line.hasOption("client"))
@@ -118,13 +96,18 @@ public class Main
 						{
 							GraphBuilder.BuildHighLevelGraph();
 						}
-						// GraphBuilder.StopDatabase();
-						LOG.info("Completed.");
 
 						// If the user activated the scraper
 						if (line.hasOption("scraper"))
 						{
 							GraphBuilder.Scrape();
+						}
+						
+						// If the user activated the exporter
+						if (line.hasOption("exporter"))
+						{
+							int cores = Runtime.getRuntime().availableProcessors();			
+							GraphExporter.ExportOwnersAndDaysToMysql(graphDb, cores > 1 ? cores - 1 : cores);
 						}
 					} 
 					
@@ -140,14 +123,14 @@ public class Main
 			{
 				LOG.log(Level.SEVERE, "Parsing failed.  Reason: " + e.getMessage(), e);
 				hasError = true;
-				GraphBuilder.StopDatabase();
+				// GraphBuilder.StopDatabase();
 			} 
 			
 			catch (IOException e)
 			{
 				LOG.log(Level.SEVERE, "Could not find files.  Reason: " + e.getMessage(), e);
 				hasError = true;
-				GraphBuilder.StopDatabase();
+				// GraphBuilder.StopDatabase();
 			}
 
 			
@@ -168,9 +151,9 @@ public class Main
 			catch (InterruptedException e)
 			{
 				LOG.log(Level.SEVERE, "Thread sleep failed.  Reason: " + e.getMessage(), e);
-				GraphBuilder.StopDatabase();
+				// GraphBuilder.StopDatabase();
 			}
-			*/
+			
 		}
 		
 		LOG.info("Stopping database...");
@@ -196,6 +179,7 @@ public class Main
 		Option scraper = OptionBuilder.withArgName("scraper").withDescription("Runs the scraper which attempts to associate bitcoin addresses to real world entities.").create("scraper");
 		Option high = OptionBuilder.withArgName("high").withDescription("Builds the high level data structure.").create("high");
 		Option client = OptionBuilder.withArgName("client").withDescription("Will only run the database service and not attempt to build the blockchain.").create("client");
+		Option exporter = OptionBuilder.withArgName("exporter").withDescription("Exports the database to MySQL.").create("exporter");
 		Option time = OptionBuilder.hasArg().withArgName("time").withDescription("The amount of time the program will wait before rebuilding an updated version of the graph again.").create("time");
 		Option statistics = OptionBuilder.withArgName("statistics").withDescription("Prints a CSV file in the current directory with some statistics on the block chain.").create("statistics");
 		
@@ -206,6 +190,7 @@ public class Main
 		options.addOption(scraper);
 		options.addOption(high);
 		options.addOption(client);
+		options.addOption(exporter);
 		options.addOption(time);
 		options.addOption(statistics);
 		return options;

@@ -117,27 +117,38 @@ public class GraphExporter
 			Class.forName("com.mysql.jdbc.Driver");
 			final Connection sqlDb = DriverManager.getConnection("jdbc:mysql://localhost:3306/blockviewer?user=root&password=webster");
 			SetupMysql(sqlDb);
-
-			/*
-			 * // Export Owners owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH); HashSet<Long> owners = new HashSet<Long>(); for (Node node : owned_addresses.query("*:*")) { Long
-			 * ownerId = node.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId(); if (owners.add(ownerId)) { ExportAtOwnerId(sqlDb, graphDb, threadCount, ownerId); }
-			 * }
-			 */
+			
+			// Export Owners 			
+			owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH); 
+			HashSet<Long> owners = new HashSet<Long>(); 
+			for (Node node : owned_addresses.query("*:*")) 
+			{ 
+				Long ownerId = node.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId(); 
+				if (owners.add(ownerId)) 
+				{ 
+					ExportAtOwnerId(sqlDb, graphDb, threadCount, ownerId);
+				}
+			}		 
 
 			// Export Days
-			Integer lastDay = null;
+			Double lastDay = null;
 			Date from = null;
 			Date to = null;
 			final Statement statement = sqlDb.createStatement();
-			ResultSet rs = statement.executeQuery("SELECT MAX(`time`) FROM `day`");
+			ResultSet rs = statement.executeQuery("SELECT MAX(`graphTime`) FROM `day`");
+			Calendar cal = Calendar.getInstance();
 			while (rs.next())
 			{
-				lastDay = rs.getInt(1);
+				lastDay = rs.getDouble(1);
 			}
 
 			if (lastDay != null && lastDay != 0)
-			{
-				from = new Date(new Long(lastDay) * 1000);
+			{				
+				// We add 1 day to the largest time value 
+				from = new Date((long) (lastDay * 1000));
+				cal.setTime(from);
+				cal.add(Calendar.DATE, 1);
+				from = cal.getTime();
 			} 
 			
 			else
@@ -145,7 +156,7 @@ public class GraphExporter
 				from = new Date(1231006505L * 1000);
 			}
 
-			Calendar cal = Calendar.getInstance();
+			
 			cal.setTime(from);
 			cal.add(Calendar.DATE, 1);
 			to = cal.getTime();
@@ -192,6 +203,7 @@ public class GraphExporter
 		if (ownerId == null)
 		{
 			isDateCompare = true;
+			ownerId = 29784508L; // Arbitrary start node
 		}
 
 		else
@@ -210,7 +222,7 @@ public class GraphExporter
 			final Collection<FilterDescription> edgeFilterDescription = new ArrayList<FilterDescription>();
 			edgeFilterDescription.add(new FilterDescription("time", FilterOperator.GREATER_OR_EQUALS, Long.toString(from.getTime() / 1000)));
 			edgeFilterDescription.add(new FilterDescription("time", FilterOperator.LESS, Long.toString(to.getTime() / 1000)));
-			IMPORTER.importDatabase(graphDb, -1, TraversalOrder.BREADTH_FIRST, Integer.MAX_VALUE, relationshipDescription, Collections.<FilterDescription> emptyList(), edgeFilterDescription, true, true);
+			IMPORTER.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, Integer.MAX_VALUE, relationshipDescription, Collections.<FilterDescription> emptyList(), edgeFilterDescription, true, true);
 		}
 
 		// We export a one-hop graph from the address
@@ -239,6 +251,24 @@ public class GraphExporter
 		// Node Size (Gephi can be used to build degree ranking on time span queries, but neo4j needs to be queried to find node degree on address specific queries)
 		final Ranking nodeDegreeRanking;
 		final AbstractSizeTransformer nodeSizeTransformer = (AbstractSizeTransformer) rankingController.getModel().getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_SIZE);
+		
+		// TODO
+		// This is a bit of a hack.  The start point node is always added to the graph.  Before we actually add it, we need to ensure that it satisfies the filter descirption, if it doesnt, we remove it.
+		boolean startNodeIsValid = false;
+		for (Relationship rel : graphDb.getNodeById(ownerId).getRelationships(OwnerRelTypes.transfers, Direction.BOTH))
+		{
+			Long time = (Long) rel.getProperty("time");
+			if ((time >= from.getTime() / 1000) && (time < to.getTime() / 1000))
+			{
+				startNodeIsValid = true;
+				break;				
+			}
+		}
+		
+		if (!startNodeIsValid)
+		{			
+			graphModel.getGraph().removeNode(graphModel.getGraph().getNode(1));
+		}
 
 		// We set a degree attribute on each gephi node
 		for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
@@ -439,7 +469,7 @@ public class GraphExporter
 		LOG.info("Graph layout algorithm complete.");
 
 		// Statistics
-		if (isDateCompare)
+		if (isDateCompare && graphModel.getGraph().getNodeCount() > 0)
 		{
 			// Clustering Coefficient
 			LOG.info("Begin Calculating Statistics...");
