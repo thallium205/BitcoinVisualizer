@@ -1,12 +1,16 @@
 package bitcoinvisualizer;
 
 import java.awt.Color;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.StringReader;
 import java.io.StringWriter;
+import java.io.Writer;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -14,6 +18,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.Properties;
 import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -46,6 +51,7 @@ import org.gephi.neo4j.plugin.api.Neo4jImporter;
 import org.gephi.neo4j.plugin.api.RelationshipDescription;
 import org.gephi.neo4j.plugin.api.TraversalOrder;
 import org.gephi.neo4j.plugin.impl.Neo4jImporterImpl;
+import org.gephi.preview.PreviewModelImpl;
 import org.gephi.preview.api.PreviewController;
 import org.gephi.preview.api.PreviewModel;
 import org.gephi.preview.api.PreviewProperty;
@@ -71,6 +77,7 @@ import org.gephi.statistics.plugin.WeightedDegree;
 import org.gephi.statistics.plugin.dynamic.DynamicClusteringCoefficient;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.ReturnableEvaluator;
 import org.neo4j.graphdb.StopEvaluator;
 import org.neo4j.graphdb.Traverser.Order;
@@ -81,9 +88,11 @@ import org.neo4j.kernel.GraphDatabaseAPI;
 import org.openide.util.Lookup;
 
 import bitcoinvisualizer.GraphBuilder.OwnerRelTypes;
+import bitcoinvisualizer.scraper.Scraper.ScraperRelationships;
 
 import com.google.common.collect.Iterables;
 import com.itextpdf.text.PageSize;
+import com.itextpdf.text.Rectangle;
 
 /**
  * Creates an information rich graph in .gexf format of the Bitcoin ownership network given the path to a Neo4j graph.db database. 
@@ -96,14 +105,14 @@ public class GraphExporter
 	public static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
 	public static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
 	private static Index<Node> owned_addresses;
-	private final static Neo4jImporter IMPORTER = new Neo4jImporterImpl();	
+	private final static Neo4jImporter IMPORTER = new Neo4jImporterImpl();
 	
 	public static void ExportOwnersAndDaysToMysql(final GraphDatabaseAPI graphDb, final int threadCount)
 	{
 		SetupMysql();
 		
 		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH);
-		// Export owners
+		// Export owners		
 		HashSet<Long> owners = new HashSet<Long>();
 		owners.add(29792952L);
 		for (Node node : owned_addresses.query("*:*"))
@@ -115,12 +124,14 @@ public class GraphExporter
 			}			
 		}		
 		
+		// ExportAtOwnerId(graphDb, threadCount, owned_addresses.query(OWNED_ADDRESS_HASH_KEY, "12sv18AiLU947SmDcaBgghnAiHTQMGS7ow").getSingle().traverse(Order.DEPTH_FIRST, StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, GraphBuilder.OwnerRelTypes.owns, Direction.INCOMING).iterator().next().getId());
+		
 		LOG.info("Total Number of Owners Processed:" + owners.size());
 		
 		// Export days
 		
 		// Shutdown (including the database!)
-		Lookup.getDefault().lookup(ProjectController.class).closeCurrentProject();
+		// Lookup.getDefault().lookup(ProjectController.class).closeCurrentProject();
 		
 		
 	}
@@ -198,30 +209,88 @@ public class GraphExporter
 			for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
 			{				
 				Object label = node.getAttributes().getValue(PropertiesColumn.NODE_ID.getId());
+				Node neoNode = null;
+				
 				if (label instanceof String)
 				{
-					node.getAttributes().setValue("globaldegree", Iterables.size(graphDb.getNodeById(Long.parseLong((String) label)).getRelationships(OwnerRelTypes.transfers)));
+					neoNode = graphDb.getNodeById(Long.parseLong((String) label));					
 				}
 				else if (label instanceof Long)
 				{
-					node.getAttributes().setValue("globaldegree", Iterables.size(graphDb.getNodeById((Long) label).getRelationships(OwnerRelTypes.transfers)));
+					neoNode = graphDb.getNodeById((Long) label);
 				}			
 				else
 				{
 					throw new ClassCastException();
 				}
+				
+				// Calculate interesting statistics about each node.  TODO - A lot more opportunity is available right here!
+				
+				// Scraped Alias
+				ArrayList<AliasType> aliases = new ArrayList<AliasType>();
+				for (Relationship rel : neoNode.getRelationships(ScraperRelationships.identifies, Direction.INCOMING))
+				{
+					aliases.add(new AliasType((String) rel.getProperty("name"), (String) rel.getProperty("source"), (String) rel.getProperty("contributor"), (String) rel.getProperty("time")));					
+				}
+				node.getAttributes().setValue("Aliases", aliases.toString());
+				
+				// Get Node Addresses
+				node.getAttributes().setValue("Total Owned Addresses", Iterables.size(neoNode.getRelationships(OwnerRelTypes.owns, Direction.OUTGOING))); // TODO - Storing the actual addresses values makes each gexf file too large!	
+				
+				// Incoming Transactions
+				node.getAttributes().setValue("Total Incoming Transactions", Iterables.size(neoNode.getRelationships(OwnerRelTypes.transfers, Direction.INCOMING)));
+				
+				// Outgoing Transactions
+				node.getAttributes().setValue("Total Outgoing Transactions", Iterables.size(neoNode.getRelationships(OwnerRelTypes.transfers, Direction.OUTGOING)));
+				
+				// Get Node Degree
+				node.getAttributes().setValue("Total Transactions", Iterables.size(neoNode.getRelationships(OwnerRelTypes.transfers, Direction.BOTH)));
+				
+				// Total Incoming Amount
+				Long totalIncomingAmount = 0L;
+				for (Relationship rel : neoNode.getRelationships(OwnerRelTypes.transfers, Direction.INCOMING))
+				{
+					totalIncomingAmount += (Long) rel.getProperty("value");
+				}
+				node.getAttributes().setValue("Total Incoming Amount", totalIncomingAmount.doubleValue() / 100000000);
+				
+				// Total Outgoing Amount
+				Long totalOutgoingAmount = 0L;
+				for (Relationship rel : neoNode.getRelationships(OwnerRelTypes.transfers, Direction.OUTGOING))
+				{
+					totalOutgoingAmount += (Long) rel.getProperty("value");
+				}
+				node.getAttributes().setValue("Total Outgoing Amount", totalOutgoingAmount.doubleValue() / 100000000);
+				
+				// Current Balance
+				node.getAttributes().setValue("Current Balance", (Double) node.getAttributes().getValue("Total Incoming Amount") - (Double) node.getAttributes().getValue("Total Outgoing Amount"));		
+				
+				// First Time & Last Time Sent
+				final ArrayList<Long> times = new ArrayList<Long>();
+				for (Relationship rel : neoNode.getRelationships(OwnerRelTypes.transfers, Direction.BOTH))
+				{
+					times.add((Long) rel.getProperty("time"));
+				}
+				node.getAttributes().setValue("First Transfer Time", Collections.min(times));
+				node.getAttributes().setValue("Last Transfer Time", Collections.max(times));				
+				
+				// Date
+				node.getAttributes().setValue("Last Block Calculated", graphDb.getNodeById(((Long) graphDb.getNodeById(0).getProperty("last_linked_owner_build_block_nodeId"))).getProperty("height"));
 			}
 			
-			final AttributeColumn neo4jDegreeColumn = attributeModel.getNodeTable().getColumn("globaldegree");
+			final AttributeColumn neo4jDegreeColumn = attributeModel.getNodeTable().getColumn("Total Transactions");
 			nodeDegreeRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, neo4jDegreeColumn.getId());
 		}
+		
+		// Remove system columns
+		attributeModel.getNodeTable().removeColumn(attributeModel.getNodeTable().getColumn("last_time_sent"));
 		
 		nodeSizeTransformer.setMinSize(3);
 		nodeSizeTransformer.setMaxSize(20);
 		rankingController.transform(nodeDegreeRanking, nodeSizeTransformer);
 		
 		// Node Color
-		final AttributeColumn lastTimeSentColumn = attributeModel.getNodeTable().getColumn("last_time_sent");
+		final AttributeColumn lastTimeSentColumn = attributeModel.getNodeTable().getColumn("Last Transfer Time");
 		if (lastTimeSentColumn != null) 
 		{
 			final Ranking nodeLastTimeSentRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, lastTimeSentColumn.getId());
@@ -230,7 +299,7 @@ public class GraphExporter
 			final Color[] nodeColors = new Color[]{new Color(0x0000FF), new Color(0x00FF00), new Color(0xFF0000)};
 			nodeColorTransformer.setLinearGradient(new LinearGradient(nodeColors, nodeColorPositions));
 			rankingController.transform(nodeLastTimeSentRanking, nodeColorTransformer);		
-		}		
+		}
 		
 		// Node Label
 		for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
@@ -284,7 +353,7 @@ public class GraphExporter
 			}				
 		}		
 		previewModel.getProperties().putValue(PreviewProperty.SHOW_EDGE_LABELS, Boolean.TRUE);
-		previewModel.getProperties().putValue(PreviewProperty.EDGE_CURVED, Boolean.FALSE);
+		previewModel.getProperties().putValue(PreviewProperty.EDGE_CURVED, Boolean.TRUE);
 		//previewModel.getProperties().putValue(PreviewProperty.EDGE_LABEL_FONT, previewModel.getProperties().getFontValue(PreviewProperty.NODE_LABEL_FONT).deriveFont(8));
 		// previewModel.getProperties().putValue(PreviewProperty.ARROW_SIZE, 20f);
 		
@@ -437,80 +506,66 @@ public class GraphExporter
 		final ExportController ec = Lookup.getDefault().lookup(ExportController.class);
 		
 		LOG.info("Begin GEXF...");
-		final org.gephi.io.exporter.spi.GraphExporter exporter = (org.gephi.io.exporter.spi.GraphExporter) ec.getExporter("gexf");
-		exporter.setExportVisible(true); 
-		exporter.setWorkspace(graphModel.getWorkspace());
-		try 
-		{
-			ec.exportFile(new File("C:\\graph.gexf"), exporter);
-		}
-		
-		catch (IOException e)
-		{
-			LOG.log(Level.SEVERE, "Exporting GEXF Failed.", e);
-			return;
-		}	
+		final org.gephi.io.exporter.spi.CharacterExporter gexfExporter = (CharacterExporter) ec.getExporter("gexf");
+		gexfExporter.setWorkspace(graphModel.getWorkspace());
+		final StringWriter gexfWriter = new StringWriter();
+		ec.exportWriter(gexfWriter, gexfExporter);
+		final StringReader gexfReader = new StringReader(gexfWriter.toString());
 		LOG.info("GEXF Complete.");
 		
 		LOG.info("Begin PDF...");
-		try 
-		{
-			ec.exportFile(new File("C:\\graph.pdf"));
-		}
-		
-		catch (IOException e) 
-		{
-			LOG.log(Level.SEVERE, "Exporting PDF Failed.", e);
-			return;
-		}
-		
 		final PDFExporter pdfExporter = (PDFExporter) ec.getExporter("pdf");
-		ByteArrayOutputStream baos = new ByteArrayOutputStream();
-		ec.exportStream(baos, pdfExporter);
-		try
-		{
-			baos.flush();
-			baos.close();
-		} 
-		
-		catch (IOException e)
-		{
-			LOG.log(Level.WARNING, "Unable to close the output stream on PDF export.", e);
-		}
-		
+		final ByteArrayOutputStream pdfOutputStream = new ByteArrayOutputStream();
+		ec.exportStream(pdfOutputStream, pdfExporter);	
 		LOG.info("PDF Complete.");
 		
 		LOG.info("Begin PNG...");
-		try 
-		{
-			ec.exportFile(new File("C:\\graph.png"));
-		}
-		
-		catch (IOException e) 
-		{
-			LOG.log(Level.SEVERE, "Exporting PNG Failed.", e);
-			return;
-		}
-		
 		final PNGExporter pngExporter = (PNGExporter) ec.getExporter("png");
 		pngExporter.setTransparentBackground(true);
-		baos = new ByteArrayOutputStream();
-		ec.exportStream(baos, pngExporter);
+		final ByteArrayOutputStream pngOutputStream = new ByteArrayOutputStream();		
+		ec.exportStream(pngOutputStream, pngExporter);
+		LOG.info("PNG Complete.");
+		
+		LOG.info("Begin storing graph to MySql");
 		try
 		{
-			baos.flush();
-			baos.close();
+			Class.forName("com.mysql.jdbc.Driver");
+			final Connection connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/blockviewer?user=root&password=webster&max_allowed_packet=1073741824");	
+			final PreparedStatement ps = connection.prepareStatement("REPLACE INTO `owner` (ownerId, gexf, pdf, png) VALUES (?, ?, ?, ?)");
+			ps.setLong(1, ownerId);
+			ps.setString(2, gexfWriter.toString());
+			ps.setBytes(3, pdfOutputStream.toByteArray());
+			ps.setBytes(4, pngOutputStream.toByteArray());
+			ps.execute();
+			connection.close();
+		}
+		catch (SQLException e)
+		{
+			LOG.log(Level.SEVERE, "Unable to access MySQL database.", e);
+			return;
+		} 
+		
+		catch (ClassNotFoundException e)
+		{
+			LOG.log(Level.SEVERE, "Unable to access MySQL database.", e);
+			return;
+		}	
+		
+		try
+		{
+			gexfReader.close();			
+			pdfOutputStream.flush();
+			pdfOutputStream.close();			
+			pngOutputStream.flush();
+			pngOutputStream.close();
 		} 
 		
 		catch (IOException e)
 		{
 			LOG.log(Level.WARNING, "Unable to close the output stream on PNG export.", e);
 		}
-		LOG.info("PNG Complete.");
 		
-		LOG.info("Begin storing graph to MySql");
-		LOG.info("Storing graph to MySql complete.");
-	
+		LOG.info("Storing graph to MySql complete.");	
 		LOG.info("Exporting Graph To Disk Completed.");		
 	}
 	
@@ -522,9 +577,10 @@ public class GraphExporter
 		try
 		{
 			Class.forName("com.mysql.jdbc.Driver");
-			Connection connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/blockviewer?user=root&password=webster");
-			Statement statement = connection.createStatement();
-			statement.execute("CREATE TABLE IF NOT EXISTS `gexfaddress` (`ownerId` int(11) NOT NULL, `gexf` blob, `time` timestamp NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`ownerId`), UNIQUE KEY `ownerId_UNIQUE` (`ownerId`)) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+			final Connection connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/blockviewer?user=root&password=webster");			
+			final Statement statement = connection.createStatement();
+			statement.execute("CREATE TABLE IF NOT EXISTS `owner` ( `ownerId` int(11) NOT NULL, `gexf` longblob, `pdf` longblob, `png` longblob, `time` timestamp NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`ownerId`), UNIQUE KEY `ownerId_UNIQUE` (`ownerId`)) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+			connection.close();
 		} 
 		
 		catch (SQLException e)
@@ -535,6 +591,22 @@ public class GraphExporter
 		catch (ClassNotFoundException e)
 		{
 			LOG.log(Level.SEVERE, "Unable to access MySQL database.", e);
+		}		
+	}
+	
+	private static class AliasType
+	{
+		private String name;
+		private String source;
+		private String contributor;
+		private String time;
+		
+		AliasType(String name, String source, String contributor, String time)
+		{
+			this.name = name;
+			this.source = source;
+			this.contributor = contributor;
+			this.time = time;			
 		}		
 	}
 }
