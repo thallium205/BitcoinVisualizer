@@ -252,23 +252,28 @@ public class GraphExporter
 		final Ranking nodeDegreeRanking;
 		final AbstractSizeTransformer nodeSizeTransformer = (AbstractSizeTransformer) rankingController.getModel().getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_SIZE);
 		
-		// TODO
-		// This is a bit of a hack.  The start point node is always added to the graph.  Before we actually add it, we need to ensure that it satisfies the filter descirption, if it doesnt, we remove it.
-		boolean startNodeIsValid = false;
-		for (Relationship rel : graphDb.getNodeById(ownerId).getRelationships(OwnerRelTypes.transfers, Direction.BOTH))
+		if (isDateCompare)
 		{
-			Long time = (Long) rel.getProperty("time");
-			if ((time >= from.getTime() / 1000) && (time < to.getTime() / 1000))
+			// TODO
+			// This is a bit of a hack.  The start point node is always added to the graph.  Before we actually add it, we need to ensure that it satisfies the filter description, if it doesnt, we remove it.
+			boolean startNodeIsValid = false;
+			for (Relationship rel : graphDb.getNodeById(ownerId).getRelationships(OwnerRelTypes.transfers, Direction.BOTH))
 			{
-				startNodeIsValid = true;
-				break;				
+				final Long time = (Long) rel.getProperty("time");
+				if ((time >= from.getTime() / 1000) && (time < to.getTime() / 1000))
+				{
+					startNodeIsValid = true;
+					break;				
+				}
+			}
+			
+			if (!startNodeIsValid)
+			{		
+				LOG.info("Removing Starting Node From Graph");
+				graphModel.getGraph().removeNode(graphModel.getGraph().getNode(1));
 			}
 		}
-		
-		if (!startNodeIsValid)
-		{			
-			graphModel.getGraph().removeNode(graphModel.getGraph().getNode(1));
-		}
+
 
 		// We set a degree attribute on each gephi node
 		for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
@@ -435,38 +440,67 @@ public class GraphExporter
 		LOG.info("Setting graph labels and features complete.");
 
 		// Graph Layout
-		LOG.info("Begin graph layout algorithm (Force Atlas 2)...");
-		final ForceAtlas2 layout = new ForceAtlas2(new ForceAtlas2Builder());
-		layout.setGraphModel(graphModel);
-		layout.resetPropertiesValues();
-		layout.setLinLogMode(true);
-		layout.setThreadsCount(threadCount);
-		layout.initAlgo();
-		for (int i = 0; i < 1000 && layout.canAlgo(); i++)
+		if (graphModel.getGraph().getNodeCount() < 10000)
 		{
-			layout.goAlgo();
-		}
+			LOG.info("Begin graph layout algorithm (Force Atlas 2 and Label Adjust)...");
+			final ForceAtlas2 layout = new ForceAtlas2(new ForceAtlas2Builder());
+			layout.setGraphModel(graphModel);
+			layout.resetPropertiesValues();
+			layout.setLinLogMode(true);
+			layout.setThreadsCount(threadCount);
+			layout.initAlgo();
+			for (int i = 0; i < 1000 && layout.canAlgo(); i++)
+			{
+				layout.goAlgo();
+			}
 
-		// We need to prevent graphs from overlapping, but we only do so once the graph is spatialized
-		layout.setAdjustSizes(true);
-		for (int i = 0; i < 100 && layout.canAlgo(); i++)
+			// We need to prevent graphs from overlapping, but we only do so once the graph is spatialized
+			layout.setAdjustSizes(true);
+			for (int i = 0; i < 100 && layout.canAlgo(); i++)
+			{
+				layout.goAlgo();
+			}
+
+			layout.endAlgo();
+
+			// We perform a label adjust to prevent overlapping labels
+			final LabelAdjust labelAdjustLayout = new LabelAdjust(new LabelAdjustBuilder());
+			labelAdjustLayout.setGraphModel(graphModel);
+			for (int i = 0; i < 100 && labelAdjustLayout.canAlgo(); i++)
+			{
+				labelAdjustLayout.goAlgo();
+			}
+
+			labelAdjustLayout.endAlgo();
+
+			LOG.info("Graph layout algorithm complete.");
+		}
+		
+		else
 		{
-			layout.goAlgo();
-		}
-
-		layout.endAlgo();
-
-		// We perform a label adjust to prevent overlapping labels
-		final LabelAdjust labelAdjustLayout = new LabelAdjust(new LabelAdjustBuilder());
-		labelAdjustLayout.setGraphModel(graphModel);
-		for (int i = 0; i < 100 && labelAdjustLayout.canAlgo(); i++)
-		{
-			labelAdjustLayout.goAlgo();
-		}
-
-		labelAdjustLayout.endAlgo();
-
-		LOG.info("Graph layout algorithm complete.");
+			LOG.info("Begin graph layout algorithm (OpenORD)...");
+			final OpenOrdLayout layout = new OpenOrdLayout(new OpenOrdLayoutBuilder());		
+			layout.setGraphModel(graphModel);	
+			layout.resetPropertiesValues();
+			layout.setLiquidStage(25);
+			layout.setExpansionStage(25);		
+			layout.setCooldownStage(25);		
+			layout.setCrunchStage(10);
+			layout.setSimmerStage(15);		
+			layout.setEdgeCut(.8f);
+			layout.setNumThreads(1); // TODO Setting more threads slows it down considerably
+			layout.setNumIterations(10);
+			layout.setRealTime(.2f);		
+			layout.setRandSeed(new Random().nextLong());		
+			layout.initAlgo();		
+			for (int i = 0; i < 100 && layout.canAlgo(); i++) 
+			{
+				System.out.print(" " + i);
+				layout.goAlgo();
+			}
+			layout.endAlgo();
+			LOG.info("Graph layout algorithm complete.");
+		}		
 
 		// Statistics
 		if (isDateCompare && graphModel.getGraph().getNodeCount() > 0)
