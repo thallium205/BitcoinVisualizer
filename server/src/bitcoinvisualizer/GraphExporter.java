@@ -22,6 +22,10 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.Properties;
 import java.util.Random;
+import java.util.Vector;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -108,9 +112,9 @@ public class GraphExporter
 	public static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
 	public static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
 	private static Index<Node> owned_addresses;
-	private final static Neo4jImporter IMPORTER = new Neo4jImporterImpl();
+	public enum ExportType { GEXF, PDF, PNG }	
 
-	public static void ExportOwnersAndDaysToMysql(final GraphDatabaseAPI graphDb, final int threadCount)
+	public static void ExportTimeAnalysisGraphsToMySql(final GraphDatabaseAPI graphDb, final int threadCount)
 	{
 		try
 		{
@@ -118,19 +122,6 @@ public class GraphExporter
 			final Connection sqlDb = DriverManager.getConnection("jdbc:mysql://localhost:3306/blockviewer?user=root&password=webster");
 			SetupMysql(sqlDb);
 			
-			// Export Owners 			
-			owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH); 
-			HashSet<Long> owners = new HashSet<Long>(); 
-			for (Node node : owned_addresses.query("*:*")) 
-			{ 
-				Long ownerId = node.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId(); 
-				if (owners.add(ownerId)) 
-				{ 
-					ExportAtOwnerId(sqlDb, graphDb, threadCount, ownerId);
-				}
-			}		 
-
-			// Export Days
 			Double lastDay = null;
 			Date from = null;
 			Date to = null;
@@ -164,38 +155,35 @@ public class GraphExporter
 			final Date lastTime = new Date(((Long) graphDb.getNodeById((((Long) graphDb.getNodeById(0).getProperty("last_linked_owner_build_block_nodeId")))).getProperty("received_time")) * 1000);
 			while (!to.after(lastTime))
 			{
-				ExportBetweenTwoDates(sqlDb, graphDb, threadCount, from, to);
+				Export(sqlDb, graphDb, null, from, to, null, threadCount);
 				from = to;
 				cal.setTime(to);
 				cal.add(Calendar.DATE, 1);
 				to = cal.getTime();
 			}
-		}
-
-		catch (SQLException e)
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
 		} 
 		
 		catch (ClassNotFoundException e)
 		{
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}
+		} 
+		
+		catch (SQLException e)
+		{
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}		
 	}
 
-	private static void ExportBetweenTwoDates(final Connection sqlDb, final GraphDatabaseAPI graphDb, final int threadCount, final Date from, final Date to)
+	public static String GetOwnerByAddress(final GraphDatabaseAPI graphDb, final String address, final ExportType exportType)
 	{
-		Export(sqlDb, graphDb, threadCount, null, from, to);
+		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH); 
+		final long ownerId = owned_addresses.query(OWNED_ADDRESS_HASH_KEY, address).getSingle().getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId();		
+		return Export(null, graphDb, ownerId, null, null, exportType, 1);
 	}
 
-	private static void ExportAtOwnerId(final Connection sqlDb, final GraphDatabaseAPI graphDb, final int threadCount, final Long ownerId)
-	{
-		Export(sqlDb, graphDb, threadCount, ownerId, null, null);
-	}
-
-	private static void Export(final Connection sqlDb, final GraphDatabaseAPI graphDb, final int threadCount, Long ownerId, final Date from, final Date to)
+	private static String Export(final Connection sqlDb, final GraphDatabaseAPI graphDb, Long ownerId, final Date from, final Date to, final ExportType exportType, final int threadCount)
 	{
 		boolean isDateCompare;
 		LOG.info("Begin Building GEXF from Neo4j");
@@ -212,6 +200,7 @@ public class GraphExporter
 		}
 
 		// We export the entire graph between the two dates
+		final Neo4jImporter importer = new Neo4jImporterImpl();
 		if (isDateCompare)
 		{
 			assert (from != null && to != null);
@@ -222,7 +211,8 @@ public class GraphExporter
 			final Collection<FilterDescription> edgeFilterDescription = new ArrayList<FilterDescription>();
 			edgeFilterDescription.add(new FilterDescription("time", FilterOperator.GREATER_OR_EQUALS, Long.toString(from.getTime() / 1000)));
 			edgeFilterDescription.add(new FilterDescription("time", FilterOperator.LESS, Long.toString(to.getTime() / 1000)));
-			IMPORTER.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, Integer.MAX_VALUE, relationshipDescription, Collections.<FilterDescription> emptyList(), edgeFilterDescription, true, true);
+			importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, Integer.MAX_VALUE, relationshipDescription, Collections.<FilterDescription> emptyList(), edgeFilterDescription,
+					true, true);
 		}
 
 		// We export a one-hop graph from the address
@@ -233,7 +223,7 @@ public class GraphExporter
 			LOG.info("Importing Ownership Network from Neo4j Database Starting With Node: " + ownerId + " ...");
 			final Collection<RelationshipDescription> relationshipDescription = new ArrayList<RelationshipDescription>();
 			relationshipDescription.add(new RelationshipDescription(GraphBuilder.OwnerRelTypes.transfers, Direction.BOTH));
-			IMPORTER.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, 1, relationshipDescription);
+			importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, 1, relationshipDescription);
 		}
 
 		// Grab the graph that was loaded from the importer
@@ -241,6 +231,12 @@ public class GraphExporter
 		final DirectedGraph graph = graphModel.getDirectedGraph();
 		AttributeModel attributeModel = Lookup.getDefault().lookup(AttributeController.class).getModel();
 		LOG.info("Graph Imported.  Nodes: " + graph.getNodeCount() + " Edges: " + graph.getEdgeCount());
+
+		if (!isDateCompare && graph.getNodeCount() > 100000)
+		{
+			LOG.warning("The graph is being skipped because it contains over 100,000 nodes.");
+			return null;
+		}
 
 		LOG.info("Setting graph labels and features...");
 		// Ranking
@@ -251,11 +247,12 @@ public class GraphExporter
 		// Node Size (Gephi can be used to build degree ranking on time span queries, but neo4j needs to be queried to find node degree on address specific queries)
 		final Ranking nodeDegreeRanking;
 		final AbstractSizeTransformer nodeSizeTransformer = (AbstractSizeTransformer) rankingController.getModel().getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_SIZE);
-		
+
 		if (isDateCompare)
 		{
 			// TODO
-			// This is a bit of a hack.  The start point node is always added to the graph.  Before we actually add it, we need to ensure that it satisfies the filter description, if it doesnt, we remove it.
+			// This is a bit of a hack. The start point node is always added to the graph. Before we actually add it, we need to ensure that it satisfies the filter description, if it doesnt, we
+			// remove it.
 			boolean startNodeIsValid = false;
 			for (Relationship rel : graphDb.getNodeById(ownerId).getRelationships(OwnerRelTypes.transfers, Direction.BOTH))
 			{
@@ -263,17 +260,16 @@ public class GraphExporter
 				if ((time >= from.getTime() / 1000) && (time < to.getTime() / 1000))
 				{
 					startNodeIsValid = true;
-					break;				
+					break;
 				}
 			}
-			
+
 			if (!startNodeIsValid)
-			{		
+			{
 				LOG.info("Removing Starting Node From Graph");
 				graphModel.getGraph().removeNode(graphModel.getGraph().getNode(1));
 			}
 		}
-
 
 		// We set a degree attribute on each gephi node
 		for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
@@ -284,13 +280,13 @@ public class GraphExporter
 			if (label instanceof String)
 			{
 				neoNode = graphDb.getNodeById(Long.parseLong((String) label));
-			} 
-			
+			}
+
 			else if (label instanceof Long)
 			{
 				neoNode = graphDb.getNodeById((Long) label);
 			}
-			
+
 			else
 			{
 				throw new ClassCastException();
@@ -336,7 +332,7 @@ public class GraphExporter
 			node.getAttributes().setValue("Total Outgoing Amount", totalOutgoingAmount.doubleValue() / 100000000);
 
 			// Current Balance
-			node.getAttributes().setValue("Current Balance", (Double) node.getAttributes().getValue("Total Incoming Amount") - (Double) node.getAttributes().getValue("Total Outgoing Amount"));
+			// node.getAttributes().setValue("Current Balance", (Double) node.getAttributes().getValue("Total Incoming Amount") - (Double) node.getAttributes().getValue("Total Outgoing Amount"));
 
 			// First Time & Last Time Sent
 			final ArrayList<Long> times = new ArrayList<Long>();
@@ -344,8 +340,12 @@ public class GraphExporter
 			{
 				times.add((Long) rel.getProperty("time"));
 			}
-			node.getAttributes().setValue("First Transfer Time", Collections.min(times));
-			node.getAttributes().setValue("Last Transfer Time", Collections.max(times));
+
+			if (times.size() > 0)
+			{
+				node.getAttributes().setValue("First Transfer Time", Collections.min(times));
+				node.getAttributes().setValue("Last Transfer Time", Collections.max(times));
+			}
 
 			// Date
 			node.getAttributes().setValue("Last Block Calculated", graphDb.getNodeById(((Long) graphDb.getNodeById(0).getProperty("last_linked_owner_build_block_nodeId"))).getProperty("height"));
@@ -420,13 +420,13 @@ public class GraphExporter
 			if (label instanceof String)
 			{
 				edge.getEdgeData().setLabel(Double.toString(((Long) graphDb.getRelationshipById(Long.parseLong((String) label)).getProperty("value")).doubleValue() / 100000000));
-			} 
-			
+			}
+
 			else if (label instanceof Long)
 			{
 				edge.getEdgeData().setLabel(Double.toString(((Long) graphDb.getRelationshipById((Long) label).getProperty("value")).doubleValue() / 100000000));
-			} 
-			
+			}
+
 			else
 			{
 				throw new ClassCastException();
@@ -440,67 +440,38 @@ public class GraphExporter
 		LOG.info("Setting graph labels and features complete.");
 
 		// Graph Layout
-		if (graphModel.getGraph().getNodeCount() < 10000)
+		LOG.info("Begin graph layout algorithm (Force Atlas 2 and Label Adjust)...");
+		final ForceAtlas2 layout = new ForceAtlas2(new ForceAtlas2Builder());
+		layout.setGraphModel(graphModel);
+		layout.resetPropertiesValues();
+		layout.setLinLogMode(true);
+		layout.setThreadsCount(threadCount);
+		layout.initAlgo();
+		for (int i = 0; i < 1000 && layout.canAlgo(); i++)
 		{
-			LOG.info("Begin graph layout algorithm (Force Atlas 2 and Label Adjust)...");
-			final ForceAtlas2 layout = new ForceAtlas2(new ForceAtlas2Builder());
-			layout.setGraphModel(graphModel);
-			layout.resetPropertiesValues();
-			layout.setLinLogMode(true);
-			layout.setThreadsCount(threadCount);
-			layout.initAlgo();
-			for (int i = 0; i < 1000 && layout.canAlgo(); i++)
-			{
-				layout.goAlgo();
-			}
-
-			// We need to prevent graphs from overlapping, but we only do so once the graph is spatialized
-			layout.setAdjustSizes(true);
-			for (int i = 0; i < 100 && layout.canAlgo(); i++)
-			{
-				layout.goAlgo();
-			}
-
-			layout.endAlgo();
-
-			// We perform a label adjust to prevent overlapping labels
-			final LabelAdjust labelAdjustLayout = new LabelAdjust(new LabelAdjustBuilder());
-			labelAdjustLayout.setGraphModel(graphModel);
-			for (int i = 0; i < 100 && labelAdjustLayout.canAlgo(); i++)
-			{
-				labelAdjustLayout.goAlgo();
-			}
-
-			labelAdjustLayout.endAlgo();
-
-			LOG.info("Graph layout algorithm complete.");
+			layout.goAlgo();
 		}
-		
-		else
+
+		// We need to prevent graphs from overlapping, but we only do so once the graph is spatialized
+		layout.setAdjustSizes(true);
+		for (int i = 0; i < 100 && layout.canAlgo(); i++)
 		{
-			LOG.info("Begin graph layout algorithm (OpenORD)...");
-			final OpenOrdLayout layout = new OpenOrdLayout(new OpenOrdLayoutBuilder());		
-			layout.setGraphModel(graphModel);	
-			layout.resetPropertiesValues();
-			layout.setLiquidStage(25);
-			layout.setExpansionStage(25);		
-			layout.setCooldownStage(25);		
-			layout.setCrunchStage(10);
-			layout.setSimmerStage(15);		
-			layout.setEdgeCut(.8f);
-			layout.setNumThreads(1); // TODO Setting more threads slows it down considerably
-			layout.setNumIterations(10);
-			layout.setRealTime(.2f);		
-			layout.setRandSeed(new Random().nextLong());		
-			layout.initAlgo();		
-			for (int i = 0; i < 100 && layout.canAlgo(); i++) 
-			{
-				System.out.print(" " + i);
-				layout.goAlgo();
-			}
-			layout.endAlgo();
-			LOG.info("Graph layout algorithm complete.");
-		}		
+			layout.goAlgo();
+		}
+
+		layout.endAlgo();
+
+		// We perform a label adjust to prevent overlapping labels
+		final LabelAdjust labelAdjustLayout = new LabelAdjust(new LabelAdjustBuilder());
+		labelAdjustLayout.setGraphModel(graphModel);
+		for (int i = 0; i < 100 && labelAdjustLayout.canAlgo(); i++)
+		{
+			labelAdjustLayout.goAlgo();
+		}
+
+		labelAdjustLayout.endAlgo();
+
+		LOG.info("Graph layout algorithm complete.");
 
 		// Statistics
 		if (isDateCompare && graphModel.getGraph().getNodeCount() > 0)
@@ -584,68 +555,90 @@ public class GraphExporter
 
 		// Export
 		LOG.info("Begin Exporting Graph To Disk...");
+		String response = null; // TODO uglyyyyyyyyy.  Create a wrapped output manager object
 		final ExportController ec = Lookup.getDefault().lookup(ExportController.class);
-
-		LOG.info("Begin GEXF...");
-		final org.gephi.io.exporter.spi.CharacterExporter gexfExporter = (CharacterExporter) ec.getExporter("gexf");
-		gexfExporter.setWorkspace(graphModel.getWorkspace());
 		final StringWriter gexfWriter = new StringWriter();
-		ec.exportWriter(gexfWriter, gexfExporter);
-		final StringReader gexfReader = new StringReader(gexfWriter.toString());
-		LOG.info("GEXF Complete.");
-
-		LOG.info("Begin PDF...");
-		final PDFExporter pdfExporter = (PDFExporter) ec.getExporter("pdf");
 		final ByteArrayOutputStream pdfOutputStream = new ByteArrayOutputStream();
-		ec.exportStream(pdfOutputStream, pdfExporter);
-		LOG.info("PDF Complete.");
-
-		LOG.info("Begin PNG...");
-		final PNGExporter pngExporter = (PNGExporter) ec.getExporter("png");
-		pngExporter.setTransparentBackground(true);
 		final ByteArrayOutputStream pngOutputStream = new ByteArrayOutputStream();
-		ec.exportStream(pngOutputStream, pngExporter);
-		LOG.info("PNG Complete.");
+		
+		if (isDateCompare || exportType == ExportType.GEXF)
+		{
+			LOG.info("Begin GEXF...");
+			final org.gephi.io.exporter.spi.CharacterExporter gexfExporter = (CharacterExporter) ec.getExporter("gexf");
+			gexfExporter.setWorkspace(graphModel.getWorkspace());
+			ec.exportWriter(gexfWriter, gexfExporter);
+			LOG.info("GEXF Complete.");
+		}
 
-		LOG.info("Begin storing graph to MySql");
+		if (isDateCompare || exportType == ExportType.PDF)
+		{
+			LOG.info("Begin PDF...");
+			final PDFExporter pdfExporter = (PDFExporter) ec.getExporter("pdf");
+			ec.exportStream(pdfOutputStream, pdfExporter);
+			LOG.info("PDF Complete.");
+		}
+
+
+		if (isDateCompare || exportType == ExportType.PNG)
+		{
+			LOG.info("Begin PNG...");
+			final PNGExporter pngExporter = (PNGExporter) ec.getExporter("png");
+			pngExporter.setTransparentBackground(true);
+			ec.exportStream(pngOutputStream, pngExporter);
+			LOG.info("PNG Complete.");
+		}		
 
 		if (isDateCompare)
 		{
 			try
 			{
+				LOG.info("Begin storing graph to MySql...");
 				final PreparedStatement ps = sqlDb.prepareStatement("INSERT INTO `day` (graphTime, gexf, pdf, png) VALUES (?, ?, ?, ?)");
 				ps.setLong(1, from.getTime() / 1000);
 				ps.setString(2, gexfWriter.toString());
 				ps.setBytes(3, pdfOutputStream.toByteArray());
 				ps.setBytes(4, pngOutputStream.toByteArray());
 				ps.execute();
-			} catch (SQLException e)
+				LOG.info("Storing graph to MySql complete.");
+			}
+
+			catch (SQLException e)
 			{
 				LOG.log(Level.SEVERE, "Unable to access MySQL database.", e);
-				return;
+				return null;
 			}
 		}
 
-		else
+		else			
 		{
-			try
+			// TODO - UGLY UGLY UGLY
+			LOG.info("Exporting to memory...");			
+			
+			if (exportType == ExportType.GEXF)
 			{
-				final PreparedStatement ps = sqlDb.prepareStatement("REPLACE INTO `owner` (ownerId, gexf, pdf, png) VALUES (?, ?, ?, ?)");
-				ps.setLong(1, ownerId);
-				ps.setString(2, gexfWriter.toString());
-				ps.setBytes(3, pdfOutputStream.toByteArray());
-				ps.setBytes(4, pngOutputStream.toByteArray());
-				ps.execute();
-			} catch (SQLException e)
-			{
-				LOG.log(Level.SEVERE, "Unable to access MySQL database.", e);
-				return;
+				response = gexfWriter.toString();
 			}
+			
+			else if (exportType == ExportType.PDF)
+			{
+				response = pdfOutputStream.toString();
+			}
+			
+			else if (exportType == ExportType.PNG)
+			{
+				response = pngOutputStream.toString();
+			}
+			
+			else
+			{
+				LOG.severe("No export type defined for export.");
+				response = null;
+			}
+			
 		}
 
 		try
 		{
-			gexfReader.close();
 			pdfOutputStream.flush();
 			pdfOutputStream.close();
 			pngOutputStream.flush();
@@ -657,9 +650,12 @@ public class GraphExporter
 			LOG.log(Level.WARNING, "Unable to close the output stream on PNG export.", e);
 		}
 
-		LOG.info("Storing graph to MySql complete.");
+
 		LOG.info("Exporting Graph To Disk Completed.");
+		return response;
 	}
+		
+
 
 	/**
 	 * Sets up a mysql database and builds the tables.

@@ -20,6 +20,8 @@ import org.neo4j.kernel.GraphDatabaseAPI;
 import org.neo4j.kernel.HighlyAvailableGraphDatabase;
 import org.neo4j.server.WrappingNeoServerBootstrapper;
 
+import bitcoinvisualizer.api.GraphExporterNodejsApi;
+
 public class Main
 {
 	private static final java.util.logging.Logger LOG = Logger.getLogger(Main.class.getName());
@@ -83,14 +85,14 @@ public class Main
 					validate = Boolean.parseBoolean(line.getOptionValue("validate"));
 				if (!GraphBuilder.IsStarted())
 				{
-					GraphBuilder.StartDatabase(graphDb);
+					// GraphBuilder.StartDatabase(graphDb);
 				}
 
 				if (!line.hasOption("client"))
 				{
 					try
 					{
-						GraphBuilder.DownloadAndSaveBlockChain(validate);
+						// GraphBuilder.DownloadAndSaveBlockChain(validate);	
 						
 						if (line.hasOption("high"))
 						{
@@ -103,11 +105,16 @@ public class Main
 							GraphBuilder.Scrape();
 						}
 						
-						// If the user activated the exporter
 						if (line.hasOption("exporter"))
 						{
 							int cores = Runtime.getRuntime().availableProcessors();			
-							GraphExporter.ExportOwnersAndDaysToMysql(graphDb, cores > 1 ? cores - 1 : cores);
+							GraphExporter.ExportTimeAnalysisGraphsToMySql(graphDb, cores > 1 ? cores - 1 : cores);
+						}
+						
+						// If the user activated the exporter server
+						if (line.hasOption("api"))
+						{
+							GraphExporterNodejsApi api = new GraphExporterNodejsApi(graphDb);
 						}
 					} 
 					
@@ -122,13 +129,6 @@ public class Main
 			catch (ParseException e)
 			{
 				LOG.log(Level.SEVERE, "Parsing failed.  Reason: " + e.getMessage(), e);
-				hasError = true;
-				// GraphBuilder.StopDatabase();
-			} 
-			
-			catch (IOException e)
-			{
-				LOG.log(Level.SEVERE, "Could not find files.  Reason: " + e.getMessage(), e);
 				hasError = true;
 				// GraphBuilder.StopDatabase();
 			}
@@ -179,7 +179,8 @@ public class Main
 		Option scraper = OptionBuilder.withArgName("scraper").withDescription("Runs the scraper which attempts to associate bitcoin addresses to real world entities.").create("scraper");
 		Option high = OptionBuilder.withArgName("high").withDescription("Builds the high level data structure.").create("high");
 		Option client = OptionBuilder.withArgName("client").withDescription("Will only run the database service and not attempt to build the blockchain.").create("client");
-		Option exporter = OptionBuilder.withArgName("exporter").withDescription("Exports the database to MySQL.").create("exporter");
+		Option api = OptionBuilder.withArgName("api").withDescription("Creates the exporter server to communicate with an external web server.").create("api");
+		Option timeAnalysis = OptionBuilder.withArgName("timeanalysis").withDescription("Exports a time based analysis of the entire block chain to mysql").create("timeanalysis");
 		Option time = OptionBuilder.hasArg().withArgName("time").withDescription("The amount of time the program will wait before rebuilding an updated version of the graph again.").create("time");
 		Option statistics = OptionBuilder.withArgName("statistics").withDescription("Prints a CSV file in the current directory with some statistics on the block chain.").create("statistics");
 		
@@ -190,7 +191,8 @@ public class Main
 		options.addOption(scraper);
 		options.addOption(high);
 		options.addOption(client);
-		options.addOption(exporter);
+		options.addOption(api);
+		options.addOption(timeAnalysis);
 		options.addOption(time);
 		options.addOption(statistics);
 		return options;

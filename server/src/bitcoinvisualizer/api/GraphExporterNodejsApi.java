@@ -1,0 +1,66 @@
+package bitcoinvisualizer.api;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Properties;
+
+import org.gephi.layout.plugin.openord.Params;
+import org.neo4j.kernel.GraphDatabaseAPI;
+
+import bitcoinvisualizer.GraphExporter;
+
+public class GraphExporterNodejsApi extends NanoHTTPD
+{
+	final GraphDatabaseAPI graphDb;
+
+	public GraphExporterNodejsApi(final GraphDatabaseAPI graphDb) throws IOException
+	{		
+		super(8080, new File("."));
+		this.graphDb = graphDb;
+	}
+	
+	public Response serve( String uri, String method, Properties header, Properties parms, Properties files )
+	{	
+		if (method.contains("GET"))
+		{
+			if (uri.contains("/owner"))
+			{
+				if (parms.containsKey("addr"))
+				{
+					if (uri.contains("/owner/gexf"))
+					{
+						return new NanoHTTPD.Response( HTTP_OK, MIME_DEFAULT_BINARY, "{\"gexf\": \"" + GraphExporter.GetOwnerByAddress(graphDb, parms.getProperty("addr"), GraphExporter.ExportType.GEXF) + "\"}");
+					}
+					
+					else if (uri.contains("/owner/pdf"))
+					{
+						return new NanoHTTPD.Response( HTTP_OK, MIME_DEFAULT_BINARY, "{\"pdf\": \"" + GraphExporter.GetOwnerByAddress(graphDb, parms.getProperty("addr"), GraphExporter.ExportType.PDF) + "\"}");	
+					}
+					
+					else if (uri.contains("/owner/png"))
+					{
+						return new NanoHTTPD.Response( HTTP_OK, MIME_DEFAULT_BINARY, "{\"png\": \"" + GraphExporter.GetOwnerByAddress(graphDb, parms.getProperty("addr"), GraphExporter.ExportType.PNG) + "\"}");
+					}
+					
+					else 
+					{
+						return new NanoHTTPD.Response( HTTP_OK, MIME_PLAINTEXT, "{\"error\": \"Only GEXF, PDF, and PNG file types are supported.}\"");
+					}
+				}
+				else
+				{
+					return new NanoHTTPD.Response( HTTP_OK, MIME_PLAINTEXT, "{\"error\": \"Owner requires an address.}\"");
+				}
+			}
+			else
+			{
+				return new NanoHTTPD.Response( HTTP_OK, MIME_PLAINTEXT, "{\"error\": \"The owner endpoint is only available.}\"");
+				// Owner endpoint is the only one exposed at this time
+			}
+		}
+		else
+		{
+			return new NanoHTTPD.Response( HTTP_OK, MIME_PLAINTEXT, "{\"error\": \"GETs only.}\"");
+		}
+	}
+}
