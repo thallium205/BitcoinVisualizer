@@ -29,6 +29,7 @@ import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.apache.commons.codec.binary.Base64;
 import org.gephi.data.attributes.api.AttributeColumn;
 import org.gephi.data.attributes.api.AttributeController;
 import org.gephi.data.attributes.api.AttributeModel;
@@ -180,6 +181,11 @@ public class GraphExporter
 	{
 		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH); 
 		final long ownerId = owned_addresses.query(OWNED_ADDRESS_HASH_KEY, address).getSingle().getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId();		
+		return Export(null, graphDb, ownerId, null, null, exportType, 1);
+	}
+	
+	public static String GetOwnerById(final GraphDatabaseAPI graphDb, final Long ownerId, final ExportType exportType)
+	{		
 		return Export(null, graphDb, ownerId, null, null, exportType, 1);
 	}
 
@@ -621,12 +627,12 @@ public class GraphExporter
 			
 			else if (exportType == ExportType.PDF)
 			{
-				response = pdfOutputStream.toString();
+				response = Base64.encodeBase64String(pdfOutputStream.toByteArray());
 			}
 			
 			else if (exportType == ExportType.PNG)
 			{
-				response = pngOutputStream.toString();
+				response = Base64.encodeBase64String(pngOutputStream.toByteArray());
 			}
 			
 			else
