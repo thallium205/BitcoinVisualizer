@@ -28,10 +28,13 @@ public class Main
 	private static GraphDatabaseAPI graphDb;
 	private static WrappingNeoServerBootstrapper srv;
 	private static Thread shutdownThread;
+	private static GraphExporterNodejsApi api = null;;
 	
 
 	public static void main(String[] args)
 	{
+		
+		
 		CommandLine line = null;
 		boolean hasError = false;
 
@@ -92,11 +95,11 @@ public class Main
 				{
 					try
 					{
-						GraphBuilder.DownloadAndSaveBlockChain(validate);	
+						// GraphBuilder.DownloadAndSaveBlockChain(validate);	
 						
 						if (line.hasOption("high"))
 						{
-							GraphBuilder.BuildHighLevelGraph();
+							// GraphBuilder.BuildHighLevelGraph();
 						}
 
 						// If the user activated the scraper
@@ -114,7 +117,10 @@ public class Main
 						// If the user activated the exporter server
 						if (line.hasOption("api"))
 						{
-							GraphExporterNodejsApi api = new GraphExporterNodejsApi(graphDb);
+							if (api == null)
+							{
+								 api = new GraphExporterNodejsApi(graphDb);
+							}
 						}
 					} 
 					

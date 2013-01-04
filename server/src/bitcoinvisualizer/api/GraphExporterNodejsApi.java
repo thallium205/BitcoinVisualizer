@@ -3,20 +3,22 @@ package bitcoinvisualizer.api;
 import java.io.File;
 import java.io.IOException;
 import java.util.Properties;
+import java.util.logging.Logger;
 
-import org.gephi.layout.plugin.openord.Params;
 import org.neo4j.kernel.GraphDatabaseAPI;
 
 import bitcoinvisualizer.GraphExporter;
 
 public class GraphExporterNodejsApi extends NanoHTTPD
 {
+	private static final Logger LOG = Logger.getLogger(GraphExporter.class.getName());
 	final GraphDatabaseAPI graphDb;
 
 	public GraphExporterNodejsApi(final GraphDatabaseAPI graphDb) throws IOException
-	{		
+	{			
 		super(7475, new File("."));
 		this.graphDb = graphDb;
+		LOG.info("API Server Running on Port 7475.");
 	}
 	
 	public Response serve( String uri, String method, Properties header, Properties parms, Properties files )

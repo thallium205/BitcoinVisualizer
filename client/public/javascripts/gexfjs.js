@@ -383,18 +383,40 @@ function initializeMap() {
     });
     GexfJS.timeRefresh = setInterval(traceMap,60);
     GexfJS.graph = null;
-    loadGraph();
+    // loadGraph(); // TODO url of the day?
 }
 
-function loadGraph() {
+
+function loadGraph(ownerOrAddr) {	
+	var isOwner = false;
+	var url = null;
+	if (!ownerOrAddr) {
+		ownerOrAddr = document.location.hash.length > 1 ? document.location.hash.substr(1) : null;
+	} else {
+		document.location.hash = ownerOrAddr;
+	}	
+	
+	if (ownerOrAddr !== null) {
+		if (/^\d+$/.test(ownerOrAddr)) {
+			isOwner = true;			
+		}		
+	} else {
+		return;
+	}
+	
+	if (isOwner) {
+		url = "owner/id/" + ownerOrAddr + "/gexf";
+	} else {
+		url = "owner/addr/" + ownerOrAddr + "/gexf";
+	}
     
     $.ajax({
-        url: ( document.location.hash.length > 1 ? document.location.hash.substr(1) : GexfJS.params.graphFile ),
+        url: (url),
         dataType: "xml",
         success: function(data) {
             var _s = new Date();
             var _g = $(data).find("graph"),
-                _nodes = _g.children().filter("nodes").children(),
+                _nodes = _g.children().filter("nodes").children();
                 _edges = _g.children().filter("edges").children();
             GexfJS.graph = {
                 directed : ( _g.attr("defaultedgetype") == "directed" ),
@@ -866,12 +888,18 @@ $(document).ready(function() {
                 return false;
             }
         });
-    $("#recherche").submit(function() {
+    $("#graphsearchform").submit(function() {
         if (GexfJS.graph) {
             displayNode( GexfJS.graph.nodeIndexByLabel.indexOf($("#graphsearch").val().toLowerCase()), true);
         }
         return false;
-    });
+    });	
+	
+	$("#networksearchform").submit(function() {
+		loadGraph($("#networksearch").val());
+        return false;
+    });	
+	
     $("#carte")
         .mousemove(onGraphMove)
         .click(onGraphClick)
