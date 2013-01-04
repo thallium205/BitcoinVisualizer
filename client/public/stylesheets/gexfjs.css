@@ -32,7 +32,7 @@ h1 {
 }
 
 h1 a {
-    background: url(../img/gephi.png) no-repeat;
+    background: url(../images/gephi.png) no-repeat;
     color: #208020;
     display: block;
     height:45px;
@@ -41,8 +41,8 @@ h1 a {
     width: 195px;
 }
 
-#searchinput {
-    background: #fff url(../img/search.gif) no-repeat right;
+#graphsearch {
+    background: #fff url(../images/search.gif) no-repeat right;
     border: 1px solid #DDD;
     font-size: 14px; line-height: 14px, height: 14px;
     left: 250px;
@@ -52,16 +52,12 @@ h1 a {
     width: 320px;
 }
 
-#searchinput:focus, #searchinput:active {
+#graphsearch:focus, #graphsearch:active {
     border-color:#aaa;
 }
 
 #searchsubmit {
     position: absolute; left: 560px; top: 13px; width: 20px; height: 20px; margin: 0; padding: 0; height: 16px; border: none; background: none; text-indent: -999px; cursor: pointer; cursor: hand;
-}
-
-.grey {
-    color: #cccccc; font-style: italic;
 }
 
 /* AU CENTRE */
@@ -90,7 +86,7 @@ h1 a {
 }
 
 #zoomMinusButton, #zoomPlusButton {
-    display: block; width: 24px; height: 24px; background:url(../img/plusmoins.png);  margin: 0 auto;
+    display: block; width: 24px; height: 24px; background:url(../images/plusmoins.png);  margin: 0 auto;
 }
 
 #zoomMinusButton {
@@ -110,7 +106,7 @@ h1 a {
 }
 
 #lensButton, #edgesButton {
-    display: block; width: 36px; height: 36px; background:url(../img/loupe-edges.png); margin: 0 auto;
+    display: block; width: 36px; height: 36px; background:url(../images/loupe-edges.png); margin: 0 auto;
 }
 
 #lensButton {
@@ -172,7 +168,7 @@ h1 a {
 }
 
 #aUnfold {
-    float: left; width: 12px; height: 12px; background-image: url(../img/fleches-horiz.png);
+    float: left; width: 12px; height: 12px; background-image: url(../images/fleches-horiz.png);
 }
 
 .leftarrow {

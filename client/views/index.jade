@@ -1,47 +1,73 @@
-head
-	include ../includes/blockviewer	
-	script
-		var _gaq = _gaq || [];
-		_gaq.push(['_setAccount', 'UA-34348879-1']);
-		_gaq.push(['_trackPageview']);
+doctype 5
+html.
+	<head>
+		<title>Gephi: JavaScript GEXF Viewer</title>
+		<meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+		<link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.2.2/css/bootstrap-combined.min.css" rel="stylesheet">
+		<link rel="stylesheet" type="text/css" href="stylesheets/gexfjs.css" />
+		<link rel="stylesheet" type="text/css" href="stylesheets/jquery-ui.css" />	
+		<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+		<script src="//netdna.bootstrapcdn.com/twitter-bootstrap/2.2.2/js/bootstrap.min.js"></script>
+		<script type="text/javascript" src="javascripts/jquery.mousewheel.min.js"></script>
+		<script type="text/javascript" src="javascripts/jquery-ui-1.8.16.custom.min.js"></script>
+		<script type="text/javascript" src="javascripts/gexfjs.js"></script>
+		<script type="text/javascript" src="javascripts/config.js"></script>
+		<script type="text/javascript" src="javascripts/analytics.js"></script>
+	</head>
+	<body>
+		<div class="navbar" id="titlebar">
+			<div class="navbar-inner">
+				<div class="container">
+					<a class="brand" href="#">Block Viewer</a>
+					<ul class="nav">
+						<li class="active"><a href="#">Home</a></li>
+						<li><a href="#">Link</a></li>
+						<li><a href="#">Link</a></li>
+					</ul>
+					<div class="pull-left">
+						<p class="navbar-text">Donate!<p>
+					</div>
+
+					<form class="navbar-search pull-left form-inline">
+						<input type="text" placeholder="Owner Id - Search the Graph" class="search-query" id="graphsearch"/>			
+					</form>					
+					
+					<form class="navbar-search pull-right form-inline">
+						<input type="text" style="width:500px" class="search-query" placeholder="Bitcoin Address - Search the Network">						
+					</form>					
+				</div>
+			</div>
+		</div>			
+		<div id="zonecentre" class="gradient">
+			<canvas id="carte" width="0" height="0"></canvas>
+			<ul id="ctlzoom">
+				<li>
+					<a href="#" id="zoomPlusButton" title="S'approcher"> </a>
+				</li>
+				<li id="zoomSliderzone">
+					<div id="zoomSlider"></div>
+				</li>
+				<li>
+					<a href="#" id="zoomMinusButton" title="S'éloigner"> </a>
+				</li>
+				<li>
+					<a href="#" id="lensButton"> </a>
+				</li>
+				<li>
+					<a href="#" id="edgesButton"> </a>
+				</li>
+			</ul>
+		</div>
+		<div id="overviewzone" class="gradient">
+			<canvas id="overview" width="0" height="0"></canvas>
+		</div>
+		<div id="leftcolumn">
+			<div id="unfold">
+				<a href="#" id="aUnfold" class="rightarrow"> </a>
+			</div>
+			<div id="leftcontent"></div>
+		</div>
 		
-		(function() {
-		var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
-		ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
-		var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
-		})();
-body
-	div.navbar#titlebar
-		div.navbar-inner
-			div.container
-				a(href='#').brand Block Viewer
-				ul.nav
-					li
-						a(href='#') FAQ
-					li  
-						a(href='#') API
-					li
-						a(href='#') Run Your Own Query
-				div.pull-left
-					p.navbar-text Donate: 14gZTuHA4xa4gJQBubn5fj3b4D4QHEDdwY				
-				form.navbar-search.pull-right.form-inline#recherche
-					input(type='text')(placeholder='Search by a Bitcoin address here')(style='width:500px').search-query#txtInput
-	div.gradient#zonecentre
-		canvas(width='0')(height='0')#carte
-		ul#ctlzoom
-			li
-				a(href='')(title='Zoom In')#zoomPlusButton
-			li#zoomSliderzone
-				div#zoomSlider
-			li
-				a(href='#')(title='Zoom Out')#zoomMinusButton
-			li
-				a(href='#')#lensButton
-			li
-				a(href='#')#edgesButton
-	div#overviewzone.gradient
-		canvas(width='0')(height='0')#overview
-	div#leftcolumn
-		div#unfold
-			a(href='#').rightarrow#aUnfold
-		div#leftcontent
+		<ul id="autocomplete">
+		</ul>
+	</body>

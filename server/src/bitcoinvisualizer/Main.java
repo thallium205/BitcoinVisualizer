@@ -85,14 +85,14 @@ public class Main
 					validate = Boolean.parseBoolean(line.getOptionValue("validate"));
 				if (!GraphBuilder.IsStarted())
 				{
-					// GraphBuilder.StartDatabase(graphDb);
+					GraphBuilder.StartDatabase(graphDb);
 				}
 
 				if (!line.hasOption("client"))
 				{
 					try
 					{
-						// GraphBuilder.DownloadAndSaveBlockChain(validate);	
+						GraphBuilder.DownloadAndSaveBlockChain(validate);	
 						
 						if (line.hasOption("high"))
 						{
@@ -105,7 +105,7 @@ public class Main
 							GraphBuilder.Scrape();
 						}
 						
-						if (line.hasOption("exporter"))
+						if (line.hasOption("timeanalysis"))
 						{
 							int cores = Runtime.getRuntime().availableProcessors();			
 							GraphExporter.ExportTimeAnalysisGraphsToMySql(graphDb, cores > 1 ? cores - 1 : cores);
@@ -131,6 +131,12 @@ public class Main
 				LOG.log(Level.SEVERE, "Parsing failed.  Reason: " + e.getMessage(), e);
 				hasError = true;
 				// GraphBuilder.StopDatabase();
+			} 
+			
+			catch (IOException e)
+			{
+				LOG.log(Level.SEVERE, "Input/Output Failed.  Reason: " + e.getMessage(), e);
+				hasError = true;
 			}
 
 			

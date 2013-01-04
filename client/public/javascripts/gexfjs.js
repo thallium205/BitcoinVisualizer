@@ -187,7 +187,7 @@ function replaceURLWithHyperlinks(text) {
     return text;
 }
 
-function displayNode(_nodeIndex, _recentre, json) {
+function displayNode(_nodeIndex, _recentre) {
     GexfJS.params.currentNode = _nodeIndex;
     if (_nodeIndex != -1) {
         var _d = GexfJS.graph.nodeList[_nodeIndex],
@@ -208,22 +208,6 @@ function displayNode(_nodeIndex, _recentre, json) {
         for (var i in _d.attributes) {
             _str += '<li><b>' + strLang(i) + '</b> : ' + replaceURLWithHyperlinks( _d.attributes[i] ) + '</li>';
         }
-		
-		// Modified by John Russell
-		// Displays information from the server
-		if (json !== null)
-		{
-			if (json.identifiers !== null)
-			{
-				for (var i in json.identifiers)
-				{
-					_str += '<li><b>' + json.identifiers[i].name + ' ' + json.identifiers[i].time + ' ' + json.identifiers[i].source + ' ' + json.identifiers[i].contributor + ' ' + json.identifiers[i].address + '</b></li>';
-				}				
-			}
-		}
-		
-		
-		
         _str += '</ul><h4>' + ( GexfJS.graph.directed ? strLang("inLinks") : strLang("undirLinks") ) + '</h4><ul>';
         for (var i in GexfJS.graph.edgeList) {
             var _e = GexfJS.graph.edgeList[i]
@@ -246,7 +230,7 @@ function displayNode(_nodeIndex, _recentre, json) {
             GexfJS.params.centreX = _b.x;
             GexfJS.params.centreY = _b.y;
         }
-        $("#searchinput")
+        $("#graphsearch")
             .val(_d.label)
             .removeClass('grey');
     }
@@ -837,7 +821,7 @@ $(document).ready(function() {
     
     window.onhashchange = initializeMap;
     
-    $("#searchinput")
+    $("#graphsearch")
         .focus(function() {
             if ( $(this).is('.grey') ) {
                 $(this).val('').removeClass('grey');
@@ -882,18 +866,9 @@ $(document).ready(function() {
                 return false;
             }
         });
-		
-	// Modified by John Russell
-    $("#recherche").submit(function() 
-	{
-		if (GexfJS.graph) 
-		{
-			$.getJSON("api/owner/addr/" + $("#txtInput").val(), function(json)
-			{
-				alert(json.owner);
-				$('#btnSubmit').text('Search');
-				displayNode( GexfJS.graph.nodeIndexByLabel.indexOf(json.owner), true, json);	
-			});           
+    $("#recherche").submit(function() {
+        if (GexfJS.graph) {
+            displayNode( GexfJS.graph.nodeIndexByLabel.indexOf($("#graphsearch").val().toLowerCase()), true);
         }
         return false;
     });
@@ -928,8 +903,8 @@ $(document).ready(function() {
         $("#autocomplete").slideUp();
     });
     $("#autocomplete").css({
-        top: ( $("#searchinput").offset().top + $("#searchinput").outerHeight() ) + "px",
-        left: $("#searchinput").offset().left + "px"
+        top: ( $("#graphsearch").offset().top + $("#graphsearch").outerHeight() ) + "px",
+        left: $("#graphsearch").offset().left + "px"
     });
     $("#lensButton").click(function () {
         GexfJS.params.useLens = !GexfJS.params.useLens;

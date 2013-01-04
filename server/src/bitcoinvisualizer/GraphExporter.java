@@ -617,9 +617,7 @@ public class GraphExporter
 
 		else			
 		{
-			// TODO - UGLY UGLY UGLY
-			LOG.info("Exporting to memory...");			
-			
+			LOG.info("Exporting to memory.");						
 			if (exportType == ExportType.GEXF)
 			{
 				response = gexfWriter.toString();
@@ -671,10 +669,7 @@ public class GraphExporter
 		try
 		{
 			final Statement statement = sqlDb.createStatement();
-			statement
-					.execute("CREATE TABLE IF NOT EXISTS `owner` ( `ownerId` int(11) NOT NULL, `gexf` longblob, `pdf` longblob, `png` longblob, `time` timestamp NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`ownerId`), UNIQUE KEY `ownerId_UNIQUE` (`ownerId`)) ENGINE=InnoDB DEFAULT CHARSET=utf8");
-			statement
-					.execute("CREATE TABLE IF NOT EXISTS `day` ( `graphTime` double NOT NULL, `gexf` longblob, `pdf` longblob, `png` longblob,  `time` timestamp NULL DEFAULT CURRENT_TIMESTAMP,  PRIMARY KEY (`graphTime`), UNIQUE KEY `graphtime_UNIQUE` (`graphTime`)) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+			statement.execute("CREATE TABLE IF NOT EXISTS `day` ( `graphTime` double NOT NULL, `gexf` longblob, `pdf` longblob, `png` longblob,  `time` timestamp NULL DEFAULT CURRENT_TIMESTAMP,  PRIMARY KEY (`graphTime`), UNIQUE KEY `graphtime_UNIQUE` (`graphTime`)) ENGINE=InnoDB DEFAULT CHARSET=utf8");
 		}
 
 		catch (SQLException e)
