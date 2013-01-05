@@ -204,16 +204,54 @@ function displayNode(_nodeIndex, _recentre) {
             });
         _str += '<h3><div class="largepill" style="background: ' + _d.color.base +'"></div>' + _d.label + '</h3>';
         _str += '<h4>' + strLang("nodeAttr") + '</h4>';
-        _str += '<ul><li><b>id</b> : ' + _d.id + '</li>';
-        for (var i in _d.attributes) {
-            _str += '<li><b>' + strLang(i) + '</b> : ' + replaceURLWithHyperlinks( _d.attributes[i] ) + '</li>';
+        // _str += '<ul><li><b>id</b> : ' + _d.id + '</li>';
+		_str += '<ul><li><b>id</b> : ' + '<a href="#" onclick="loadGraph(' + _d.id + '); return false;">' + _d.id + ' (Click to Load)</a></li>';
+        for (var i in _d.attributes) {		
+			var attributeTitle = strLang(i);
+			switch(attributeTitle) {
+				case 'id':
+					_str += '<li><b>' + strLang(i) + '</b>: ' + '<a href="http://blockviewer.com/#' + _d.attributes[i] + '" target="_blank"></a></li>';
+					break;
+				case 'First Transfer Time':
+				case 'Last Transfer Time':					
+					_str += '<li><b>' + strLang(i) + '</b>: ' + unixToDate(_d.attributes[i]) + '</li>';
+					break;
+				case 'owner id':
+					break;
+				case 'Aliases':
+					_str += '<li><b>' + strLang(i) + '</b>: '; 
+					for (alias in _d.attributes[i]) {
+						_str += _d.attributes[i][alias] + ' ';
+					}
+					_str += '</li>';
+					break;
+				case 'Total Incoming Amount':
+				case 'Total Outgoing Amount':
+					_str += '<li><b>' + strLang(i) + '</b>: ฿ ' + _d.attributes[i] + '</li>';	
+					break;
+				default:
+					_str += '<li><b>' + strLang(i) + '</b>: ' + replaceURLWithHyperlinks( _d.attributes[i] ) + '</li>';
+			}           
         }
         _str += '</ul><h4>' + ( GexfJS.graph.directed ? strLang("inLinks") : strLang("undirLinks") ) + '</h4><ul>';
         for (var i in GexfJS.graph.edgeList) {
             var _e = GexfJS.graph.edgeList[i]
             if ( _e.target == _nodeIndex ) {
                 var _n = GexfJS.graph.nodeList[_e.source];
-                _str += '<li><div class="smallpill" style="background: ' + _n.color.base +'"></div><a href="#" onmouseover="GexfJS.params.activeNode = ' + _e.source + '" onclick="displayNode(' + _e.source + ', true); return false;">' + _n.label + '</a>' + ( GexfJS.params.showEdgeWeight && _e.weight ? ' [' + _e.weight + ']' : '') + '</li>';
+                _str += '<li><div class="smallpill" style="background: ' + _n.color.base +'"></div><a href="#" onmouseover="GexfJS.params.activeNode = ' + _e.source + '" onclick="displayNode(' + _e.source + ', true); return false;">' + _n.label + '</a>' + ( GexfJS.params.showEdgeWeight && _e.weight ? ' [' + _e.weight + ']' : '') + '</li>';				
+				_str += '<blockquote>';
+				for (attrKey in _e.attributes) {
+					switch(attrKey) {
+						case 'value':
+							_str += '<li><b>Amount: </b>฿ ' + _e.attributes[attrKey] / 100000000 + '</li>';
+							break;
+						case 'time':
+							_str += '<li><b>Time: </b>' + unixToDate(_e.attributes[attrKey]) + '</li>';
+							break;
+						default:			
+					}
+				}
+				_str += '</blockquote>';
             }
         }
         if (GexfJS.graph.directed) _str += '</ul><h4>' + strLang("outLinks") + '</h4><ul>';
@@ -222,6 +260,19 @@ function displayNode(_nodeIndex, _recentre) {
             if ( _e.source == _nodeIndex ) {
                 var _n = GexfJS.graph.nodeList[_e.target];
                 _str += '<li><div class="smallpill" style="background: ' + _n.color.base +'"></div><a href="#" onmouseover="GexfJS.params.activeNode = ' + _e.target + '" onclick="displayNode(' + _e.target + ', true); return false;">' + _n.label + '</a>' + ( GexfJS.params.showEdgeWeight && _e.weight ? ' [' + _e.weight + ']' : '') + '</li>';
+				_str += '<blockquote>';
+				for (attrKey in _e.attributes) {
+					switch(attrKey) {
+						case 'value':
+							_str += '<li><b>Amount: </b>฿ ' + _e.attributes[attrKey] / 100000000 + '</li>';
+							break;
+						case 'time':
+							_str += '<li><b>Time: </b>' + unixToDate(_e.attributes[attrKey]) + '</li>';
+							break;
+						default:			
+					}
+				}
+				_str += '</blockquote>';
             }
         }
         _str += '</ul><p></p>';
@@ -383,7 +434,7 @@ function initializeMap() {
     });
     GexfJS.timeRefresh = setInterval(traceMap,60);
     GexfJS.graph = null;
-    // loadGraph(); // TODO url of the day?
+    loadGraph();
 }
 
 
@@ -495,12 +546,21 @@ function loadGraph(ownerOrAddr) {
             
             $(_edges).each(function() {
                 var _e = $(this),
-                    _sid = _e.attr("source"),
+					_sid = _e.attr("source"),
                     _six = GexfJS.graph.nodeIndexById.indexOf(_sid);
                     _tid = _e.attr("target"),
                     _tix = GexfJS.graph.nodeIndexById.indexOf(_tid);
                     _w = _e.find('attvalue[for="weight"]').attr('value') || _e.attr('weight');
                     _col = _e.find("color");
+					
+				_e.attributes = [];	
+				var _attr = _e.find("attvalue");
+				$(_attr).each(function() {
+					var _a = $(this),
+						_for = _a.attr("for");
+					_e.attributes[_for] = _a.attr("value");
+				});					
+					
                 if (_col.length) {
                     var _r = _col.attr("r"),
                         _g = _col.attr("g"),
@@ -523,13 +583,20 @@ function loadGraph(ownerOrAddr) {
                     target : _tix,
                     width : Math.max( GexfJS.params.minEdgeWidth, Math.min( GexfJS.params.maxEdgeWidth, ( _w || 1 ) ) ) * _echelle,
                     weight : parseFloat(_w || 0),
-                    color : "rgba(" + _r + "," + _g + "," + _b + ",.7)"
+                    color : "rgba(" + _r + "," + _g + "," + _b + ",.7)",
+					attributes : _e.attributes
                 });
             });
             
             GexfJS.imageMini = GexfJS.ctxMini.getImageData(0, 0, GexfJS.overviewWidth, GexfJS.overviewHeight);
         
-        //changeNiveau(0);
+			//changeNiveau(0);
+			
+			if (isOwner) {
+				displayNode(ownerOrAddr, true);
+			}
+		
+			
         }
     });
 }
@@ -809,6 +876,11 @@ function setParams(paramlist) {
     for (var i in paramlist) {
         GexfJS.params[i] = paramlist[i];
     }
+}
+
+function unixToDate(unixStr) {
+	var date = new Date(unixStr * 1000);					
+	return date.getMonth() + '/' + date.getDate() + '/' + date.getFullYear() + ' ' + date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds();
 }
 
 $(document).ready(function() {

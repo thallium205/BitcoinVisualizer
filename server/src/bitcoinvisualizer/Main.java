@@ -86,6 +86,7 @@ public class Main
 				boolean validate = true;
 				if (line.hasOption("validate"))
 					validate = Boolean.parseBoolean(line.getOptionValue("validate"));
+				
 				if (!GraphBuilder.IsStarted())
 				{
 					GraphBuilder.StartDatabase(graphDb);
@@ -95,11 +96,11 @@ public class Main
 				{
 					try
 					{
-						// GraphBuilder.DownloadAndSaveBlockChain(validate);	
+						GraphBuilder.DownloadAndSaveBlockChain(validate);	
 						
 						if (line.hasOption("high"))
 						{
-							// GraphBuilder.BuildHighLevelGraph();
+							GraphBuilder.BuildHighLevelGraph();
 						}
 
 						// If the user activated the scraper
@@ -114,19 +115,20 @@ public class Main
 							GraphExporter.ExportTimeAnalysisGraphsToMySql(graphDb, cores > 1 ? cores - 1 : cores);
 						}
 						
-						// If the user activated the exporter server
-						if (line.hasOption("api"))
-						{
-							if (api == null)
-							{
-								 api = new GraphExporterNodejsApi(graphDb);
-							}
-						}
 					} 
 					
 					catch (Exception e)
 					{
 						LOG.log(Level.WARNING, "Graph Build Failed.  Skipping, but not shutting down database.", e);
+					}
+				}
+				
+				// If the user activated the exporter server
+				if (line.hasOption("api"))
+				{
+					if (api == null)
+					{
+						 api = new GraphExporterNodejsApi(graphDb);
 					}
 				}
 				
