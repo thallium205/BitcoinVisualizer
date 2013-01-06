@@ -53,8 +53,8 @@ var GexfJS = {
             "search" : "Search nodes",
             "nodeAttr" : "Attributes",
             "nodes" : "Nodes",
-            "inLinks" : "Inbound Links from :",
-            "outLinks" : "Outbound Links to :",
+            "inLinks" : "Incoming Transactions From :",
+            "outLinks" : "Outgoing Tranasctions To :",
             "undirLinks" : "Undirected links with :",
             "lensOn" : "Activate lens mode",
             "lensOff" : "Deactivate lens mode",
@@ -460,11 +460,21 @@ function loadGraph(ownerOrAddr) {
 	} else {
 		url = "owner/addr/" + ownerOrAddr + "/gexf";
 	}
-    
+	
+	$('#loadModal').modal('show');    
     $.ajax({
         url: (url),
         dataType: "xml",
+		error: function() {
+			$('#loadModal').modal('hide');	
+			alert('The visual representation of this owner is too large so the request has been cancelled.  Time division subsections of the network are in the works to analyze large nodes and their interactions to other owners.  Stay tuned!');
+		},
         success: function(data) {
+			if (data === null) {
+				$('#loadModal').modal('hide');	
+				alert('The visual representation of this owner is too large so the request has been cancelled.  Time division subsections of the network are in the works to analyze large nodes and their interactions to other owners.  Stay tuned!');
+				return;
+			}		
             var _s = new Date();
             var _g = $(data).find("graph"),
                 _nodes = _g.children().filter("nodes").children();
@@ -588,15 +598,12 @@ function loadGraph(ownerOrAddr) {
                 });
             });
             
-            GexfJS.imageMini = GexfJS.ctxMini.getImageData(0, 0, GexfJS.overviewWidth, GexfJS.overviewHeight);
-        
-			//changeNiveau(0);
+            GexfJS.imageMini = GexfJS.ctxMini.getImageData(0, 0, GexfJS.overviewWidth, GexfJS.overviewHeight);	
 			
 			if (isOwner) {
-				displayNode(ownerOrAddr, true);
-			}
-		
-			
+				displayNode(-1); // Refresh the layout
+			}			
+			$('#loadModal').modal('hide');			
         }
     });
 }

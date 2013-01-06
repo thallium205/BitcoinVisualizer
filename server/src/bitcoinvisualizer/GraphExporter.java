@@ -177,14 +177,14 @@ public class GraphExporter
 		}		
 	}
 
-	public static String GetOwnerByAddress(final GraphDatabaseAPI graphDb, final String address, final ExportType exportType)
+	public static synchronized String GetOwnerByAddress(final GraphDatabaseAPI graphDb, final String address, final ExportType exportType)
 	{
 		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH); 
 		final long ownerId = owned_addresses.query(OWNED_ADDRESS_HASH_KEY, address).getSingle().getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId();		
 		return Export(null, graphDb, ownerId, null, null, exportType, 1);
 	}
 	
-	public static String GetOwnerById(final GraphDatabaseAPI graphDb, final Long ownerId, final ExportType exportType)
+	public static synchronized String GetOwnerById(final GraphDatabaseAPI graphDb, final Long ownerId, final ExportType exportType)
 	{		
 		return Export(null, graphDb, ownerId, null, null, exportType, 1);
 	}
@@ -238,10 +238,10 @@ public class GraphExporter
 		AttributeModel attributeModel = Lookup.getDefault().lookup(AttributeController.class).getModel();
 		LOG.info("Graph Imported.  Nodes: " + graph.getNodeCount() + " Edges: " + graph.getEdgeCount());
 
-		if (!isDateCompare && graph.getNodeCount() > 100000)
+		if (!isDateCompare && graph.getNodeCount() > 10000)
 		{
-			LOG.warning("The graph is being skipped because it contains over 100,000 nodes.");
-			return null;
+			LOG.warning("The graph is being skipped because it contains over 10,000 nodes.");
+			return "";
 		}
 
 		LOG.info("Setting graph labels and features...");
@@ -611,7 +611,7 @@ public class GraphExporter
 			catch (SQLException e)
 			{
 				LOG.log(Level.SEVERE, "Unable to access MySQL database.", e);
-				return null;
+				return "";
 			}
 		}
 
