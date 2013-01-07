@@ -205,7 +205,7 @@ function displayNode(_nodeIndex, _recentre) {
         _str += '<h3><div class="largepill" style="background: ' + _d.color.base +'"></div>' + _d.label + '</h3>';
         _str += '<h4>' + strLang("nodeAttr") + '</h4>';
         // _str += '<ul><li><b>id</b> : ' + _d.id + '</li>';
-		_str += '<ul><li><b>id</b> : ' + '<a href="#" onclick="loadGraph(' + _d.id + '); return false;">' + _d.id + ' (Click to Load)</a></li>';
+		_str += '<ul><li><b>id</b> : ' + '<a href="#" onclick="loadGraph(' + _d.id + '); return false;">' + _d.id + ' (Click to Load)</a></li>';				
         for (var i in _d.attributes) {		
 			var attributeTitle = strLang(i);
 			switch(attributeTitle) {
@@ -225,9 +225,18 @@ function displayNode(_nodeIndex, _recentre) {
 					}
 					_str += '</li>';
 					break;
+				case 'Total Incoming Transactions':
+					_str += '<li><b>' + strLang(i) + '</b>: ' + '<a href="#" onclick="loadIncomingTransactions(' + _d.id + '); return false;">' + _d.attributes[i] + ' </a></li>';
+					break;
+				case 'Total Outgoing Transactions':
+					_str += '<li><b>' + strLang(i) + '</b>: ' + '<a href="#" onclick="loadOutgoingTransactions(' + _d.id + '); return false;">' + _d.attributes[i] + ' </a></li>';
+					break;
 				case 'Total Incoming Amount':
 				case 'Total Outgoing Amount':
 					_str += '<li><b>' + strLang(i) + '</b>: ฿ ' + _d.attributes[i] + '</li>';	
+					break;
+				case 'Total Owned Addresses':
+					_str += '<li><b>' + strLang(i) + '</b>: ' + '<a href="#" onclick="loadOwnedAddresses(' + _d.id + '); return false;">' + _d.attributes[i] + ' </a></li>';
 					break;
 				default:
 					_str += '<li><b>' + strLang(i) + '</b>: ' + replaceURLWithHyperlinks( _d.attributes[i] ) + '</li>';
@@ -235,12 +244,14 @@ function displayNode(_nodeIndex, _recentre) {
         }
         _str += '</ul><h4>' + ( GexfJS.graph.directed ? strLang("inLinks") : strLang("undirLinks") ) + '</h4><ul>';
         for (var i in GexfJS.graph.edgeList) {
-            var _e = GexfJS.graph.edgeList[i]
+            var _e = GexfJS.graph.edgeList[i];
             if ( _e.target == _nodeIndex ) {
                 var _n = GexfJS.graph.nodeList[_e.source];
                 _str += '<li><div class="smallpill" style="background: ' + _n.color.base +'"></div><a href="#" onmouseover="GexfJS.params.activeNode = ' + _e.source + '" onclick="displayNode(' + _e.source + ', true); return false;">' + _n.label + '</a>' + ( GexfJS.params.showEdgeWeight && _e.weight ? ' [' + _e.weight + ']' : '') + '</li>';				
 				_str += '<blockquote>';
-				for (attrKey in _e.attributes) {
+				
+				var sortedIncomingEdgeAttributes = _e.attributes.sort();				
+				for (attrKey in sortedIncomingEdgeAttributes) {
 					switch(attrKey) {
 						case 'value':
 							_str += '<li><b>Amount: </b>฿ ' + _e.attributes[attrKey] / 100000000 + '</li>';
@@ -261,7 +272,9 @@ function displayNode(_nodeIndex, _recentre) {
                 var _n = GexfJS.graph.nodeList[_e.target];
                 _str += '<li><div class="smallpill" style="background: ' + _n.color.base +'"></div><a href="#" onmouseover="GexfJS.params.activeNode = ' + _e.target + '" onclick="displayNode(' + _e.target + ', true); return false;">' + _n.label + '</a>' + ( GexfJS.params.showEdgeWeight && _e.weight ? ' [' + _e.weight + ']' : '') + '</li>';
 				_str += '<blockquote>';
-				for (attrKey in _e.attributes) {
+				
+				var sortedOutgoingEdgeAttributes = _e.attributes.sort().reverse();	
+				for (attrKey in sortedOutgoingEdgeAttributes) {
 					switch(attrKey) {
 						case 'value':
 							_str += '<li><b>Amount: </b>฿ ' + _e.attributes[attrKey] / 100000000 + '</li>';
@@ -456,9 +469,9 @@ function loadGraph(ownerOrAddr) {
 	}
 	
 	if (isOwner) {
-		url = "owner/id/" + ownerOrAddr + "/gexf";
+		url = "owner/id/" + ownerOrAddr + ".gexf";
 	} else {
-		url = "owner/addr/" + ownerOrAddr + "/gexf";
+		url = "owner/addr/" + ownerOrAddr + ".gexf";
 	}
 	
 	$('#loadModal').modal('show');    
@@ -467,12 +480,12 @@ function loadGraph(ownerOrAddr) {
         dataType: "xml",
 		error: function() {
 			$('#loadModal').modal('hide');	
-			alert('The visual representation of this owner is too large so the request has been cancelled.  Time division subsections of the network are in the works to analyze large nodes and their interactions to other owners.  Stay tuned!');
+			alert('The database appears to be down at the moment.  Sorry for the inconvenience.');
 		},
         success: function(data) {
 			if (data === null) {
 				$('#loadModal').modal('hide');	
-				alert('The visual representation of this owner is too large so the request has been cancelled.  Time division subsections of the network are in the works to analyze large nodes and their interactions to other owners.  Stay tuned!');
+				alert('Either this address cannot be associated with an owner because it hasn\'t been redeemed yet, or the visual representation of this owner is too large so the request has been cancelled.  Time division subsections of the network are in the works to analyze large nodes and their interactions to other owners.  Stay tuned!');
 				return;
 			}		
             var _s = new Date();
@@ -887,7 +900,54 @@ function setParams(paramlist) {
 
 function unixToDate(unixStr) {
 	var date = new Date(unixStr * 1000);					
-	return date.getMonth() + '/' + date.getDate() + '/' + date.getFullYear() + ' ' + date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds();
+	return (date.getMonth() + 1) + '/' + date.getDate() + '/' + date.getFullYear() + ' ' + date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds();
+}
+
+function loadOwnedAddresses(id) {
+	loadTableModal('Owned Addresses', 'owns/id/' + id);
+}
+
+function loadIncomingTransactions(id) {
+	loadTableModal('Incoming Transactions', 'trans/id/' + id + '/in');
+}
+
+function loadOutgoingTransactions(id) {
+	loadTableModal('Outgoing Transactions', 'trans/id/' + id + '/out');
+}
+
+function loadTableModal(title, url) {
+	$('#loadModal').modal('show');
+	$.ajax({
+        url: (url),
+        dataType: "json",
+		error: function() {
+			$('#loadModal').modal('hide');   
+			alert('Unable to retrieve data.  Try again maybe?');
+		},
+        success: function(data) {			
+			var table = '<table class="table table-striped table-condensed">';
+			table += '<thead>';
+			table += '<tr>';			
+			for (var column in data.columns) {
+				table += '<th>' + data.columns[column] + '</th>';
+			}
+			table += '</tr>';
+			table += '</thead>';
+			table += '<tbody>';
+			for (var row in data.data) {
+				table += '<tr>';
+				for (var cell in data.data[row]) {
+					table += '<td>' + data.data[row][cell] + '</td>';
+				}
+				table += '</tr>';			
+			}
+			table += '</tbody>';		
+			table += '</table>';	
+			$('#loadModal').modal('hide'); 
+			var modal = '<div id="tableModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="' + title + '" aria-hidden="true"> <div class="modal-header"> <h3>' + title + '</h3>	</div> <div class="modal-body">' + table + '</div> </div>';			
+			$(modal).modal('show');		  
+		}
+	});
 }
 
 $(document).ready(function() {

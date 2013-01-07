@@ -1,7 +1,7 @@
 doctype 5
 html.
 	<head>
-		<title>Gephi: JavaScript GEXF Viewer</title>
+		<title>Visualize the Bitcoin Network</title>
 		<meta http-equiv="Content-type" content="text/html; charset=utf-8" />
 		<link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.2.2/css/bootstrap-combined.min.css" rel="stylesheet">
 		<link rel="stylesheet" type="text/css" href="stylesheets/gexfjs.css" />
@@ -20,11 +20,17 @@ html.
 				<div class="container">
 					<a class="brand" href="#">Block Viewer</a>
 					<ul class="nav">
-						<li><a href="#">Help</a></li>
+						<li><a href="#" onclick="showHelp()">Help</a></li>
+					</ul>
+					<ul class="nav">
+						<li><a href="https://bitcointalk.org/index.php?action=profile;u=23919">Contact</a></li>
 					</ul>
 					<div class="pull-left">
 						<p class="navbar-text">Donate! 14gZTuHA4xa4gJQBubn5fj3b4D4QHEDdwY<p>
-					</div>				
+					</div>		
+
+					<div id="graphsearch"></div>	
+					
 					<form class="navbar-search pull-right form-inline" id="networksearchform">
 						<input type="text" style="width:500px" class="search-query" placeholder="Bitcoin Address or Owner Id - Search the Network" id="networksearch">						
 					</form>					
@@ -46,7 +52,7 @@ html.
 				<li>
 					<a href="#" id="lensButton"> </a>
 				</li>
-				<li>
+				<li>
 					<a href="#" id="edgesButton"> </a>
 				</li>
 			</ul>
@@ -64,10 +70,48 @@ html.
 		<ul id="autocomplete">
 		</ul>
 		
+		<script>
+			function showHelp() {
+				$('#helpModal').modal('show')							
+			}
+		</script>
+		
+		<div id="helpModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="Help" aria-hidden="true">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h3>Help</h3>
+			</div>
+			<div class="modal-body">
+				<h4>What is this?</h4>
+				<p>There are many tools available today that provide statistics and graphs about the Bitcoin block chain, but they only analyze global properties of the network and only describe single addresses.  Block Viewer goes much further 
+					by combining related addresses through a Union-Find algorithm to combine related addresses to the same owner, creating an "Owner Network".  (An overview of this process  <a href="http://toolongdidntread.com/bitcoin/the-bitcoin-social-network-part-1/">is described here</a>)  Doing this allows us to calculate all of an owner's sending and receiving activites, current balances in an owner's various addresses, their interactions with other owners, and soon time-division snapshots of the overall network like never before seen (coming soon).  
+					<b>No other website currently provides this type of functionality, making this the most powerful public tool available for serious block chain analysis.</b></p>
+				
+				<h4>Node Label</h4>
+				<p>If an owner has been identified to a real world entity such as a bitcointalk.org username, nodes will be tagged with this information under Alias. Otherwise, they will be tagged with a unique owner identifier.</p>
+
+				<h4>Node Size</h4>
+				<p>The amount of inbound/outbound transactions that have been sent to and from a particular owner will be represented with how large a node is relative to the other nodes in the currenr graph.</p>
+				
+				<h4>Node Color</h4>
+				<p>Hotter colors will represent recent activity sent from the owner while a cooler color will represent older activity.</p>
+				
+				<h4>Edge Color</h4>
+				<p>Hotter colors will again represent recent transactions in time while cooler colors will represent older activity.</p>
+				
+				<h4>Edge Direction</h4>
+				<p>Following an edge in a clockwise direction will separate inbound vs outbound transactions.</p>
+				
+				<h4>Future Work</h4>
+				<p> - Making time-based snapshot graphs so a user can select a date range and return the owner activity of the bitcoin network.</p>
+				<p> - All address query graphs are currently capped to 2,500 nodes. The backend processes each user request one at a time at the moment.</p>	
+				<p> - Associating more owners to real life entities (like BitcoinTalk forum members)</p>
+			</div>
+		</div>
 		
 		<div id="loadModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="Loading" aria-hidden="true">
-			<div class="modal-body">
-				<p> Loading... </p>
+			<div class="modal-header">
+				<h3> Loading... </h3>
 			</div>
 		</div>
 	</body>

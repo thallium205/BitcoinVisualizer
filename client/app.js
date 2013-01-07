@@ -1,11 +1,8 @@
-
-/**
- * Module dependencies.
- */
-
 var express = require('express')
   , routes = require('./routes')
-  , gexf = require('./routes/gexf')
+  , owner = require('./routes/owner')
+  , owns = require('./routes/owns')
+  , trans = require('./routes/trans')
   , http = require('http')
   , path = require('path');
 
@@ -28,8 +25,16 @@ app.configure('development', function(){
 });
 
 app.get('/', routes.index);
-app.get('/owner/id/:id/gexf', gexf.id);
-app.get('/owner/addr/:addr/gexf', gexf.addr);
+app.get('/owner/id/:id.:format', owner.id);
+app.get('/owner/addr/:addr.:format', owner.addr);
+
+app.get('/owns/id/:id', owns.id);
+app.get('/owns/addr/:addr', owns.addr);
+
+app.get('/trans/id/:id/in', trans.idIn);
+app.get('/trans/id/:id/out', trans.idOut);
+app.get('/trans/addr/:addr/in', trans.addrIn);
+app.get('/trans/addr/:addr/out', trans.addrOut);
 
 http.createServer(app).listen(app.get('port'), function(){
   console.log("Express server listening on port " + app.get('port'));

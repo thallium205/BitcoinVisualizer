@@ -179,9 +179,14 @@ public class GraphExporter
 
 	public static synchronized String GetOwnerByAddress(final GraphDatabaseAPI graphDb, final String address, final ExportType exportType)
 	{
-		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH); 
-		final long ownerId = owned_addresses.query(OWNED_ADDRESS_HASH_KEY, address).getSingle().getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId();		
-		return Export(null, graphDb, ownerId, null, null, exportType, 1);
+		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH); 		
+		final Node addressNode = owned_addresses.query(OWNED_ADDRESS_HASH_KEY, address).getSingle();
+		if (addressNode == null)
+		{
+			return "";
+		}
+		
+		return Export(null, graphDb, addressNode.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId(), null, null, exportType, 1);
 	}
 	
 	public static synchronized String GetOwnerById(final GraphDatabaseAPI graphDb, final Long ownerId, final ExportType exportType)
@@ -227,6 +232,13 @@ public class GraphExporter
 			assert (from == null && to == null);
 			// Import by traversing one hop along the ownership network's "transfers" edges
 			LOG.info("Importing Ownership Network from Neo4j Database Starting With Node: " + ownerId + " ...");
+			
+			// This is the mt gox node that crashes the box, even just counting. TODO
+			if (ownerId == 29792952L)
+			{
+				return "";
+			}
+			
 			final Collection<RelationshipDescription> relationshipDescription = new ArrayList<RelationshipDescription>();
 			relationshipDescription.add(new RelationshipDescription(GraphBuilder.OwnerRelTypes.transfers, Direction.BOTH));
 			importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, 1, relationshipDescription);
@@ -238,9 +250,9 @@ public class GraphExporter
 		AttributeModel attributeModel = Lookup.getDefault().lookup(AttributeController.class).getModel();
 		LOG.info("Graph Imported.  Nodes: " + graph.getNodeCount() + " Edges: " + graph.getEdgeCount());
 
-		if (!isDateCompare && graph.getNodeCount() > 10000)
+		if (!isDateCompare && graph.getNodeCount() > 2500)
 		{
-			LOG.warning("The graph is being skipped because it contains over 10,000 nodes.");
+			LOG.warning("The graph is being skipped because it contains over 2,500 nodes.");
 			return "";
 		}
 
