@@ -95,8 +95,11 @@ public class Main
 				if (!line.hasOption("client"))
 				{
 					try
-					{
-						GraphBuilder.DownloadAndSaveBlockChain(validate);	
+					{						
+						if (line.hasOption("low"))
+						{
+							GraphBuilder.DownloadAndSaveBlockChain(validate);
+						}
 						
 						if (line.hasOption("high"))
 						{
@@ -191,6 +194,7 @@ public class Main
 		Option validate = OptionBuilder.hasArg().withArgName("true/false")
 				.withDescription("Toggle the verifier which checks if the local json files form a complete blockchain.  Default: true.  Recommended.").create("validate");
 		Option scraper = OptionBuilder.withArgName("scraper").withDescription("Runs the scraper which attempts to associate bitcoin addresses to real world entities.").create("scraper");
+		Option low = OptionBuilder.withArgName("low").withDescription("Builds the low level block chain structure.").create("low");
 		Option high = OptionBuilder.withArgName("high").withDescription("Builds the high level data structure.").create("high");
 		Option client = OptionBuilder.withArgName("client").withDescription("Will only run the database service and not attempt to build the blockchain.").create("client");
 		Option api = OptionBuilder.withArgName("api").withDescription("Creates the exporter server to communicate with an external web server.").create("api");
@@ -203,6 +207,7 @@ public class Main
 		options.addOption(configPath);
 		options.addOption(validate);
 		options.addOption(scraper);
+		options.addOption(low);
 		options.addOption(high);
 		options.addOption(client);
 		options.addOption(api);

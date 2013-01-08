@@ -20,7 +20,7 @@ html.
 				<div class="container">
 					<a class="brand" href="#">Block Viewer</a>
 					<ul class="nav">
-						<li><a href="#" onclick="showHelp()">Help</a></li>
+						<li><a href="#" onclick="showHelp(); return false;">Help</a></li>
 					</ul>
 					<ul class="nav">
 						<li><a href="https://bitcointalk.org/index.php?action=profile;u=23919">Contact</a></li>
@@ -83,15 +83,15 @@ html.
 			</div>
 			<div class="modal-body">
 				<h4>What is this?</h4>
-				<p>There are many tools available today that provide statistics and graphs about the Bitcoin block chain, but they only analyze global properties of the network and only describe single addresses.  Block Viewer goes much further 
-					by combining related addresses through a Union-Find algorithm to combine related addresses to the same owner, creating an "Owner Network".  (An overview of this process  <a href="http://toolongdidntread.com/bitcoin/the-bitcoin-social-network-part-1/">is described here</a>)  Doing this allows us to calculate all of an owner's sending and receiving activites, current balances in an owner's various addresses, their interactions with other owners, and soon time-division snapshots of the overall network like never before seen (coming soon).  
+				<p>There are many tools available today that provide statistics and graphs about the Bitcoin block chain, but they fall short by only analyzing global properties of the network or only describing single addresses.  Block Viewer goes much further 
+					by combining related addresses through a Union-Find algorithm to combine related addresses to the same owner, creating an "Owner Network".  (An overview of this process  <a href="http://toolongdidntread.com/bitcoin/the-bitcoin-social-network-part-1/">is described here</a>)  Doing this allows us to calculate an owner's sending and receiving activites, current balances of all their various connected addresses, their interactions with other owners, and soon time-division snapshots of the overall network like never before seen (coming soon).  
 					<b>No other website currently provides this type of functionality, making this the most powerful public tool available for serious block chain analysis.</b></p>
 				
 				<h4>Node Label</h4>
 				<p>If an owner has been identified to a real world entity such as a bitcointalk.org username, nodes will be tagged with this information under Alias. Otherwise, they will be tagged with a unique owner identifier.</p>
 
 				<h4>Node Size</h4>
-				<p>The amount of inbound/outbound transactions that have been sent to and from a particular owner will be represented with how large a node is relative to the other nodes in the currenr graph.</p>
+				<p>The amount of inbound/outbound transactions that have been sent to and from a particular owner will be represented with how large a node is relative to the other nodes in the current graph.</p>
 				
 				<h4>Node Color</h4>
 				<p>Hotter colors will represent recent activity sent from the owner while a cooler color will represent older activity.</p>
@@ -103,7 +103,7 @@ html.
 				<p>Following an edge in a clockwise direction will separate inbound vs outbound transactions.</p>
 				
 				<h4>Future Work</h4>
-				<p> - Making time-based snapshot graphs so a user can select a date range and return the owner activity of the bitcoin network.</p>
+				<p> - Making time-based snapshots of the entire network will give the user the power to select a date range and return the owner activity of the bitcoin network.  This will provide much needed higher-level analysis.</p>
 				<p> - All address query graphs are currently capped to 2,500 nodes. The backend processes each user request one at a time at the moment.</p>	
 				<p> - Associating more owners to real life entities (like BitcoinTalk forum members)</p>
 			</div>

@@ -247,7 +247,7 @@ public class GraphExporter
 		// Grab the graph that was loaded from the importer
 		final GraphModel graphModel = Lookup.getDefault().lookup(GraphController.class).getModel();
 		final DirectedGraph graph = graphModel.getDirectedGraph();
-		AttributeModel attributeModel = Lookup.getDefault().lookup(AttributeController.class).getModel();
+		final AttributeModel attributeModel = Lookup.getDefault().lookup(AttributeController.class).getModel();
 		LOG.info("Graph Imported.  Nodes: " + graph.getNodeCount() + " Edges: " + graph.getEdgeCount());
 
 		if (!isDateCompare && graph.getNodeCount() > 2500)
@@ -257,15 +257,6 @@ public class GraphExporter
 		}
 
 		LOG.info("Setting graph labels and features...");
-		// Ranking
-		final RankingController rankingController = Lookup.getDefault().lookup(RankingController.class);
-		// rankingController.setInterpolator(Interpolator.newBezierInterpolator(0, 1, 0, 1));
-		rankingController.setInterpolator(Interpolator.LOG2);
-
-		// Node Size (Gephi can be used to build degree ranking on time span queries, but neo4j needs to be queried to find node degree on address specific queries)
-		final Ranking nodeDegreeRanking;
-		final AbstractSizeTransformer nodeSizeTransformer = (AbstractSizeTransformer) rankingController.getModel().getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_SIZE);
-
 		if (isDateCompare)
 		{
 			// TODO
@@ -284,213 +275,21 @@ public class GraphExporter
 
 			if (!startNodeIsValid)
 			{
-				LOG.info("Removing Starting Node From Graph");
-				graphModel.getGraph().removeNode(graphModel.getGraph().getNode(1));
+				org.gephi.graph.api.Node nodeToDelete = null;
+				LOG.info("Remove start node from graph as it does not satisfy filterable description.");
+				// Find the start node and remove it from the graph
+				for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes().toArray())
+				{
+					if (((Long) node.getAttributes().getValue("id")).toString().contains(ownerId.toString()))
+					{
+						graphModel.getGraph().removeNode(node);
+						break;
+					}
+				}			
 			}
+			
 		}
-
-		// We set a degree attribute on each gephi node
-		for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
-		{
-			Object label = node.getAttributes().getValue(PropertiesColumn.NODE_ID.getId());
-			Node neoNode = null;
-
-			if (label instanceof String)
-			{
-				neoNode = graphDb.getNodeById(Long.parseLong((String) label));
-			}
-
-			else if (label instanceof Long)
-			{
-				neoNode = graphDb.getNodeById((Long) label);
-			}
-
-			else
-			{
-				throw new ClassCastException();
-			}
-
-			// Calculate interesting statistics about each node. TODO - A lot more opportunity is available right here!
-
-			// Scraped Alias
-			ArrayList<AliasType> aliases = new ArrayList<AliasType>();
-			for (Relationship rel : neoNode.getRelationships(ScraperRelationships.identifies, Direction.INCOMING))
-			{
-				aliases.add(new AliasType((String) rel.getProperty("name"), (String) rel.getProperty("source"), (String) rel.getProperty("contributor"), (String) rel.getProperty("time")));
-			}
-			node.getAttributes().setValue("Aliases", aliases.toString());
-
-			// Get Node Addresses
-			node.getAttributes().setValue("Total Owned Addresses", Iterables.size(neoNode.getRelationships(OwnerRelTypes.owns, Direction.OUTGOING))); // TODO - Storing the actual addresses values
-																																						// makes each gexf file too large!
-
-			// Incoming Transactions
-			node.getAttributes().setValue("Total Incoming Transactions", Iterables.size(neoNode.getRelationships(OwnerRelTypes.transfers, Direction.INCOMING)));
-
-			// Outgoing Transactions
-			node.getAttributes().setValue("Total Outgoing Transactions", Iterables.size(neoNode.getRelationships(OwnerRelTypes.transfers, Direction.OUTGOING)));
-
-			// Get Node Degree
-			node.getAttributes().setValue("Total Transactions", Iterables.size(neoNode.getRelationships(OwnerRelTypes.transfers, Direction.BOTH)));
-
-			// Total Incoming Amount
-			Long totalIncomingAmount = 0L;
-			for (Relationship rel : neoNode.getRelationships(OwnerRelTypes.transfers, Direction.INCOMING))
-			{
-				totalIncomingAmount += (Long) rel.getProperty("value");
-			}
-			node.getAttributes().setValue("Total Incoming Amount", totalIncomingAmount.doubleValue() / 100000000);
-
-			// Total Outgoing Amount
-			Long totalOutgoingAmount = 0L;
-			for (Relationship rel : neoNode.getRelationships(OwnerRelTypes.transfers, Direction.OUTGOING))
-			{
-				totalOutgoingAmount += (Long) rel.getProperty("value");
-			}
-			node.getAttributes().setValue("Total Outgoing Amount", totalOutgoingAmount.doubleValue() / 100000000);
-
-			// Current Balance
-			// node.getAttributes().setValue("Current Balance", (Double) node.getAttributes().getValue("Total Incoming Amount") - (Double) node.getAttributes().getValue("Total Outgoing Amount"));
-
-			// First Time & Last Time Sent
-			final ArrayList<Long> times = new ArrayList<Long>();
-			for (Relationship rel : neoNode.getRelationships(OwnerRelTypes.transfers, Direction.BOTH))
-			{
-				times.add((Long) rel.getProperty("time"));
-			}
-
-			if (times.size() > 0)
-			{
-				node.getAttributes().setValue("First Transfer Time", Collections.min(times));
-				node.getAttributes().setValue("Last Transfer Time", Collections.max(times));
-			}
-
-			// Date
-			node.getAttributes().setValue("Last Block Calculated", graphDb.getNodeById(((Long) graphDb.getNodeById(0).getProperty("last_linked_owner_build_block_nodeId"))).getProperty("height"));
-		}
-
-		if (isDateCompare)
-		{
-			nodeDegreeRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, Ranking.DEGREE_RANKING);
-		}
-
-		else
-		{
-			final AttributeColumn neo4jDegreeColumn = attributeModel.getNodeTable().getColumn("Total Transactions");
-			nodeDegreeRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, neo4jDegreeColumn.getId());
-		}
-
-		// Remove system columns
-		attributeModel.getNodeTable().removeColumn(attributeModel.getNodeTable().getColumn("last_time_sent"));
-
-		nodeSizeTransformer.setMinSize(3);
-		nodeSizeTransformer.setMaxSize(20);
-		rankingController.transform(nodeDegreeRanking, nodeSizeTransformer);
-
-		// Node Color
-		final AttributeColumn lastTimeSentColumn = attributeModel.getNodeTable().getColumn("Last Transfer Time");
-		if (lastTimeSentColumn != null)
-		{
-			final Ranking nodeLastTimeSentRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, lastTimeSentColumn.getId());
-			final AbstractColorTransformer nodeColorTransformer = (AbstractColorTransformer) rankingController.getModel().getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_COLOR);
-			final float[] nodeColorPositions = { 0f, 0.5f, 1f };
-			final Color[] nodeColors = new Color[] { new Color(0x0000FF), new Color(0x00FF00), new Color(0xFF0000) };
-			nodeColorTransformer.setLinearGradient(new LinearGradient(nodeColors, nodeColorPositions));
-			rankingController.transform(nodeLastTimeSentRanking, nodeColorTransformer);
-		}
-
-		// Node Label
-		for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
-		{
-			Object label = node.getAttributes().getValue(PropertiesColumn.NODE_ID.getId());
-			if (label instanceof String)
-			{
-				node.getNodeData().setLabel((String) label);
-			} else if (label instanceof Long)
-			{
-				node.getNodeData().setLabel(Long.toString((Long) label));
-			} else
-			{
-				throw new ClassCastException();
-			}
-		}
-		PreviewModel previewModel = Lookup.getDefault().lookup(PreviewController.class).getModel();
-		previewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, Boolean.TRUE);
-		previewModel.getProperties().putValue(PreviewProperty.NODE_LABEL_PROPORTIONAL_SIZE, Boolean.FALSE);
-		// previewModel.getProperties().putValue(PreviewProperty.NODE_LABEL_FONT, previewModel.getProperties().getFontValue(PreviewProperty.NODE_LABEL_FONT).deriveFont(8));
-
-		// Edge Color
-		final AttributeColumn edgeTimeSentColumn = attributeModel.getEdgeTable().getColumn("value");
-		if (edgeTimeSentColumn != null)
-		{
-			final Ranking edgeTimeSentRanking = rankingController.getModel().getRanking(Ranking.EDGE_ELEMENT, edgeTimeSentColumn.getId());
-			final AbstractColorTransformer edgeColorTransformer = (AbstractColorTransformer) rankingController.getModel().getTransformer(Ranking.EDGE_ELEMENT, Transformer.RENDERABLE_COLOR);
-			final float[] edgeColorPositions = { 0f, 0.5f, 1f };
-			final Color[] edgeColors = new Color[] { new Color(0x0000FF), new Color(0x00FF00), new Color(0xFF0000) };
-			edgeColorTransformer.setLinearGradient(new LinearGradient(edgeColors, edgeColorPositions));
-			rankingController.transform(edgeTimeSentRanking, edgeColorTransformer);
-		}
-
-		// Edge Label
-		for (org.gephi.graph.api.Edge edge : graphModel.getGraph().getEdges())
-		{
-			Object label = edge.getAttributes().getValue(PropertiesColumn.EDGE_ID.getId());
-			if (label instanceof String)
-			{
-				edge.getEdgeData().setLabel(Double.toString(((Long) graphDb.getRelationshipById(Long.parseLong((String) label)).getProperty("value")).doubleValue() / 100000000));
-			}
-
-			else if (label instanceof Long)
-			{
-				edge.getEdgeData().setLabel(Double.toString(((Long) graphDb.getRelationshipById((Long) label).getProperty("value")).doubleValue() / 100000000));
-			}
-
-			else
-			{
-				throw new ClassCastException();
-			}
-		}
-		previewModel.getProperties().putValue(PreviewProperty.SHOW_EDGE_LABELS, Boolean.TRUE);
-		previewModel.getProperties().putValue(PreviewProperty.EDGE_CURVED, Boolean.TRUE);
-		// previewModel.getProperties().putValue(PreviewProperty.EDGE_LABEL_FONT, previewModel.getProperties().getFontValue(PreviewProperty.NODE_LABEL_FONT).deriveFont(8));
-		// previewModel.getProperties().putValue(PreviewProperty.ARROW_SIZE, 20f);
-
-		LOG.info("Setting graph labels and features complete.");
-
-		// Graph Layout
-		LOG.info("Begin graph layout algorithm (Force Atlas 2 and Label Adjust)...");
-		final ForceAtlas2 layout = new ForceAtlas2(new ForceAtlas2Builder());
-		layout.setGraphModel(graphModel);
-		layout.resetPropertiesValues();
-		layout.setLinLogMode(true);
-		layout.setThreadsCount(threadCount);
-		layout.initAlgo();
-		for (int i = 0; i < 1000 && layout.canAlgo(); i++)
-		{
-			layout.goAlgo();
-		}
-
-		// We need to prevent graphs from overlapping, but we only do so once the graph is spatialized
-		layout.setAdjustSizes(true);
-		for (int i = 0; i < 100 && layout.canAlgo(); i++)
-		{
-			layout.goAlgo();
-		}
-
-		layout.endAlgo();
-
-		// We perform a label adjust to prevent overlapping labels
-		final LabelAdjust labelAdjustLayout = new LabelAdjust(new LabelAdjustBuilder());
-		labelAdjustLayout.setGraphModel(graphModel);
-		for (int i = 0; i < 100 && labelAdjustLayout.canAlgo(); i++)
-		{
-			labelAdjustLayout.goAlgo();
-		}
-
-		labelAdjustLayout.endAlgo();
-
-		LOG.info("Graph layout algorithm complete.");
-
+		
 		// Statistics
 		if (isDateCompare && graphModel.getGraph().getNodeCount() > 0)
 		{
@@ -570,6 +369,234 @@ public class GraphExporter
 			LOG.info("Weighted Degree Complete.");
 			LOG.info("Calculating Statistics Complete.");
 		}
+
+		// We set a degree attribute on each gephi node
+		if (!isDateCompare)
+		{
+			for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
+			{
+				Object label = node.getAttributes().getValue(PropertiesColumn.NODE_ID.getId());
+				Node neoNode = null;
+
+				if (label instanceof String)
+				{
+					neoNode = graphDb.getNodeById(Long.parseLong((String) label));
+				}
+
+				else if (label instanceof Long)
+				{
+					neoNode = graphDb.getNodeById((Long) label);
+				}
+
+				else
+				{
+					throw new ClassCastException();
+				}
+			
+				// Scraped Alias
+				ArrayList<AliasType> aliases = new ArrayList<AliasType>();
+				for (Relationship rel : neoNode.getRelationships(ScraperRelationships.identifies, Direction.INCOMING))
+				{
+					aliases.add(new AliasType((String) rel.getProperty("name"), (String) rel.getProperty("source"), (String) rel.getProperty("contributor"), (String) rel.getProperty("time")));
+				}
+				node.getAttributes().setValue("Aliases", aliases.toString());
+	
+				// Get Node Addresses
+				node.getAttributes().setValue("Total Owned Addresses", Iterables.size(neoNode.getRelationships(OwnerRelTypes.owns, Direction.OUTGOING))); // TODO - Storing the actual addresses values
+																																							// makes each gexf file too large!	
+				// Incoming Transactions
+				node.getAttributes().setValue("Total Incoming Transactions", Iterables.size(neoNode.getRelationships(OwnerRelTypes.transfers, Direction.INCOMING)));
+	
+				// Outgoing Transactions
+				node.getAttributes().setValue("Total Outgoing Transactions", Iterables.size(neoNode.getRelationships(OwnerRelTypes.transfers, Direction.OUTGOING)));
+	
+				// Get Node Degree
+				node.getAttributes().setValue("Total Transactions", Iterables.size(neoNode.getRelationships(OwnerRelTypes.transfers, Direction.BOTH)));
+	
+				// Total Incoming Amount
+				Long totalIncomingAmount = 0L;
+				for (Relationship rel : neoNode.getRelationships(OwnerRelTypes.transfers, Direction.INCOMING))
+				{
+					totalIncomingAmount += (Long) rel.getProperty("value");
+				}
+				node.getAttributes().setValue("Total Incoming Amount", totalIncomingAmount.doubleValue() / 100000000);
+	
+				// Total Outgoing Amount
+				Long totalOutgoingAmount = 0L;
+				for (Relationship rel : neoNode.getRelationships(OwnerRelTypes.transfers, Direction.OUTGOING))
+				{
+					totalOutgoingAmount += (Long) rel.getProperty("value");
+				}
+				node.getAttributes().setValue("Total Outgoing Amount", totalOutgoingAmount.doubleValue() / 100000000);
+	
+				// Current Balance
+				// node.getAttributes().setValue("Current Balance", (Double) node.getAttributes().getValue("Total Incoming Amount") - (Double) node.getAttributes().getValue("Total Outgoing Amount"));	
+
+				// First Time & Last Time Sent
+				final ArrayList<Long> times = new ArrayList<Long>();
+				for (Relationship rel : neoNode.getRelationships(OwnerRelTypes.transfers, Direction.BOTH))
+				{
+					times.add((Long) rel.getProperty("time"));
+				}
+
+				if (times.size() > 0)
+				{
+					node.getAttributes().setValue("First Transfer Time", Collections.min(times));
+					node.getAttributes().setValue("Last Transfer Time", Collections.max(times));
+				}
+				
+				// Date
+				node.getAttributes().setValue("Last Block Calculated", graphDb.getNodeById(((Long) graphDb.getNodeById(0).getProperty("last_linked_owner_build_block_nodeId"))).getProperty("height"));
+			}	
+		}	
+		
+		// Remove system columns
+		attributeModel.getNodeTable().removeColumn(attributeModel.getNodeTable().getColumn("last_time_sent"));
+		
+		// Ranking
+		final RankingController rankingController = Lookup.getDefault().lookup(RankingController.class);
+		rankingController.setInterpolator(Interpolator.LOG2);
+				
+		// Node Size		
+		final AbstractSizeTransformer nodeSizeTransformer = (AbstractSizeTransformer) rankingController.getModel().getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_SIZE);
+		nodeSizeTransformer.setMinSize(3);
+		nodeSizeTransformer.setMaxSize(20);
+		
+		if (isDateCompare)
+		{
+			if (graphModel.getGraph().getNodeCount() > 0)
+			{
+				// Centrality
+				final AttributeColumn centralityColumn = attributeModel.getNodeTable().getColumn(GraphDistance.BETWEENNESS);
+				final Ranking centralityRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, centralityColumn.getId());
+				rankingController.transform(centralityRanking, nodeSizeTransformer);
+			}			
+		}
+
+		else
+		{	
+			final AttributeColumn neo4jDegreeColumn = attributeModel.getNodeTable().getColumn("Total Transactions");
+			final Ranking nodeSizeRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, neo4jDegreeColumn.getId());
+			rankingController.transform(nodeSizeRanking, nodeSizeTransformer);
+		}
+
+		// Node Color	
+		final AbstractColorTransformer nodeColorTransformer = (AbstractColorTransformer) rankingController.getModel().getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_COLOR);
+		final float[] nodeColorPositions = { 0f, 0.5f, 1f };
+		final Color[] nodeColors = new Color[] { new Color(0x0000FF), new Color(0x00FF00), new Color(0xFF0000) };
+		nodeColorTransformer.setLinearGradient(new LinearGradient(nodeColors, nodeColorPositions));
+		
+		if (isDateCompare)
+		{
+			final Ranking nodeDegreeRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, Ranking.DEGREE_RANKING);
+			rankingController.transform(nodeDegreeRanking, nodeColorTransformer);
+		}
+		
+		else
+		{
+			final AttributeColumn lastTimeSentColumn = attributeModel.getNodeTable().getColumn("Last Transfer Time");
+			if (lastTimeSentColumn != null)
+			{
+				final Ranking nodeLastTimeSentRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, lastTimeSentColumn.getId());
+				rankingController.transform(nodeLastTimeSentRanking, nodeColorTransformer);
+			}
+		}
+
+		// Node Label
+		for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
+		{
+			Object label = node.getAttributes().getValue(PropertiesColumn.NODE_ID.getId());
+			if (label instanceof String)
+			{
+				node.getNodeData().setLabel((String) label);
+			} 
+			
+			else if (label instanceof Long)
+			{
+				node.getNodeData().setLabel(Long.toString((Long) label));
+			} 
+			
+			else
+			{
+				throw new ClassCastException();
+			}
+		}
+		
+		final PreviewModel previewModel = Lookup.getDefault().lookup(PreviewController.class).getModel();
+		previewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, Boolean.TRUE);
+		previewModel.getProperties().putValue(PreviewProperty.NODE_LABEL_PROPORTIONAL_SIZE, Boolean.FALSE);
+
+		// Edge Color
+		final AttributeColumn edgeTimeSentColumn = attributeModel.getEdgeTable().getColumn("value");
+		if (edgeTimeSentColumn != null)
+		{
+			final Ranking edgeTimeSentRanking = rankingController.getModel().getRanking(Ranking.EDGE_ELEMENT, edgeTimeSentColumn.getId());
+			final AbstractColorTransformer edgeColorTransformer = (AbstractColorTransformer) rankingController.getModel().getTransformer(Ranking.EDGE_ELEMENT, Transformer.RENDERABLE_COLOR);
+			final float[] edgeColorPositions = { 0f, 0.5f, 1f };
+			final Color[] edgeColors = new Color[] { new Color(0x0000FF), new Color(0x00FF00), new Color(0xFF0000) };
+			edgeColorTransformer.setLinearGradient(new LinearGradient(edgeColors, edgeColorPositions));
+			rankingController.transform(edgeTimeSentRanking, edgeColorTransformer);
+		}
+
+		// Edge Label
+		for (org.gephi.graph.api.Edge edge : graphModel.getGraph().getEdges())
+		{
+			Object label = edge.getAttributes().getValue(PropertiesColumn.EDGE_ID.getId());
+			if (label instanceof String)
+			{
+				edge.getEdgeData().setLabel(Double.toString(((Long) graphDb.getRelationshipById(Long.parseLong((String) label)).getProperty("value")).doubleValue() / 100000000));
+			}
+
+			else if (label instanceof Long)
+			{
+				edge.getEdgeData().setLabel(Double.toString(((Long) graphDb.getRelationshipById((Long) label).getProperty("value")).doubleValue() / 100000000));
+			}
+
+			else
+			{
+				throw new ClassCastException();
+			}
+		}
+		previewModel.getProperties().putValue(PreviewProperty.SHOW_EDGE_LABELS, Boolean.TRUE);
+		previewModel.getProperties().putValue(PreviewProperty.EDGE_CURVED, Boolean.TRUE);
+		// previewModel.getProperties().putValue(PreviewProperty.EDGE_LABEL_FONT, previewModel.getProperties().getFontValue(PreviewProperty.NODE_LABEL_FONT).deriveFont(8));
+		// previewModel.getProperties().putValue(PreviewProperty.ARROW_SIZE, 20f);
+
+		LOG.info("Setting graph labels and features complete.");
+
+		// Graph Layout
+		LOG.info("Begin graph layout algorithm (Force Atlas 2 and Label Adjust)...");
+		final ForceAtlas2 layout = new ForceAtlas2(new ForceAtlas2Builder());
+		layout.setGraphModel(graphModel);
+		layout.resetPropertiesValues();
+		layout.setLinLogMode(true);
+		layout.setThreadsCount(threadCount);
+		layout.initAlgo();
+		for (int i = 0; i < 1000 && layout.canAlgo(); i++)
+		{
+			layout.goAlgo();
+		}
+
+		// We need to prevent graphs from overlapping, but we only do so once the graph is spatialized
+		layout.setAdjustSizes(true);
+		for (int i = 0; i < 100 && layout.canAlgo(); i++)
+		{
+			layout.goAlgo();
+		}
+
+		layout.endAlgo();
+
+		// We perform a label adjust to prevent overlapping labels
+		final LabelAdjust labelAdjustLayout = new LabelAdjust(new LabelAdjustBuilder());
+		labelAdjustLayout.setGraphModel(graphModel);
+		for (int i = 0; i < 100 && labelAdjustLayout.canAlgo(); i++)
+		{
+			labelAdjustLayout.goAlgo();
+		}
+
+		labelAdjustLayout.endAlgo();
+
+		LOG.info("Graph layout algorithm complete.");
 
 		// Export
 		LOG.info("Begin Exporting Graph To Disk...");
