@@ -28,7 +28,8 @@ public class Main
 	private static GraphDatabaseAPI graphDb;
 	private static WrappingNeoServerBootstrapper srv;
 	private static Thread shutdownThread;
-	private static GraphExporterNodejsApi api = null;;
+	private static GraphExporterNodejsApi api = null;
+	private static GraphExporter graphExporter = new GraphExporter();
 	
 
 	public static void main(String[] args)
@@ -113,9 +114,9 @@ public class Main
 						}
 						
 						if (line.hasOption("timeanalysis"))
-						{
+						{							
 							int cores = Runtime.getRuntime().availableProcessors();			
-							GraphExporter.ExportTimeAnalysisGraphsToMySql(graphDb, cores > 1 ? cores - 1 : cores);
+							graphExporter.ExportTimeAnalysisGraphsToMySql(graphDb, cores > 1 ? cores - 1 : cores);
 						}
 						
 					} 

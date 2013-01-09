@@ -27,6 +27,7 @@ import org.gephi.neo4j.plugin.api.Neo4jImporter;
 import org.gephi.neo4j.plugin.api.RelationshipDescription;
 import org.gephi.neo4j.plugin.api.TraversalOrder;
 import org.gephi.project.api.ProjectController;
+import org.gephi.project.api.Workspace;
 import org.gephi.utils.longtask.spi.LongTask;
 import org.gephi.utils.progress.Progress;
 import org.gephi.utils.progress.ProgressTicket;
@@ -54,6 +55,12 @@ public final class Neo4jImporterImpl implements Neo4jImporter, LongTask {
     private static final int NO_START_NODE = -1;
     private ProgressTicket progressTicket;
     private boolean cancelImport;
+    private Workspace workspace;
+    
+    public Neo4jImporterImpl(Workspace workspace)
+    {
+    	this.workspace = workspace;
+    }
 
     @Override
     public boolean cancel() {
@@ -176,7 +183,7 @@ public final class Neo4jImporterImpl implements Neo4jImporter, LongTask {
     private void importGraph(GraphDatabaseService graphDB, Traverser traverser, NodeReturnFilter nodeReturnFilter, EdgeReturnFilter edgeReturnFilter) {
         initProject();
 
-        GraphModelImportConverter graphModelImportConverter = GraphModelImportConverter.getInstance(graphDB);
+        GraphModelImportConverter graphModelImportConverter = GraphModelImportConverter.getInstance(this.workspace, graphDB);
         graphModelImportConverter.createNeo4jRelationshipTypeGephiColumn();
 
         if (traverser == null) {

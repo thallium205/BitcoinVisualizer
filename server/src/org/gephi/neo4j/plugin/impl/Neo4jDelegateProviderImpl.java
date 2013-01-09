@@ -26,6 +26,7 @@ import org.gephi.data.attributes.spi.AttributeValueDelegateProvider;
 import org.gephi.data.attributes.spi.GraphItemDelegateFactoryProvider;
 import org.gephi.data.attributes.type.AbstractList;
 import org.gephi.data.properties.PropertiesColumn;
+import org.gephi.project.api.Workspace;
 import org.neo4j.graphdb.DynamicRelationshipType;
 import org.neo4j.graphdb.GraphDatabaseService;
 
@@ -35,18 +36,25 @@ import org.neo4j.graphdb.GraphDatabaseService;
  * @author Martin Škurla
  */
 class Neo4jDelegateProviderImpl extends AttributeValueDelegateProvider<Long> {
-    private static final Neo4jDelegateProviderImpl instance;
+	
+	private static Workspace workspace;
+	
+    private static Neo4jDelegateProviderImpl instance = null;
 
-    
-    static {
-        instance = new Neo4jDelegateProviderImpl();
+    public static Neo4jDelegateProviderImpl getInstance(Workspace workspace) {   
+    	if (instance == null)
+    	{
+    		instance = new Neo4jDelegateProviderImpl(workspace);
+    	}
+    	
+    	 Neo4jDelegateProviderImpl.workspace = workspace;
+    	 return instance;
     }
 
-    public static Neo4jDelegateProviderImpl getInstance() {
-        return instance;
+    private Neo4jDelegateProviderImpl(Workspace workspace) 
+    {
+    	Neo4jDelegateProviderImpl.workspace = workspace;
     }
-
-    private Neo4jDelegateProviderImpl() {}
 
 
     @Override
@@ -56,7 +64,7 @@ class Neo4jDelegateProviderImpl extends AttributeValueDelegateProvider<Long> {
 
     @Override
     public Object getNodeAttributeValue(Long delegateId, AttributeColumn attributeColumn) {
-        GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForCurrentWorkspace();
+        GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForWorkspace(workspace);
 
         return graphDB.getNodeById(delegateId).getProperty(attributeColumn.getId());
     }
@@ -67,14 +75,14 @@ class Neo4jDelegateProviderImpl extends AttributeValueDelegateProvider<Long> {
         if (nodeValue instanceof AbstractList)
             nodeValue = ListTypeToPrimitiveArrayConvertor.convert(nodeValue);
 
-        GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForCurrentWorkspace();
+        GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForWorkspace(workspace);
         
         graphDB.getNodeById(delegateId).setProperty(attributeColumn.getId(), nodeValue);
     }
 
     @Override
     public void deleteNodeAttributeValue(Long delegateId, AttributeColumn attributeColumn) {
-        GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForCurrentWorkspace();
+        GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForWorkspace(workspace);
 
         graphDB.getNodeById(delegateId).removeProperty(attributeColumn.getId());
     }
@@ -82,7 +90,7 @@ class Neo4jDelegateProviderImpl extends AttributeValueDelegateProvider<Long> {
 
     @Override
     public Object getEdgeAttributeValue(Long delegateId, AttributeColumn attributeColumn) {
-        GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForCurrentWorkspace();
+        GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForWorkspace(workspace);
 
         if (attributeColumn.getId().equals(PropertiesColumn.NEO4J_RELATIONSHIP_TYPE.getId()))
             return graphDB.getRelationshipById(delegateId).getType().name();
@@ -96,14 +104,14 @@ class Neo4jDelegateProviderImpl extends AttributeValueDelegateProvider<Long> {
         if (edgeValue instanceof AbstractList)
             edgeValue = ListTypeToPrimitiveArrayConvertor.convert(edgeValue);
 
-        GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForCurrentWorkspace();
+        GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForWorkspace(workspace);
 
         graphDB.getRelationshipById(delegateId).setProperty(attributeColumn.getId(), edgeValue);
     }
 
     @Override
     public void deleteEdgeAttributeValue(Long delegateId, AttributeColumn attributeColumn) {
-        GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForCurrentWorkspace();
+        GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForWorkspace(workspace);
 
         graphDB.getRelationshipById(delegateId).removeProperty(attributeColumn.getId());
     }
@@ -136,21 +144,21 @@ class Neo4jDelegateProviderImpl extends AttributeValueDelegateProvider<Long> {
 
         @Override
         public Long createNode() {
-            GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForCurrentWorkspace();
+            GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForWorkspace(workspace);
 
             return graphDB.createNode().getId();
         }
 
         @Override
         public void deleteNode(Long nodeId) {
-            GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForCurrentWorkspace();
+            GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForWorkspace(workspace);
 
             graphDB.getNodeById(nodeId).delete();
         }
 
         @Override
         public Long createEdge(Long startNodeId, Long endNodeId) {
-            GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForCurrentWorkspace();
+            GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForWorkspace(workspace);
 
             org.neo4j.graphdb.Node startNode = graphDB.getNodeById(startNodeId);
             org.neo4j.graphdb.Node endNode   = graphDB.getNodeById(endNodeId);
@@ -161,7 +169,7 @@ class Neo4jDelegateProviderImpl extends AttributeValueDelegateProvider<Long> {
 
         @Override
         public void deleteEdge(Long edgeId) {
-            GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForCurrentWorkspace();
+            GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForWorkspace(workspace);
 
             graphDB.getRelationshipById(edgeId).delete();
         }

@@ -59,32 +59,34 @@ public class GraphModelImportConverter {
     private static Graph graph;
     private static AttributeModel attributeModel;
     private static Neo4jGraphModel currentNeo4jModel;
+    private static Workspace workspace;
 
-    private GraphModelImportConverter() {
+    private GraphModelImportConverter(Workspace newWorkspace) {
+    	GraphModelImportConverter.workspace = newWorkspace;
     }
 
-    public synchronized static GraphModelImportConverter getInstance(GraphDatabaseService graphDB) {
+    public static GraphModelImportConverter getInstance(Workspace newWorkspace, GraphDatabaseService graphDB) {
         if (singleton == null) {
-            singleton = new GraphModelImportConverter();
-        }
+            singleton = new GraphModelImportConverter(newWorkspace);
+        }        
 
         ProjectController projectController = Lookup.getDefault().lookup(ProjectController.class);
 
         // Workspace currentWorkspace = projectController.newWorkspace(projectController.getCurrentProject());
         // projectController.openWorkspace(currentWorkspace);
 
-        Workspace currentWorkspace = projectController.getCurrentWorkspace();
-        projectController.cleanWorkspace(currentWorkspace);   
+        // Workspace currentWorkspace = projectController.getCurrentWorkspace();
+        // projectController.cleanWorkspace(currentWorkspace);   
         
         if (currentNeo4jModel != null)
         {
-        	currentWorkspace.add(currentNeo4jModel);
+        	workspace.add(currentNeo4jModel);
         }
         
         else
         {
         	currentNeo4jModel = new Neo4jGraphModel(graphDB);
-        	currentWorkspace.add(currentNeo4jModel);
+        	workspace.add(currentNeo4jModel);
 	    	 projectController.addWorkspaceListener(new WorkspaceListener() {
 	
 	             @Override
@@ -123,8 +125,10 @@ public class GraphModelImportConverter {
 
 
         GraphController graphController = Lookup.getDefault().lookup(GraphController.class);
-        graphModel = graphController.getModel();        
+        graphModel = graphController.getModel(workspace);        
         graph = graphModel.getGraph();
+        
+        
         
         graph.clearEdges();
         for (org.gephi.graph.api.Node node : graph.getNodes().toArray()) 
@@ -134,7 +138,7 @@ public class GraphModelImportConverter {
         
 
         AttributeController attributeController = Lookup.getDefault().lookup(AttributeController.class);
-        attributeModel = attributeController.getModel();
+        attributeModel = attributeController.getModel(workspace);
        
 
         return singleton;
@@ -167,12 +171,12 @@ public class GraphModelImportConverter {
 
             if (!nodeTable.hasColumn(neoPropertyKey)) {
                 if (!neoPropertyValue.getClass().isArray()) {
-                    nodeTable.addColumn(neoPropertyKey, neoPropertyKey, AttributeType.parse(neoPropertyValue), Neo4jDelegateProviderImpl.getInstance(), null);
+                    nodeTable.addColumn(neoPropertyKey, neoPropertyKey, AttributeType.parse(neoPropertyValue), Neo4jDelegateProviderImpl.getInstance(workspace), null);
                 } else {
                     AttributeType attributeType =
                             Neo4jArrayToGephiAttributeTypeMapper.map(neoPropertyValue);
 
-                    nodeTable.addColumn(neoPropertyKey, neoPropertyKey, attributeType, Neo4jDelegateProviderImpl.getInstance(), null);
+                    nodeTable.addColumn(neoPropertyKey, neoPropertyKey, attributeType, Neo4jDelegateProviderImpl.getInstance(workspace), null);
                 }
             }
 
@@ -224,12 +228,12 @@ public class GraphModelImportConverter {
 
             if (!edgeTable.hasColumn(neoPropertyKey)) {
                 if (!neoPropertyValue.getClass().isArray()) {
-                    edgeTable.addColumn(neoPropertyKey, neoPropertyKey, AttributeType.parse(neoPropertyValue), Neo4jDelegateProviderImpl.getInstance(), null);
+                    edgeTable.addColumn(neoPropertyKey, neoPropertyKey, AttributeType.parse(neoPropertyValue), Neo4jDelegateProviderImpl.getInstance(workspace), null);
                 } else {
                     AttributeType attributeType =
                             Neo4jArrayToGephiAttributeTypeMapper.map(neoPropertyValue);
 
-                    edgeTable.addColumn(neoPropertyKey, neoPropertyKey, attributeType, Neo4jDelegateProviderImpl.getInstance(), null);
+                    edgeTable.addColumn(neoPropertyKey, neoPropertyKey, attributeType, Neo4jDelegateProviderImpl.getInstance(workspace), null);
                 }
             }
             if (edgeTable.getColumn(neoPropertyKey).getOrigin() == AttributeOrigin.DELEGATE) {
@@ -250,21 +254,19 @@ public class GraphModelImportConverter {
             attributeModel.getEdgeTable().addColumn(propertiesColumn.getId(),
                     propertiesColumn.getTitle(),
                     AttributeType.STRING,
-                    Neo4jDelegateProviderImpl.getInstance(),
+                    Neo4jDelegateProviderImpl.getInstance(workspace),
                     null);
     	}
     }
 
-    public static GraphDatabaseService getGraphDBForCurrentWorkspace() {
-        Neo4jGraphModel neo4jmodel = getNeo4jModelForCurrentWorkspace();
+    public static GraphDatabaseService getGraphDBForWorkspace(Workspace workspace) {
+        Neo4jGraphModel neo4jmodel = getNeo4jModelForWorkspace(workspace);
 
         return neo4jmodel != null ? neo4jmodel.graphDb : null;
     }
 
-    public static Neo4jGraphModel getNeo4jModelForCurrentWorkspace() {
-        Workspace currentWorkspace = Lookup.getDefault().lookup(ProjectController.class).getCurrentWorkspace();
-
-        return currentWorkspace.getLookup().lookup(Neo4jGraphModel.class);
+    public static Neo4jGraphModel getNeo4jModelForWorkspace(Workspace workspace) {
+        return workspace.getLookup().lookup(Neo4jGraphModel.class);
     }
 
     static Collection<GraphDatabaseService> getAllGraphDBs() {

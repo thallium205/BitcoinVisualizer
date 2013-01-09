@@ -21,6 +21,8 @@ along with Gephi.  If not, see <http://www.gnu.org/licenses/>.
 package org.gephi.neo4j.plugin.api;
 
 import java.util.Collection;
+
+import org.gephi.project.api.Workspace;
 import org.neo4j.graphdb.GraphDatabaseService;
 
 /**

@@ -35,14 +35,14 @@ public class GephiToNeo4jMapperImpl implements GephiToNeo4jMapper {
 
     @Override
     public long getNeo4jNodeIdFromGephiNodeId(int gephiNodeId) {
-        Neo4jGraphModel graphModel = GraphModelImportConverter.getNeo4jModelForCurrentWorkspace();
+        Neo4jGraphModel graphModel = GraphModelImportConverter.getNeo4jModelForWorkspace(workspace);
 
         return graphModel.getGephiToNeo4jNodeMap().get(gephiNodeId);
     }
 
     @Override
     public void clearMappers() {
-        Neo4jGraphModel graphModel = GraphModelImportConverter.getNeo4jModelForCurrentWorkspace();
+        Neo4jGraphModel graphModel = GraphModelImportConverter.getNeo4jModelForWorkspace(workspace);
 
         graphModel.getGephiToNeo4jNodeMap().clear();
         graphModel.getNeo4jToGephiNodeMap().clear();
@@ -50,14 +50,14 @@ public class GephiToNeo4jMapperImpl implements GephiToNeo4jMapper {
 
     @Override
     public boolean isNeo4jDatabaseInCurrentWorkspace() {
-        Neo4jGraphModel graphModel = GraphModelImportConverter.getNeo4jModelForCurrentWorkspace();
+        Neo4jGraphModel graphModel = GraphModelImportConverter.getNeo4jModelForWorkspace(workspace);
 
         return graphModel != null;
     }
 
     @Override
     public GraphDatabaseService getGraphDBFromCurrentWorkspace() {
-        Neo4jGraphModel graphModel = GraphModelImportConverter.getNeo4jModelForCurrentWorkspace();
+        Neo4jGraphModel graphModel = GraphModelImportConverter.getNeo4jModelForWorkspace(workspace);
 
         return graphModel.getGraphDB();
     }

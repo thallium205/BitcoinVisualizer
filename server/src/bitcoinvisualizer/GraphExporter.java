@@ -33,6 +33,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.gephi.data.attributes.api.AttributeColumn;
 import org.gephi.data.attributes.api.AttributeController;
 import org.gephi.data.attributes.api.AttributeModel;
+import org.gephi.data.attributes.api.AttributeTable;
 import org.gephi.data.properties.PropertiesColumn;
 import org.gephi.graph.api.DirectedGraph;
 import org.gephi.graph.api.GraphController;
@@ -62,6 +63,7 @@ import org.gephi.preview.PreviewModelImpl;
 import org.gephi.preview.api.PreviewController;
 import org.gephi.preview.api.PreviewModel;
 import org.gephi.preview.api.PreviewProperty;
+import org.gephi.project.api.Project;
 import org.gephi.project.api.ProjectController;
 import org.gephi.project.api.Workspace;
 import org.gephi.ranking.api.Interpolator;
@@ -114,8 +116,14 @@ public class GraphExporter
 	public static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
 	private static Index<Node> owned_addresses;
 	public enum ExportType { GEXF, PDF, PNG }	
+	private static final ProjectController projectController = Lookup.getDefault().lookup(ProjectController.class);	
+	
+	public GraphExporter()
+	{
+		projectController.newProject();
+	}
 
-	public static void ExportTimeAnalysisGraphsToMySql(final GraphDatabaseAPI graphDb, final int threadCount)
+	public void ExportTimeAnalysisGraphsToMySql(final GraphDatabaseAPI graphDb, final int threadCount)
 	{
 		try
 		{
@@ -156,7 +164,7 @@ public class GraphExporter
 			final Date lastTime = new Date(((Long) graphDb.getNodeById((((Long) graphDb.getNodeById(0).getProperty("last_linked_owner_build_block_nodeId")))).getProperty("received_time")) * 1000);
 			while (!to.after(lastTime))
 			{
-				Export(sqlDb, graphDb, null, from, to, null, threadCount);
+				Export(projectController.newWorkspace(projectController.getCurrentProject()), sqlDb, graphDb, null, from, to, null, threadCount);
 				from = to;
 				cal.setTime(to);
 				cal.add(Calendar.DATE, 1);
@@ -177,24 +185,24 @@ public class GraphExporter
 		}		
 	}
 
-	public static synchronized String GetOwnerByAddress(final GraphDatabaseAPI graphDb, final String address, final ExportType exportType)
+	public String GetOwnerByAddress(final GraphDatabaseAPI graphDb, final String address, final ExportType exportType)
 	{
 		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH); 		
 		final Node addressNode = owned_addresses.query(OWNED_ADDRESS_HASH_KEY, address).getSingle();
 		if (addressNode == null)
 		{
 			return "";
-		}
+		}		
 		
-		return Export(null, graphDb, addressNode.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId(), null, null, exportType, 1);
+		return Export(projectController.newWorkspace(projectController.getCurrentProject()), null, graphDb, addressNode.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId(), null, null, exportType, 1);
 	}
 	
-	public static synchronized String GetOwnerById(final GraphDatabaseAPI graphDb, final Long ownerId, final ExportType exportType)
+	public String GetOwnerById(final GraphDatabaseAPI graphDb, final Long ownerId, final ExportType exportType)
 	{		
-		return Export(null, graphDb, ownerId, null, null, exportType, 1);
+		return Export(projectController.newWorkspace(projectController.getCurrentProject()), null, graphDb, ownerId, null, null, exportType, 1);
 	}
 
-	private static String Export(final Connection sqlDb, final GraphDatabaseAPI graphDb, Long ownerId, final Date from, final Date to, final ExportType exportType, final int threadCount)
+	private String Export(final Workspace workspace, final Connection sqlDb, final GraphDatabaseAPI graphDb, Long ownerId, final Date from, final Date to, final ExportType exportType, final int threadCount)
 	{
 		boolean isDateCompare;
 		LOG.info("Begin Building GEXF from Neo4j");
@@ -211,7 +219,7 @@ public class GraphExporter
 		}
 
 		// We export the entire graph between the two dates
-		final Neo4jImporter importer = new Neo4jImporterImpl();
+		final Neo4jImporter importer = new Neo4jImporterImpl(workspace);
 		if (isDateCompare)
 		{
 			assert (from != null && to != null);
@@ -245,9 +253,9 @@ public class GraphExporter
 		}
 
 		// Grab the graph that was loaded from the importer
-		final GraphModel graphModel = Lookup.getDefault().lookup(GraphController.class).getModel();
+		final GraphModel graphModel = Lookup.getDefault().lookup(GraphController.class).getModel(workspace);
 		final DirectedGraph graph = graphModel.getDirectedGraph();
-		final AttributeModel attributeModel = Lookup.getDefault().lookup(AttributeController.class).getModel();
+		final AttributeModel attributeModel = Lookup.getDefault().lookup(AttributeController.class).getModel(workspace);
 		LOG.info("Graph Imported.  Nodes: " + graph.getNodeCount() + " Edges: " + graph.getEdgeCount());
 
 		if (!isDateCompare && graph.getNodeCount() > 2500)
@@ -452,13 +460,17 @@ public class GraphExporter
 		
 		// Remove system columns
 		attributeModel.getNodeTable().removeColumn(attributeModel.getNodeTable().getColumn("last_time_sent"));
+		if (attributeModel.getNodeTable().hasColumn("name"))
+		{
+			attributeModel.getNodeTable().removeColumn(attributeModel.getNodeTable().getColumn("name"));
+		}
 		
 		// Ranking
 		final RankingController rankingController = Lookup.getDefault().lookup(RankingController.class);
 		rankingController.setInterpolator(Interpolator.LOG2);
 				
 		// Node Size		
-		final AbstractSizeTransformer nodeSizeTransformer = (AbstractSizeTransformer) rankingController.getModel().getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_SIZE);
+		final AbstractSizeTransformer nodeSizeTransformer = (AbstractSizeTransformer) rankingController.getModel(workspace).getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_SIZE);
 		nodeSizeTransformer.setMinSize(3);
 		nodeSizeTransformer.setMaxSize(20);
 		
@@ -468,27 +480,36 @@ public class GraphExporter
 			{
 				// Centrality
 				final AttributeColumn centralityColumn = attributeModel.getNodeTable().getColumn(GraphDistance.BETWEENNESS);
-				final Ranking centralityRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, centralityColumn.getId());
+				final Ranking centralityRanking = rankingController.getModel(workspace).getRanking(Ranking.NODE_ELEMENT, centralityColumn.getId());
 				rankingController.transform(centralityRanking, nodeSizeTransformer);
 			}			
 		}
 
 		else
 		{	
+			
+			AttributeTable test = attributeModel.getNodeTable();
+			System.out.println(test.countColumns());
+			
+			System.out.println(graphModel.getGraph().getNodeCount());
+			
 			final AttributeColumn neo4jDegreeColumn = attributeModel.getNodeTable().getColumn("Total Transactions");
-			final Ranking nodeSizeRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, neo4jDegreeColumn.getId());
-			rankingController.transform(nodeSizeRanking, nodeSizeTransformer);
+			
+			System.out.println(neo4jDegreeColumn.getId());
+			
+			final Ranking nodeSizeRanking = rankingController.getModel(workspace).getRanking(Ranking.NODE_ELEMENT, neo4jDegreeColumn.getId());
+			// rankingController.transform(nodeSizeRanking, nodeSizeTransformer);
 		}
 
 		// Node Color	
-		final AbstractColorTransformer nodeColorTransformer = (AbstractColorTransformer) rankingController.getModel().getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_COLOR);
+		final AbstractColorTransformer nodeColorTransformer = (AbstractColorTransformer) rankingController.getModel(workspace).getTransformer(Ranking.NODE_ELEMENT, Transformer.RENDERABLE_COLOR);
 		final float[] nodeColorPositions = { 0f, 0.5f, 1f };
 		final Color[] nodeColors = new Color[] { new Color(0x0000FF), new Color(0x00FF00), new Color(0xFF0000) };
 		nodeColorTransformer.setLinearGradient(new LinearGradient(nodeColors, nodeColorPositions));
 		
 		if (isDateCompare)
 		{
-			final Ranking nodeDegreeRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, Ranking.DEGREE_RANKING);
+			final Ranking nodeDegreeRanking = rankingController.getModel(workspace).getRanking(Ranking.NODE_ELEMENT, Ranking.DEGREE_RANKING);
 			rankingController.transform(nodeDegreeRanking, nodeColorTransformer);
 		}
 		
@@ -497,8 +518,8 @@ public class GraphExporter
 			final AttributeColumn lastTimeSentColumn = attributeModel.getNodeTable().getColumn("Last Transfer Time");
 			if (lastTimeSentColumn != null)
 			{
-				final Ranking nodeLastTimeSentRanking = rankingController.getModel().getRanking(Ranking.NODE_ELEMENT, lastTimeSentColumn.getId());
-				rankingController.transform(nodeLastTimeSentRanking, nodeColorTransformer);
+				final Ranking nodeLastTimeSentRanking = rankingController.getModel(workspace).getRanking(Ranking.NODE_ELEMENT, lastTimeSentColumn.getId());
+				// rankingController.transform(nodeLastTimeSentRanking, nodeColorTransformer);
 			}
 		}
 
@@ -522,7 +543,7 @@ public class GraphExporter
 			}
 		}
 		
-		final PreviewModel previewModel = Lookup.getDefault().lookup(PreviewController.class).getModel();
+		final PreviewModel previewModel = Lookup.getDefault().lookup(PreviewController.class).getModel(workspace);
 		previewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, Boolean.TRUE);
 		previewModel.getProperties().putValue(PreviewProperty.NODE_LABEL_PROPORTIONAL_SIZE, Boolean.FALSE);
 
@@ -530,12 +551,12 @@ public class GraphExporter
 		final AttributeColumn edgeTimeSentColumn = attributeModel.getEdgeTable().getColumn("value");
 		if (edgeTimeSentColumn != null)
 		{
-			final Ranking edgeTimeSentRanking = rankingController.getModel().getRanking(Ranking.EDGE_ELEMENT, edgeTimeSentColumn.getId());
-			final AbstractColorTransformer edgeColorTransformer = (AbstractColorTransformer) rankingController.getModel().getTransformer(Ranking.EDGE_ELEMENT, Transformer.RENDERABLE_COLOR);
+			final Ranking edgeTimeSentRanking = rankingController.getModel(workspace).getRanking(Ranking.EDGE_ELEMENT, edgeTimeSentColumn.getId());
+			final AbstractColorTransformer edgeColorTransformer = (AbstractColorTransformer) rankingController.getModel(workspace).getTransformer(Ranking.EDGE_ELEMENT, Transformer.RENDERABLE_COLOR);
 			final float[] edgeColorPositions = { 0f, 0.5f, 1f };
 			final Color[] edgeColors = new Color[] { new Color(0x0000FF), new Color(0x00FF00), new Color(0xFF0000) };
 			edgeColorTransformer.setLinearGradient(new LinearGradient(edgeColors, edgeColorPositions));
-			rankingController.transform(edgeTimeSentRanking, edgeColorTransformer);
+			// rankingController.transform(edgeTimeSentRanking, edgeColorTransformer);
 		}
 
 		// Edge Label
@@ -694,7 +715,8 @@ public class GraphExporter
 		}
 
 
-		LOG.info("Exporting Graph To Disk Completed.");
+		LOG.info("Exporting Graph To Disk Completed.");		
+		// projectController.deleteWorkspace(workspace); TODO		
 		return response;
 	}
 		

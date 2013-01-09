@@ -13,6 +13,7 @@ public class GraphExporterNodejsApi extends NanoHTTPD
 {
 	private static final Logger LOG = Logger.getLogger(GraphExporter.class.getName());
 	final GraphDatabaseAPI graphDb;
+	final GraphExporter graphExporter = new GraphExporter();
 
 	public GraphExporterNodejsApi(final GraphDatabaseAPI graphDb) throws IOException
 	{			
@@ -31,17 +32,17 @@ public class GraphExporterNodejsApi extends NanoHTTPD
 				{
 					if (uri.contains("/owner/gexf"))
 					{
-						return new NanoHTTPD.Response( HTTP_OK, MIME_DEFAULT_BINARY, GraphExporter.GetOwnerByAddress(graphDb, parms.getProperty("addr"), GraphExporter.ExportType.GEXF));
+						return new NanoHTTPD.Response( HTTP_OK, MIME_DEFAULT_BINARY, graphExporter.GetOwnerByAddress(graphDb, parms.getProperty("addr"), GraphExporter.ExportType.GEXF));
 					}
 					
 					else if (uri.contains("/owner/pdf"))
 					{
-						return new NanoHTTPD.Response( HTTP_OK, MIME_HTML, GraphExporter.GetOwnerByAddress(graphDb, parms.getProperty("addr"), GraphExporter.ExportType.PDF));	
+						return new NanoHTTPD.Response( HTTP_OK, MIME_HTML, graphExporter.GetOwnerByAddress(graphDb, parms.getProperty("addr"), GraphExporter.ExportType.PDF));	
 					}
 					
 					else if (uri.contains("/owner/png"))
 					{
-						return new NanoHTTPD.Response( HTTP_OK, MIME_HTML, GraphExporter.GetOwnerByAddress(graphDb, parms.getProperty("addr"), GraphExporter.ExportType.PNG));
+						return new NanoHTTPD.Response( HTTP_OK, MIME_HTML, graphExporter.GetOwnerByAddress(graphDb, parms.getProperty("addr"), GraphExporter.ExportType.PNG));
 					}
 					
 					else 
@@ -54,16 +55,16 @@ public class GraphExporterNodejsApi extends NanoHTTPD
 				{
 					if (uri.contains("/owner/gexf"))
 					{
-						return new NanoHTTPD.Response( HTTP_OK, MIME_DEFAULT_BINARY, GraphExporter.GetOwnerById(graphDb, Long.parseLong(parms.getProperty("ownerId")), GraphExporter.ExportType.GEXF));
+						return new NanoHTTPD.Response( HTTP_OK, MIME_DEFAULT_BINARY, graphExporter.GetOwnerById(graphDb, Long.parseLong(parms.getProperty("ownerId")), GraphExporter.ExportType.GEXF));
 					}
 					
 					else if (uri.contains("/owner/pdf"))
 					{
-						return new NanoHTTPD.Response( HTTP_OK, MIME_DEFAULT_BINARY, GraphExporter.GetOwnerById(graphDb, Long.parseLong(parms.getProperty("ownerId")), GraphExporter.ExportType.PDF));					}
+						return new NanoHTTPD.Response( HTTP_OK, MIME_DEFAULT_BINARY, graphExporter.GetOwnerById(graphDb, Long.parseLong(parms.getProperty("ownerId")), GraphExporter.ExportType.PDF));					}
 					
 					else if (uri.contains("/owner/png"))
 					{
-						return new NanoHTTPD.Response( HTTP_OK, MIME_DEFAULT_BINARY, GraphExporter.GetOwnerById(graphDb, Long.parseLong(parms.getProperty("ownerId")), GraphExporter.ExportType.PNG));					}
+						return new NanoHTTPD.Response( HTTP_OK, MIME_DEFAULT_BINARY, graphExporter.GetOwnerById(graphDb, Long.parseLong(parms.getProperty("ownerId")), GraphExporter.ExportType.PNG));					}
 					
 					else 
 					{

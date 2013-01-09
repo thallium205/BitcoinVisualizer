@@ -58,8 +58,8 @@ public class Neo4jVisualDebuggerImpl implements Neo4jVisualDebugger {
 
     @Override
     public void initialize() {
-        this.neo4jModel = GraphModelImportConverter.getNeo4jModelForCurrentWorkspace();
-        this.graph = Lookup.getDefault().lookup(GraphController.class).getModel().getGraphVisible();
+        this.neo4jModel = GraphModelImportConverter.getNeo4jModelForWorkspace(workspace);
+        this.graph = Lookup.getDefault().lookup(GraphController.class).getModel(workspace).getGraphVisible();
     }
 
     @Override
@@ -73,7 +73,7 @@ public class Neo4jVisualDebuggerImpl implements Neo4jVisualDebugger {
     @Override
     public void nextStep(Neo4jDelegateNodeDebugger neo4jDelegateNodeDebugger) throws NoMoreElementsException {
         if (paths == null || finishedTraversal == true) {
-            this.paths = neo4jDelegateNodeDebugger.paths(GraphModelImportConverter.getGraphDBForCurrentWorkspace());
+            this.paths = neo4jDelegateNodeDebugger.paths(GraphModelImportConverter.getNeo4jModelForWorkspace(workspace));
             this.finishedTraversal = false;
             this.currentPath = null;
         }
@@ -98,7 +98,7 @@ public class Neo4jVisualDebuggerImpl implements Neo4jVisualDebugger {
     @Override
     public void update(Neo4jDelegateNodeDebugger neo4jDelegateNodeDebugger) {
         if (paths == null || finishedTraversal == true) {
-            this.paths = neo4jDelegateNodeDebugger.paths(GraphModelImportConverter.getGraphDBForCurrentWorkspace());
+            this.paths = neo4jDelegateNodeDebugger.paths(GraphModelImportConverter.getNeo4jModelForWorkspace(workspace));
             this.finishedTraversal = false;
             this.currentPath = null;
         }
