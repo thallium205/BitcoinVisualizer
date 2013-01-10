@@ -35,7 +35,7 @@ setParams({
             Change this parameter for smaller or larger nodes
            this setting can't be changed from the User Interface
         */
-    replaceUrls : true,
+    replaceUrls : false,
         /*
             Enable the replacement of Urls by Hyperlinks
             this setting can't be changed from the User Interface

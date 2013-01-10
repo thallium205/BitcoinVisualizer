@@ -3,6 +3,7 @@ var express = require('express')
   , owner = require('./routes/owner')
   , owns = require('./routes/owns')
   , trans = require('./routes/trans')
+  , time = require('./routes/time')
   , http = require('http')
   , path = require('path');
 
@@ -35,6 +36,8 @@ app.get('/trans/id/:id/in', trans.idIn);
 app.get('/trans/id/:id/out', trans.idOut);
 app.get('/trans/addr/:addr/in', trans.addrIn);
 app.get('/trans/addr/:addr/out', trans.addrOut);
+
+app.get('/time/day/:day.:format', time.day);
 
 http.createServer(app).listen(app.get('port'), function(){
   console.log("Express server listening on port " + app.get('port'));

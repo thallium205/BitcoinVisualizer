@@ -177,7 +177,7 @@ public class GraphExporter
 		}		
 	}
 
-	public static synchronized String GetOwnerByAddress(final GraphDatabaseAPI graphDb, final String address, final ExportType exportType)
+	public static String GetOwnerByAddress(final GraphDatabaseAPI graphDb, final String address, final ExportType exportType)
 	{
 		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH); 		
 		final Node addressNode = owned_addresses.query(OWNED_ADDRESS_HASH_KEY, address).getSingle();
@@ -189,12 +189,12 @@ public class GraphExporter
 		return Export(null, graphDb, addressNode.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId(), null, null, exportType, 1);
 	}
 	
-	public static synchronized String GetOwnerById(final GraphDatabaseAPI graphDb, final Long ownerId, final ExportType exportType)
+	public static String GetOwnerById(final GraphDatabaseAPI graphDb, final Long ownerId, final ExportType exportType)
 	{		
 		return Export(null, graphDb, ownerId, null, null, exportType, 1);
 	}
 
-	private static String Export(final Connection sqlDb, final GraphDatabaseAPI graphDb, Long ownerId, final Date from, final Date to, final ExportType exportType, final int threadCount)
+	private static synchronized String Export(final Connection sqlDb, final GraphDatabaseAPI graphDb, Long ownerId, final Date from, final Date to, final ExportType exportType, final int threadCount)
 	{
 		boolean isDateCompare;
 		LOG.info("Begin Building GEXF from Neo4j");

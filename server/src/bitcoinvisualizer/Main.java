@@ -91,6 +91,14 @@ public class Main
 				{
 					GraphBuilder.StartDatabase(graphDb);
 				}
+				
+				if (line.hasOption("api"))
+				{
+					if (api == null)
+					{
+						 api = new GraphExporterNodejsApi(graphDb);
+					}
+				}
 
 				if (!line.hasOption("client"))
 				{
@@ -124,17 +132,7 @@ public class Main
 					{
 						LOG.log(Level.WARNING, "Graph Build Failed.  Skipping, but not shutting down database.", e);
 					}
-				}
-				
-				// If the user activated the exporter server
-				if (line.hasOption("api"))
-				{
-					if (api == null)
-					{
-						 api = new GraphExporterNodejsApi(graphDb);
-					}
-				}
-				
+				}				
 			}
 
 			catch (ParseException e)

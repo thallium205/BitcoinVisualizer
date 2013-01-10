@@ -12,9 +12,10 @@ public class OutputType
 	private String addr3;
 	private Long value;
 	private Integer type;	
-	private String addr_tag;
-	
+	private String addr_tag;	
 	private String addr_tag_link;
+	private Integer n;
+	private Long tx_index;
 	
 	public String getAddr()
 	{
@@ -71,5 +72,21 @@ public class OutputType
 	public void setAddr_tag_link(String addr_tag_link)
 	{
 		this.addr_tag_link = addr_tag_link;
+	}
+	public Integer getN()
+	{
+		return n;
+	}
+	public void setN(Integer n)
+	{
+		this.n = n;
+	}
+	public Long getTx_index()
+	{
+		return tx_index;
+	}
+	public void setTx_index(Long tx_index)
+	{
+		this.tx_index = tx_index;
 	}
 }

@@ -214,7 +214,7 @@ function displayNode(_nodeIndex, _recentre) {
 					break;
 				case 'First Transfer Time':
 				case 'Last Transfer Time':					
-					_str += '<li><b>' + strLang(i) + '</b>: ' + unixToDate(_d.attributes[i]) + '</li>';
+					_str += '<li><b>' + strLang(i) + '</b>: ' + '<a href="#" onclick="loadGraph(\'' + unixToDate(_d.attributes[i])+ '\'); return false;">' + unixToDate(_d.attributes[i]) + '</a></li>';
 					break;
 				case 'owner id':
 					break;
@@ -257,7 +257,7 @@ function displayNode(_nodeIndex, _recentre) {
 							_str += '<li><b>Amount: </b>฿ ' + _e.attributes[attrKey] / 100000000 + '</li>';
 							break;
 						case 'time':
-							_str += '<li><b>Time: </b>' + unixToDate(_e.attributes[attrKey]) + '</li>';
+							_str += '<li><b>Time: </b>' + '<a href="#" onclick="loadGraph(\'' + unixToDate(_e.attributes[attrKey])+ '\'); return false;">' + unixToDate(_e.attributes[attrKey]) + '</a></li>';
 							break;
 						default:			
 					}
@@ -280,7 +280,7 @@ function displayNode(_nodeIndex, _recentre) {
 							_str += '<li><b>Amount: </b>฿ ' + _e.attributes[attrKey] / 100000000 + '</li>';
 							break;
 						case 'time':
-							_str += '<li><b>Time: </b>' + unixToDate(_e.attributes[attrKey]) + '</li>';
+							_str += '<li><b>Time: </b>' + '<a href="#" onclick="loadGraph(\'' + unixToDate(_e.attributes[attrKey])+ '\'); return false;">' + unixToDate(_e.attributes[attrKey]) + '</a></li>';
 							break;
 						default:			
 					}
@@ -451,27 +451,45 @@ function initializeMap() {
 }
 
 
-function loadGraph(ownerOrAddr) {	
-	var isOwner = false;
-	var url = null;
-	if (!ownerOrAddr) {
-		ownerOrAddr = document.location.hash.length > 1 ? document.location.hash.substr(1) : null;
-	} else {
-		document.location.hash = ownerOrAddr;
+function loadGraph(ownerOrAddrOrTime) {	
+	if (!ownerOrAddrOrTime) {
+		ownerOrAddrOrTime = document.location.hash.length > 1 ? document.location.hash.substr(1) : null;
 	}	
 	
-	if (ownerOrAddr !== null) {
-		if (/^\d+$/.test(ownerOrAddr)) {
-			isOwner = true;			
-		}		
-	} else {
+	var url = null;
+	var isOwner = false;
+	var isAddr = false;
+	var isTime = false;
+	
+	if (ownerOrAddrOrTime === null) {
 		return;
 	}
 	
-	if (isOwner) {
-		url = "owner/id/" + ownerOrAddr + ".gexf";
+	ownerOrAddrOrTime = ownerOrAddrOrTime.toString();
+	
+	if (ownerOrAddrOrTime.indexOf('-') !== -1) {
+		isTime = true;
+	} else if (/^\d+$/.test(ownerOrAddrOrTime)){
+		isOwner = true;		
 	} else {
-		url = "owner/addr/" + ownerOrAddr + ".gexf";
+		isAddr = true;
+	}
+	
+	if (isOwner) {
+		url = "owner/id/" + ownerOrAddrOrTime + ".gexf";
+	} else if (isAddr) {
+		url = "owner/addr/" + ownerOrAddrOrTime + ".gexf";
+	} else {
+		url = "time/day/" + new Date(ownerOrAddrOrTime).getTime() + ".gexf";
+	}
+	
+	if (ownerOrAddrOrTime) {
+		if (isTime) {
+			// Need to format time differently in the url
+			document.location.hash = ownerOrAddrOrTime.split(' ')[0];			
+		} else {
+			document.location.hash = ownerOrAddrOrTime;	
+		}			
 	}
 	
 	$('#loadModal').modal('show');    
@@ -485,7 +503,7 @@ function loadGraph(ownerOrAddr) {
         success: function(data) {
 			if (data === null) {
 				$('#loadModal').modal('hide');	
-				alert('Either this address cannot be associated with an owner because it hasn\'t been redeemed yet, or the visual representation of this owner is too large so the request has been cancelled.  Time division subsections of the network are in the works to analyze large nodes and their interactions to other owners.  Stay tuned!');
+				alert('Either this address cannot be associated with an owner because it hasn\'t been redeemed yet, or the visual representation of this owner is too large so the request has been cancelled.  Try searching by a date to better study these large nodes and their interactions to other owners.');
 				return;
 			}		
             var _s = new Date();
@@ -899,8 +917,8 @@ function setParams(paramlist) {
 }
 
 function unixToDate(unixStr) {
-	var date = new Date(unixStr * 1000);					
-	return (date.getMonth() + 1) + '/' + date.getDate() + '/' + date.getFullYear() + ' ' + date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds();
+	var date = new Date(unixStr * 1000);		
+	return (date.getFullYear() + '-' + (date.getMonth() + 1) + '-' + date.getDate() + ' ' + date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds());	
 }
 
 function loadOwnedAddresses(id) {
