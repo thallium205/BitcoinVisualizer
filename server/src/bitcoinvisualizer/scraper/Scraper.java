@@ -3,6 +3,7 @@ package bitcoinvisualizer.scraper;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
@@ -65,7 +66,23 @@ public class Scraper
 			for (int i = (Integer) graphDb.getReferenceNode().getProperty("last_bitcointalk_userId_scraped", 0); i < last_internet_userId; i++)
 			{
 				LOG.info("Begin scraping user: " + i);
-				Document profile = Jsoup.connect(url + i).get();
+				Document profile = null; 
+				try 
+				{
+					profile = Jsoup.connect(url + i).get();
+				} 
+				
+				catch (SocketTimeoutException e)
+				{
+					LOG.log(Level.WARNING, "Jsoup connect function timed out.  Retrying...", e);
+				}
+				
+				if (profile == null)
+				{
+					i--;
+					continue;
+				}
+				
 				Elements elements = profile.getElementsByClass("signature");
 				String signature = elements.text();
 				String[] words = signature.trim().split(" ");
