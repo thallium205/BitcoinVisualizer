@@ -2,18 +2,18 @@ package bitcoinvisualizer.scraper;
 
 public class BitcoinOtcUserType
 {
-	private Long id;
+	private String id;
 	private String keyid;
 	private String fingerprint;
 	private String bitcoinaddress;
 	private String registered_at;
 	private String nick;
 	
-	public Long getId()
+	public String getId()
 	{
 		return id;
 	}
-	public void setId(Long id)
+	public void setId(String id)
 	{
 		this.id = id;
 	}

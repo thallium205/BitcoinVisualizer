@@ -18,10 +18,7 @@ import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
-import org.neo4j.graphdb.ReturnableEvaluator;
-import org.neo4j.graphdb.StopEvaluator;
 import org.neo4j.graphdb.Transaction;
-import org.neo4j.graphdb.Traverser.Order;
 import org.neo4j.graphdb.index.Index;
 import org.neo4j.kernel.GraphDatabaseAPI;
 
@@ -32,6 +29,7 @@ import com.google.bitcoin.core.Address;
 import com.google.bitcoin.core.AddressFormatException;
 import com.google.bitcoin.core.NetworkParameters;
 import com.sdicons.json.mapper.JSONMapper;
+import com.sdicons.json.model.JSONArray;
 import com.sdicons.json.model.JSONValue;
 import com.sdicons.json.parser.JSONParser;
 
@@ -88,20 +86,25 @@ public class Scraper
 
 						if (addr != null && addr.length() > 28)
 						{
+							// Check to see if we have an owner entity associated with this address.  If we don't, then lucky you!
+							Transaction tx = graphDb.beginTx();	
 							try
-							{								
-								// Check to see if we have an owner entity associated with this address.  If we don't, then lucky you!
-								Transaction tx = graphDb.beginTx();	
-								identifyAddress(graphDb, owned_addresses, new Address(NetworkParameters.prodNet(), addr), getName(profile), url + i, "thallium205");
+							{
+								identifyAddress(owned_addresses, new Address(NetworkParameters.prodNet(), addr), getName(profile), url + i, "thallium205");
 								graphDb.getReferenceNode().setProperty("last_bitcointalk_userId_scraped", i);
 								tx.success();
-								tx.finish();
 							}
 
 							catch (AddressFormatException e)
 							{
+								tx.failure();
 								LOG.log(Level.INFO, addr + " is not a valid Bitcoin address.  Skipping.", e);
 							}
+							
+							finally
+							{
+								tx.finish();
+							}							
 						}
 					}
 				}
@@ -114,35 +117,37 @@ public class Scraper
 	{
 		final URL BITCOIN_OTC_URL_DB = new URL("http://bitcoin-otc.com/viewgpg.php?outformat=json");
 		URLConnection connection = BITCOIN_OTC_URL_DB.openConnection();
-		BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-		JSONValue json;	
-		json = new JSONParser(reader).nextValue();
-		@SuppressWarnings("unchecked")
-		ArrayList<BitcoinOtcUserType> bitcoinOtcUsers = (ArrayList<BitcoinOtcUserType>) JSONMapper.toJava(json);
-		
-		for (BitcoinOtcUserType user : bitcoinOtcUsers)
+		BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));			
+		JSONArray json = (JSONArray) new JSONParser(reader).nextValue();
+		ArrayList<JSONValue> jsonUsers = (ArrayList<JSONValue>) json.getValue();	
+		for (JSONValue userJson : jsonUsers)
 		{
+			BitcoinOtcUserType user = (BitcoinOtcUserType) JSONMapper.toJava(userJson, BitcoinOtcUserType.class);
 			if (user.getBitcoinaddress() != null && user.getNick() != null)
 			{
 				// That was easy.
 				Transaction tx = graphDb.beginTx();	
 				try
 				{
-					identifyAddress(graphDb, owned_addresses, new Address(NetworkParameters.prodNet(), user.getBitcoinaddress()), user.getNick(), BITCOIN_OTC_URL_DB.toString(), "thallium205");
+					identifyAddress(owned_addresses, new Address(NetworkParameters.prodNet(), user.getBitcoinaddress()), user.getNick(), BITCOIN_OTC_URL_DB.toString(), "thallium205");
+					tx.success();
 				} 
 				
 				catch (AddressFormatException e)
 				{
+					tx.failure();
 					LOG.log(Level.INFO, user.getBitcoinaddress() + " is not a valid Bitcoin address.  Skipping.", e);							
 				}
 				
-				tx.success();
-				tx.finish();						
+				finally 
+				{
+					tx.finish();
+				}									
 			}
-		}				
+		}					
 	}
 	
-	private static void identifyAddress(final GraphDatabaseAPI graphDb, final Index<Node> owned_addresses, Address address, String name, String source, String contributor)
+	private static void identifyAddress(final Index<Node> owned_addresses, Address address, String name, String source, String contributor)
 	{
 		Date time = new Date();
 		for (Node ownedAddr : owned_addresses.query(GraphBuilder.OWNED_ADDRESS_HASH_KEY, address.toString()))
@@ -153,30 +158,27 @@ public class Scraper
 				break;
 			}
 																					
-			// For each ownedAddr, we find the owner node and make am identifiying relationship to it						
-			Iterable<Node> owners = ownedAddr.traverse(Order.BREADTH_FIRST,  StopEvaluator.DEPTH_ONE, ReturnableEvaluator.ALL_BUT_START_NODE, OwnerRelTypes.owns, Direction.INCOMING);						
-			for (Node owner : owners)
-			{													
-				// Set the name to the owner node as well as the relationship.
-				if (owner.hasProperty("name"))
-				{
-					final String ownerName = (String) owner.getProperty("name");
-					owner.setProperty("name", ownerName + "," + name);
-				}
-				
-				else
-				{
-					owner.setProperty("name", name);
-				}							
-				
-				Relationship relationship = ownedAddr.createRelationshipTo(owner, ScraperRelationships.identifies);				
-				relationship.setProperty("name", name);
-				relationship.setProperty("source", source);
-				relationship.setProperty("contributor", contributor);
-				relationship.setProperty("time", time.toString());
-				
-				LOG.info("Owner added:\nAddress: " + address.toString() + "\nName: " + name + "\nSource: " + source + "\nTime: " + time.toString());
+			// For each ownedAddr, we find the owner node and make am identifiying relationship to it			
+			Node owner = ownedAddr.getSingleRelationship(OwnerRelTypes.owns,  Direction.INCOMING).getStartNode();																		
+			// Set the name to the owner node as well as the relationship.
+			if (owner.hasProperty("name"))
+			{
+				final String ownerName = (String) owner.getProperty("name");
+				owner.setProperty("name", ownerName + "," + name);
 			}
+			
+			else
+			{
+				owner.setProperty("name", name);
+			}							
+			
+			Relationship relationship = ownedAddr.createRelationshipTo(owner, ScraperRelationships.identifies);				
+			relationship.setProperty("name", name);
+			relationship.setProperty("source", source);
+			relationship.setProperty("contributor", contributor);
+			relationship.setProperty("time", time.getTime());
+			
+			LOG.info("Owner added:\nAddress: " + address.toString() + "\nName: " + name + "\nSource: " + source + "\nTime: " + time.toString());			
 		}
 	}
 

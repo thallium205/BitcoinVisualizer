@@ -1,6 +1,7 @@
 var request = require('request');
 
 exports.idIn = function(req, res){
+	console.log('Fetch incoming transactions by Owner Id -> ' + req.params.id); 
 	var r = request({	url: 'http://localhost:7474/db/data/cypher',
 						method: 'post',
 						headers: {'X-Stream': true},
@@ -12,6 +13,7 @@ exports.idIn = function(req, res){
 };
 
 exports.idOut = function(req, res){
+	console.log('Fetch outgoing transactions by Owner Id -> ' + req.params.id); 
 	var r = request({	url: 'http://localhost:7474/db/data/cypher',
 						method: 'post',
 						headers: {'X-Stream': true},
@@ -23,6 +25,7 @@ exports.idOut = function(req, res){
 };
 
 exports.addrIn = function(req, res){
+	console.log('Fetch incoming transactions by Address -> ' + req.params.addr);
 	var r = request({	url: 'http://localhost:7474/db/data/cypher',
 						method: 'post',
 						headers: {'X-Stream': true},
@@ -34,6 +37,7 @@ exports.addrIn = function(req, res){
 };
 
 exports.addrOut = function(req, res){
+	console.log('Fetch outgoing transactions by Address -> ' + req.params.addr);
 	var r = request({	url: 'http://localhost:7474/db/data/cypher',
 						method: 'post',
 						headers: {'X-Stream': true},

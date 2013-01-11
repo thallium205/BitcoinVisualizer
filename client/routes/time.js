@@ -8,6 +8,7 @@ var connection = mysql.createConnection({
 connection.connect();	
 
 exports.day = function(req, res){	
+	console.log('Fetch gexf day graph by Unix Time -> ' + req.params.day); 
 	if (req.params.format.toLowerCase() === 'gexf') {
 		connection.query('SELECT gexf FROM day WHERE graphTime <= ? ORDER BY graphTime desc LIMIT 1', [req.params.day], function(e, r) {
 			if (e) {

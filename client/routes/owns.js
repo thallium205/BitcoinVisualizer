@@ -1,6 +1,7 @@
 var request = require('request');
 
 exports.id = function(req, res){
+	console.log('Fetch addresses by Owner Id -> ' + req.params.id);
 	var r = request({	url: 'http://localhost:7474/db/data/cypher',
 						method: 'post',
 						headers: {'X-Stream': true},
@@ -12,6 +13,7 @@ exports.id = function(req, res){
 };
 
 exports.addr = function(req, res){
+	console.log('Fetch addresses by Address -> ' + req.params.addr);
 	var r = request({	url: 'http://localhost:7474/db/data/cypher',
 						method: 'post',
 						headers: {'X-Stream': true},
