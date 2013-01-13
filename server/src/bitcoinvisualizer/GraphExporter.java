@@ -115,7 +115,7 @@ public class GraphExporter
 	public static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
 	public static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
 	private static Index<Node> owned_addresses;
-	public enum ExportType { GEXF, PDF, PNG }	
+	public enum ExportType { GEXF, PDF, PNG }
 
 	public static void ExportTimeAnalysisGraphsToMySql(final GraphDatabaseAPI graphDb, final int threadCount)
 	{
@@ -699,7 +699,7 @@ public class GraphExporter
 		}
 
 		catch (IOException e)
-		{
+		{			
 			LOG.log(Level.WARNING, "Unable to close the output stream on PNG export.", e);
 		}
 

@@ -152,7 +152,9 @@ public class GraphBuilder
 		// One time cleaner function.. lets do this shit.
 		LOG.info("Cleaning up useless information...");
 		
-		Transaction deleteTx = graphDb.beginTx();
+		
+		/*
+		 * Transaction deleteTx = graphDb.beginTx();
 		int count = 0;
 		int blocksCleaned = 0;
 		int transactionsCleaned = 0;
@@ -200,11 +202,11 @@ public class GraphBuilder
 			node.removeProperty("relayed_by");
 			count ++;
 		}
-		
+				
+		graphDb.index().forNodes("tx_hashes").delete();
 		deleteTx.success();
-		deleteTx.finish();	
-		
-		graphDb.index().forNodes("tx_hashes").delete();		
+		deleteTx.finish();
+		*/
 	}
 	
 	/**
@@ -1352,23 +1354,13 @@ public class GraphBuilder
 	private static void relinkOwners(final Node block, final Node owner)
 	{		
 		// Remove all outgoing transfers relationships from this owner
-		Transaction deleteTx = graphDb.beginTx();
-		int count = 0;
 		for (Relationship transfer : owner.getRelationships(OwnerRelTypes.transfers, Direction.OUTGOING))
 		{
-			if (count > 1000)
-			{
-				deleteTx.success();
-				deleteTx.finish();	
-				deleteTx = graphDb.beginTx();
-				count = 0;
-			}
-			
+			Transaction deleteTx = graphDb.beginTx();
 			transfer.delete();
-			count ++;
+			deleteTx.success();
+			deleteTx.finish();			
 		}
-		deleteTx.success();
-		deleteTx.finish();	
 		
 		// All addresses that redeemed an input at a transaction in this block.
 		final TraversalDescription td = Traversal.description()
@@ -1381,20 +1373,11 @@ public class GraphBuilder
 				.evaluator(Evaluators.atDepth(6))
 				.evaluator(Evaluators.returnWhereLastRelationshipTypeIs(OwnerRelTypes.owns));
 
-		count = 0;
-		
 		final ArrayList<Long> sentTimes = new ArrayList<Long>();
-		Transaction createTx = graphDb.beginTx();
+		
 		for (final Path btcTransfer : td.traverse(owner))
-		{
-			if (count > 1000)
-			{
-				createTx.success();
-				createTx.finish();
-				createTx = graphDb.beginTx();
-				count = 0;
-			}
-			
+		{			
+			Transaction createTx = graphDb.beginTx();
 			final List<Node> nodes = ImmutableList.copyOf(btcTransfer.nodes());
 			final long value = ((Number) nodes.get(4).getProperty("value", 0)).longValue();
 			final long time = (Long) nodes.get(3).getSingleRelationship(BlockchainRelationships.from, Direction.OUTGOING).getEndNode().getProperty("time");
@@ -1403,7 +1386,8 @@ public class GraphBuilder
 			transfer.setProperty("value", value);
 			transfer.setProperty("time", time);
 			sentTimes.add(time);
-			count ++;
+			createTx.success();
+			createTx.finish();
 		}
 		
 		if (!sentTimes.isEmpty())
@@ -1414,9 +1398,9 @@ public class GraphBuilder
 		else
 		{
 			owner.setProperty(LAST_TIME_SENT, (long) 0);
-		}
-			
+		}			
 		
+		Transaction createTx = graphDb.beginTx();
 		graphDb.getNodeById(0).setProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID, block.getId());
 		createTx.success();
 		createTx.finish();
