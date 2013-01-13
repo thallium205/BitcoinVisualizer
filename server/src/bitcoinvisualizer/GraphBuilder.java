@@ -425,7 +425,7 @@ public class GraphBuilder
 		try
 		{
 			LOG.info("Scraping BitcoinTalk.org User Profiles...");
-			Scraper.BitcoinTalkProfiles(graphDb, owned_addresses);
+			// Scraper.BitcoinTalkProfiles(graphDb, owned_addresses);
 			LOG.info("Finished scraping BitcoinTalk.org User Profiles...");
 	
 			LOG.info("Scraping Bitcoin-OTC.com User Database...");			

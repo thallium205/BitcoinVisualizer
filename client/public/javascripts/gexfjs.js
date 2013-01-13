@@ -212,6 +212,9 @@ function displayNode(_nodeIndex, _recentre) {
 				case 'id':
 					_str += '<li><b>' + strLang(i) + '</b>: ' + '<a href="http://blockviewer.com/#' + _d.attributes[i] + '" target="_blank"></a></li>';
 					break;
+				case 'name':
+					_str += '<li><b>' + 'Name' + '</b>: ' + '<a href="http://blockviewer.com/#' + _d.id + '" target="_blank">' + _d.attributes[i] + '</a></li>';
+					break;
 				case 'First Transfer Time':
 				case 'Last Transfer Time':					
 					_str += '<li><b>' + strLang(i) + '</b>: ' + '<a href="#" onclick="loadGraph(\'' + unixToDate(_d.attributes[i])+ '\', ' + _d.id + '); return false;">' + unixToDate(_d.attributes[i]) + '</a></li>';
@@ -219,11 +222,7 @@ function displayNode(_nodeIndex, _recentre) {
 				case 'owner id':
 					break;
 				case 'Aliases':
-					_str += '<li><b>' + strLang(i) + '</b>: '; 
-					for (alias in _d.attributes[i]) {
-						_str += _d.attributes[i][alias] + ' ';
-					}
-					_str += '</li>';
+					_str += '<li><b>' + strLang(i) + '</b>: ' +  _d.attributes[i].toString() + '</li>';
 					break;
 				case 'Total Incoming Transactions':
 					_str += '<li><b>' + strLang(i) + '</b>: ' + '<a href="#" onclick="loadIncomingTransactions(' + _d.id + '); return false;">' + _d.attributes[i] + ' </a></li>';
@@ -550,8 +549,8 @@ function loadGraph(ownerOrAddrOrTime, ownerIdToFocus) {
             $(_nodes).each( function() {
                 var _n = $(this),
                     _id = _n.attr("id"),
-                    _label = _n.attr("label") || _id,
-                    _d = {
+					_label = _n.attr("label") || _id,				
+					_d = {
                         id: _id,
                         label: _label
                     },
@@ -586,6 +585,12 @@ function loadGraph(ownerOrAddrOrTime, ownerIdToFocus) {
                         _for = _a.attr("for");                    
                     _d.attributes[ _for ? _for : 'attribute_' + _a.attr("id") ] = _a.attr("value");
                 });
+				
+				// Set the real life name of the node label, not the id
+				if (_d.attributes["name"]) {
+					_d.label = _d.attributes["name"];
+				}
+				
                 GexfJS.graph.nodeIndexById.push(_id);
                 GexfJS.graph.nodeIndexByLabel.push(_label.toLowerCase());
                 GexfJS.graph.nodeList.push(_d);

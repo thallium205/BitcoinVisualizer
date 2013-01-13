@@ -100,6 +100,7 @@ import bitcoinvisualizer.scraper.Scraper.ScraperRelationships;
 import com.google.common.collect.Iterables;
 import com.itextpdf.text.PageSize;
 import com.itextpdf.text.Rectangle;
+import com.sdicons.json.model.JSONValue;
 
 /**
  * Creates an information rich graph in .gexf format of the Bitcoin ownership network given the path to a Neo4j graph.db database.
@@ -110,6 +111,7 @@ import com.itextpdf.text.Rectangle;
 public class GraphExporter
 {
 	private static final Logger LOG = Logger.getLogger(GraphExporter.class.getName());
+	private static final int cores = Runtime.getRuntime().availableProcessors();	
 	public static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
 	public static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
 	private static Index<Node> owned_addresses;
@@ -191,7 +193,7 @@ public class GraphExporter
 	
 	public static String GetOwnerById(final GraphDatabaseAPI graphDb, final Long ownerId, final ExportType exportType)
 	{		
-		return Export(null, graphDb, ownerId, null, null, exportType, 1);
+		return Export(null, graphDb, ownerId, null, null, exportType, cores > 1 ? cores - 1 : cores);
 	}
 
 	private static synchronized String Export(final Connection sqlDb, final GraphDatabaseAPI graphDb, Long ownerId, final Date from, final Date to, final ExportType exportType, final int threadCount)
@@ -397,9 +399,16 @@ public class GraphExporter
 				ArrayList<AliasType> aliases = new ArrayList<AliasType>();
 				for (Relationship rel : neoNode.getRelationships(ScraperRelationships.identifies, Direction.INCOMING))
 				{
-					aliases.add(new AliasType((String) rel.getProperty("name"), (String) rel.getProperty("source"), (String) rel.getProperty("contributor"), (String) rel.getProperty("time")));
-				}
-				node.getAttributes().setValue("Aliases", aliases.toString());
+					aliases.add(new AliasType((String) rel.getProperty("name"), (String) rel.getProperty("source"), (String) rel.getProperty("contributor"), (Long) rel.getProperty("time")));
+				}				
+				StringBuilder builder = new StringBuilder();
+				for (AliasType alias : aliases)
+				{
+					builder.append("Name: " + alias.getName() + " ");
+					builder.append("Source: " + alias.getSource() + " ");
+					builder.append("Contributor: " + alias.getContributor() + " ");
+				}				
+				node.getAttributes().setValue("Aliases", builder.toString());
 	
 				// Get Node Addresses
 				node.getAttributes().setValue("Total Owned Addresses", Iterables.size(neoNode.getRelationships(OwnerRelTypes.owns, Direction.OUTGOING))); // TODO - Storing the actual addresses values
@@ -506,6 +515,7 @@ public class GraphExporter
 		for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes())
 		{
 			Object label = node.getAttributes().getValue(PropertiesColumn.NODE_ID.getId());
+			
 			if (label instanceof String)
 			{
 				node.getNodeData().setLabel((String) label);
@@ -722,14 +732,54 @@ public class GraphExporter
 		private String name;
 		private String source;
 		private String contributor;
-		private String time;
+		private Long time;
 
-		AliasType(String name, String source, String contributor, String time)
+		AliasType(String name, String source, String contributor, Long time)
 		{
 			this.name = name;
 			this.source = source;
 			this.contributor = contributor;
 			this.time = time;
 		}
+
+		public String getName()
+		{
+			return name;
+		}
+
+		public void setName(String name)
+		{
+			this.name = name;
+		}
+
+		public String getSource()
+		{
+			return source;
+		}
+
+		public void setSource(String source)
+		{
+			this.source = source;
+		}
+
+		public String getContributor()
+		{
+			return contributor;
+		}
+
+		public void setContributor(String contributor)
+		{
+			this.contributor = contributor;
+		}
+
+		public Long getTime()
+		{
+			return time;
+		}
+
+		public void setTime(Long time)
+		{
+			this.time = time;
+		}		
 	}
 }
