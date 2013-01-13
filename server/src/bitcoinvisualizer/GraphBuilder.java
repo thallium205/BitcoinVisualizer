@@ -71,9 +71,9 @@ public class GraphBuilder
 	private static Index<Node> block_heights;
 
 	// Index Transaction hashes
-	public static final String TRANSACTION_HASH = "tx_hashes";
-	public static final String TRANSACTION_HASH_KEY = "tx_hash";
-	private static Index<Node> tx_hashes;
+	// public static final String TRANSACTION_HASH = "tx_hashes";
+	// public static final String TRANSACTION_HASH_KEY = "tx_hash";
+	// private static Index<Node> tx_hashes;
 
 	// Index Transaction index
 	public static final String TRANSACTION_INDEX = "tx_indexes";
@@ -89,11 +89,6 @@ public class GraphBuilder
 	public static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
 	public static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
 	private static Index<Node> owned_addresses;
-
-	// Index IPV4 address
-	public static final String IPV4 = "ipv4_addrs";
-	public static final String IPV4_KEY = "ipv4_addr";
-	static Index<Node> ipv4_addrs;
 	
 	// Reference node indexes
 	private static final String LAST_BLOCK_HASH = "last_block_hash";
@@ -148,12 +143,68 @@ public class GraphBuilder
 		graphDb = db;
 		block_hashes = graphDb.index().forNodes(BLOCK_HASH);
 		block_heights = graphDb.index().forNodes(BLOCK_HEIGHT);
-		tx_hashes = graphDb.index().forNodes(TRANSACTION_HASH);
+		// tx_hashes = graphDb.index().forNodes(TRANSACTION_HASH);
 		tx_indexes = graphDb.index().forNodes(TRANSACTION_INDEX);
 		addresses = graphDb.index().forNodes(ADDRESS_HASH);
 		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH);
-		ipv4_addrs = graphDb.index().forNodes(IPV4);
 		LOG.info("Database started.");
+		
+		// One time cleaner function.. lets do this shit.
+		LOG.info("Cleaning up useless information...");
+		
+		Transaction deleteTx = graphDb.beginTx();
+		int count = 0;
+		int blocksCleaned = 0;
+		int transactionsCleaned = 0;
+		for (Node node : block_hashes.query("*:*"))
+		{
+			if (count > 1000)
+			{
+				deleteTx.success();
+				deleteTx.finish();	
+				deleteTx = graphDb.beginTx();
+				count = 0;
+				blocksCleaned += 1000;
+				LOG.info("Blocks cleaned: " + blocksCleaned);
+			}
+			
+			node.removeProperty("ver");
+			node.removeProperty("mrkl_root");
+			node.removeProperty("bits");
+			node.removeProperty("nonce");
+			node.removeProperty("n_tx");
+			node.removeProperty("size");
+			node.removeProperty("received_time");
+			node.removeProperty("relayed_by");	
+			count ++;
+		}
+		
+		count = 0;
+		
+		for (Node node : tx_indexes.query("*:*"))
+		{
+			if (count > 1000)
+			{
+				deleteTx.success();
+				deleteTx.finish();	
+				deleteTx = graphDb.beginTx();
+				count = 0;
+				transactionsCleaned += 1000;
+				LOG.info("Transactions cleaned: " + transactionsCleaned);
+			}
+			
+			node.removeProperty("ver");
+			node.removeProperty("vin_sz");
+			node.removeProperty("vout_sz");
+			node.removeProperty("size");
+			node.removeProperty("relayed_by");
+			count ++;
+		}
+		
+		deleteTx.success();
+		deleteTx.finish();	
+		
+		graphDb.index().forNodes("tx_hashes").delete();		
 	}
 	
 	/**
@@ -425,7 +476,7 @@ public class GraphBuilder
 		try
 		{
 			LOG.info("Scraping BitcoinTalk.org User Profiles...");
-			// Scraper.BitcoinTalkProfiles(graphDb, owned_addresses);
+			Scraper.BitcoinTalkProfiles(graphDb, owned_addresses);
 			LOG.info("Finished scraping BitcoinTalk.org User Profiles...");
 	
 			LOG.info("Scraping Bitcoin-OTC.com User Database...");			
@@ -837,19 +888,11 @@ public class GraphBuilder
 		// Persist a new block node
 		Node currentBlockNode = graphDb.createNode();
 		currentBlockNode.setProperty("hash", currentBlock.getHash());
-		currentBlockNode.setProperty("ver", currentBlock.getVer());
 		currentBlockNode.setProperty("prev_block", currentBlock.getPrev_block());
-		currentBlockNode.setProperty("mrkl_root", currentBlock.getMrkl_root());
 		currentBlockNode.setProperty("time", currentBlock.getTime());
-		currentBlockNode.setProperty("bits", currentBlock.getBits());
-		currentBlockNode.setProperty("nonce", currentBlock.getNonce());
-		currentBlockNode.setProperty("n_tx", currentBlock.getN_tx());
-		currentBlockNode.setProperty("size", currentBlock.getSize());
 		currentBlockNode.setProperty("block_index", currentBlock.getBlock_index());
 		currentBlockNode.setProperty("main_chain", currentBlock.getMain_chain());
 		currentBlockNode.setProperty("height", currentBlock.getHeight());
-		currentBlockNode.setProperty("received_time", currentBlock.getReceived_time());
-		currentBlockNode.setProperty("relayed_by", currentBlock.getRelayed_by());
 
 		// Create a relationship of this block to the parentBlock
 
@@ -895,8 +938,6 @@ public class GraphBuilder
 			block_hashes.add(currentBlockNode, BLOCK_HASH_KEY, currentBlockNode.getProperty("hash"));
 		if (currentBlockNode.hasProperty("height"))
 			block_heights.add(currentBlockNode, BLOCK_HEIGHT_KEY, currentBlockNode.getProperty("height"));
-		if (currentBlockNode.hasProperty("relayed_by"))
-			ipv4_addrs.add(currentBlockNode, IPV4_KEY, currentBlockNode.getProperty("relayed_by"));
 
 		// We save each transaction in the block.
 		// We get an ascending order of transactions. The API does not print them in ascending order which is necessary as inputs may try to redeem outputs that
@@ -923,11 +964,6 @@ public class GraphBuilder
 		// Persist transaction
 		Node tranNode = graphDb.createNode();
 		tranNode.setProperty("hash", tran.getHash());
-		tranNode.setProperty("ver", tran.getVer());
-		tranNode.setProperty("vin_sz", tran.getVin_sz());
-		tranNode.setProperty("vout_sz", tran.getVout_sz());
-		tranNode.setProperty("size", tran.getSize());
-		tranNode.setProperty("relayed_by", tran.getRelayed_by());
 		tranNode.setProperty("tx_index", tran.getTx_index());
 
 		// Create the relationship
@@ -937,10 +973,8 @@ public class GraphBuilder
 		// Used for redeeming inputs
 		if (tranNode.hasProperty("tx_index"))
 			tx_indexes.add(tranNode, TRANSACTION_INDEX_KEY, tranNode.getProperty("tx_index"));
-		if (tranNode.hasProperty("hash"))
-			tx_hashes.add(tranNode, TRANSACTION_HASH_KEY, tranNode.getProperty("hash"));
-		if (tranNode.hasProperty("relayed_by"))
-			ipv4_addrs.add(tranNode, IPV4_KEY, tranNode.getProperty("relayed_by"));
+		// if (tranNode.hasProperty("hash"))
+			// tx_hashes.add(tranNode, TRANSACTION_HASH_KEY, tranNode.getProperty("hash"));
 
 		// Persist outbound transactions
 		// The location of an output within a transaction.
@@ -976,7 +1010,6 @@ public class GraphBuilder
 		{
 			// This is a valid outbound transaction. Some outbound transactions do not have outbound addresses, which messes up everything
 			Node outNode = graphDb.createNode();
-			outNode.setProperty("type", output.getType());
 			outNode.setProperty("addr", output.getAddr());
 			outNode.setProperty("value", output.getValue());
 			outNode.setProperty("n", index);
@@ -1316,11 +1349,6 @@ public class GraphBuilder
 		return td.traverse(block).nodes();
 	}
 
-	/**
-	 * 
-	 * @param owner
-	 * @author jdmarble
-	 */
 	private static void relinkOwners(final Node block, final Node owner)
 	{		
 		// Remove all outgoing transfers relationships from this owner

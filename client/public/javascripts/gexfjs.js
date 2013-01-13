@@ -7,6 +7,10 @@
  *    Zeynep Akata (Turkish)
  *    Σωτήρης Φραγκίσκος (Greek)
  * */
+ 
+ // Global Processing Request Variable
+var processingRequest = false;
+var processingPosition = null;
 
 // Namespace
 var GexfJS = {
@@ -502,15 +506,18 @@ function loadGraph(ownerOrAddrOrTime, ownerIdToFocus) {
 		}			
 	}
 	
+	processingRequest = true;
 	$('#loadModal').modal('show');    
     $.ajax({
         url: (url),
         dataType: "xml",
 		error: function() {
-			$('#loadModal').modal('hide');	
+			processingRequest = false;
+			$('#loadModal').modal('hide');				
 			alert('The database appears to be down at the moment.  Sorry for the inconvenience.');
 		},
         success: function(data) {
+			processingRequest = false;
 			if (data === null) {
 				$('#loadModal').modal('hide');	
 				alert('Either this address cannot be associated with an owner because it hasn\'t been redeemed yet, or the visual representation of this owner is too large so the request has been cancelled.  Try searching by a date to better study these large nodes and their interactions to other owners.');
@@ -663,6 +670,18 @@ function loadGraph(ownerOrAddrOrTime, ownerIdToFocus) {
 			$('#loadModal').modal('hide');			
         }
     });
+	
+	
+	// We only poll with these two kinds of requests since they take the most time
+	if (isOwner || isAddr) {
+		// We get their position in line
+		$.get('addr/status', function(data) {
+			processingPosition = data;
+			doStatusPoll();
+		});
+	}
+
+	
 }
 
 function getNodeFromPos( _coords ) {
