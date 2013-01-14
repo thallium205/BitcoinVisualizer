@@ -1,11 +1,11 @@
 var mysql = require('mysql');
 var connection = mysql.createConnection({
-  host     : 'localhost',
+  host     : '10.0.0.1',
   user     : 'root',
   password : 'webster',
   database : 'blockviewer'
 });
-connection.connect();	
+// connection.connect();	
 
 exports.day = function(req, res){	
 	console.log('Fetch gexf day graph by Unix Time -> ' + req.params.day); 

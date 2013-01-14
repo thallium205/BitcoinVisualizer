@@ -1,13 +1,9 @@
 package bitcoinvisualizer;
 
 import java.awt.Color;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
-import java.io.StringReader;
 import java.io.StringWriter;
-import java.io.Writer;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -19,13 +15,6 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
-import java.util.Properties;
-import java.util.Random;
-import java.util.Vector;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -41,29 +30,19 @@ import org.gephi.io.exporter.api.ExportController;
 import org.gephi.io.exporter.preview.PDFExporter;
 import org.gephi.io.exporter.preview.PNGExporter;
 import org.gephi.io.exporter.spi.CharacterExporter;
-import org.gephi.io.exporter.spi.Exporter;
-import org.gephi.io.importer.api.Container;
-import org.gephi.io.importer.api.ContainerFactory;
-import org.gephi.layout.plugin.force.StepDisplacement;
-import org.gephi.layout.plugin.force.yifanHu.YifanHuLayout;
 import org.gephi.layout.plugin.forceAtlas2.ForceAtlas2;
 import org.gephi.layout.plugin.forceAtlas2.ForceAtlas2Builder;
 import org.gephi.layout.plugin.labelAdjust.LabelAdjust;
 import org.gephi.layout.plugin.labelAdjust.LabelAdjustBuilder;
-import org.gephi.layout.plugin.openord.OpenOrdLayout;
-import org.gephi.layout.plugin.openord.OpenOrdLayoutBuilder;
 import org.gephi.neo4j.plugin.api.FilterDescription;
 import org.gephi.neo4j.plugin.api.FilterOperator;
 import org.gephi.neo4j.plugin.api.Neo4jImporter;
 import org.gephi.neo4j.plugin.api.RelationshipDescription;
 import org.gephi.neo4j.plugin.api.TraversalOrder;
 import org.gephi.neo4j.plugin.impl.Neo4jImporterImpl;
-import org.gephi.preview.PreviewModelImpl;
 import org.gephi.preview.api.PreviewController;
 import org.gephi.preview.api.PreviewModel;
 import org.gephi.preview.api.PreviewProperty;
-import org.gephi.project.api.ProjectController;
-import org.gephi.project.api.Workspace;
 import org.gephi.ranking.api.Interpolator;
 import org.gephi.ranking.api.Ranking;
 import org.gephi.ranking.api.RankingController;
@@ -81,16 +60,10 @@ import org.gephi.statistics.plugin.Hits;
 import org.gephi.statistics.plugin.Modularity;
 import org.gephi.statistics.plugin.PageRank;
 import org.gephi.statistics.plugin.WeightedDegree;
-import org.gephi.statistics.plugin.dynamic.DynamicClusteringCoefficient;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Relationship;
-import org.neo4j.graphdb.ReturnableEvaluator;
-import org.neo4j.graphdb.StopEvaluator;
-import org.neo4j.graphdb.Traverser.Order;
 import org.neo4j.graphdb.index.Index;
-import org.neo4j.graphdb.traversal.TraversalDescription;
-import org.neo4j.kernel.EmbeddedGraphDatabase;
 import org.neo4j.kernel.GraphDatabaseAPI;
 import org.openide.util.Lookup;
 
@@ -98,9 +71,6 @@ import bitcoinvisualizer.GraphBuilder.OwnerRelTypes;
 import bitcoinvisualizer.scraper.Scraper.ScraperRelationships;
 
 import com.google.common.collect.Iterables;
-import com.itextpdf.text.PageSize;
-import com.itextpdf.text.Rectangle;
-import com.sdicons.json.model.JSONValue;
 
 /**
  * Creates an information rich graph in .gexf format of the Bitcoin ownership network given the path to a Neo4j graph.db database.
@@ -115,7 +85,7 @@ public class GraphExporter
 	public static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
 	public static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
 	private static Index<Node> owned_addresses;
-	public enum ExportType { GEXF, PDF, PNG }
+	public enum ExportType { GEXF, PDF, PNG }	
 
 	public static void ExportTimeAnalysisGraphsToMySql(final GraphDatabaseAPI graphDb, final int threadCount)
 	{
@@ -699,7 +669,7 @@ public class GraphExporter
 		}
 
 		catch (IOException e)
-		{			
+		{
 			LOG.log(Level.WARNING, "Unable to close the output stream on PNG export.", e);
 		}
 

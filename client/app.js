@@ -10,7 +10,7 @@ var express = require('express')
 var app = express();
 
 app.configure(function(){
-  app.set('port', process.env.PORT || 8080);
+  app.set('port', process.env.PORT || 80);
   app.set('views', __dirname + '/views');
   app.set('view engine', 'jade');
   app.use(express.favicon());
@@ -28,7 +28,6 @@ app.configure('development', function(){
 app.get('/', routes.index);
 app.get('/owner/id/:id.:format', owner.id);
 app.get('/owner/addr/:addr.:format', owner.addr);
-app.get('/owner/status', owner.status);
 
 app.get('/owns/id/:id', owns.id);
 app.get('/owns/addr/:addr', owns.addr);
