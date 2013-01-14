@@ -147,66 +147,7 @@ public class GraphBuilder
 		tx_indexes = graphDb.index().forNodes(TRANSACTION_INDEX);
 		addresses = graphDb.index().forNodes(ADDRESS_HASH);
 		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH);
-		LOG.info("Database started.");
-		
-		// One time cleaner function.. lets do this shit.
-		LOG.info("Cleaning up useless information...");
-		
-		
-		/*
-		 * Transaction deleteTx = graphDb.beginTx();
-		int count = 0;
-		int blocksCleaned = 0;
-		int transactionsCleaned = 0;
-		for (Node node : block_hashes.query("*:*"))
-		{
-			if (count > 1000)
-			{
-				deleteTx.success();
-				deleteTx.finish();	
-				deleteTx = graphDb.beginTx();
-				count = 0;
-				blocksCleaned += 1000;
-				LOG.info("Blocks cleaned: " + blocksCleaned);
-			}
-			
-			node.removeProperty("ver");
-			node.removeProperty("mrkl_root");
-			node.removeProperty("bits");
-			node.removeProperty("nonce");
-			node.removeProperty("n_tx");
-			node.removeProperty("size");
-			node.removeProperty("received_time");
-			node.removeProperty("relayed_by");	
-			count ++;
-		}
-		
-		count = 0;
-		
-		for (Node node : tx_indexes.query("*:*"))
-		{
-			if (count > 1000)
-			{
-				deleteTx.success();
-				deleteTx.finish();	
-				deleteTx = graphDb.beginTx();
-				count = 0;
-				transactionsCleaned += 1000;
-				LOG.info("Transactions cleaned: " + transactionsCleaned);
-			}
-			
-			node.removeProperty("ver");
-			node.removeProperty("vin_sz");
-			node.removeProperty("vout_sz");
-			node.removeProperty("size");
-			node.removeProperty("relayed_by");
-			count ++;
-		}
-				
-		graphDb.index().forNodes("tx_hashes").delete();
-		deleteTx.success();
-		deleteTx.finish();
-		*/
+		LOG.info("Database started.");	
 	}
 	
 	/**
