@@ -22,7 +22,7 @@ public class GraphExporterNodejsApi extends NanoHTTPD
 	}
 	
 	public Response serve( String uri, String method, Properties header, Properties parms, Properties files )
-	{	
+	{		
 		if (method.contains("GET"))
 		{
 			if (uri.contains("/owner"))

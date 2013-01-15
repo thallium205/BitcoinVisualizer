@@ -264,6 +264,7 @@ function displayNode(_nodeIndex, _recentre) {
 							_str += '<li><b>Amount: </b>฿ ' + _e.attributes[attrKey] / 100000000 + '</li>';
 							break;
 						case 'time':
+							alert(_e.attributes[attrKey]);
 							_str += '<li><b>Time: </b>' + '<a href="#" onclick="loadGraph(\'' + unixToDate(_e.attributes[attrKey])+ '\'); return false;">' + unixToDate(_e.attributes[attrKey]) + '</a></li>';
 							break;
 						default:			
