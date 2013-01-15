@@ -669,19 +669,7 @@ function loadGraph(ownerOrAddrOrTime, ownerIdToFocus) {
 			
 			$('#loadModal').modal('hide');			
         }
-    });
-	
-	
-	// We only poll with these two kinds of requests since they take the most time
-	if (isOwner || isAddr) {
-		// We get their position in line
-		$.get('addr/status', function(data) {
-			processingPosition = data;
-			doStatusPoll();
-		});
-	}
-
-	
+    });	
 }
 
 function getNodeFromPos( _coords ) {
