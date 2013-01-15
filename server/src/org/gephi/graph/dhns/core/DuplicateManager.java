@@ -207,7 +207,11 @@ public class DuplicateManager {
         //Attributes
         Attributes sourceAttributes = source.getAttributes();
         for (int i = 0; i < sourceAttributes.countValues(); i++) {
-            dest.getAttributes().setValue(i, sourceAttributes.getValue(i));
+        	// System.out.println(sourceAttributes.getValue(i));
+
+                dest.getAttributes().setValue(i, sourceAttributes.getValue(i));
+
+
         }
     }
 
@@ -223,7 +227,11 @@ public class DuplicateManager {
         //Attributes
         Attributes sourceAttributes = source.getAttributes();
         for (int i = 0; i < sourceAttributes.countValues(); i++) {
-            dest.getAttributes().setValue(i, sourceAttributes.getValue(i));
+        	// System.out.println(sourceAttributes.getValue(i));        	
+
+        		 dest.getAttributes().setValue(i, sourceAttributes.getValue(i));
+
+        
         }
     }
 }

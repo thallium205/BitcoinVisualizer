@@ -134,8 +134,7 @@ public class GraphModelImportConverter {
         
 
         AttributeController attributeController = Lookup.getDefault().lookup(AttributeController.class);
-        attributeModel = attributeController.getModel();
-       
+        attributeModel = attributeController.getModel();       
 
         return singleton;
     }

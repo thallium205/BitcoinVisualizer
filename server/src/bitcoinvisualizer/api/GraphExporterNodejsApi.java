@@ -53,7 +53,7 @@ public class GraphExporterNodejsApi extends NanoHTTPD
 				else if (parms.containsKey("ownerId"))
 				{
 					if (uri.contains("/owner/gexf"))
-					{
+					{						
 						return new NanoHTTPD.Response( HTTP_OK, MIME_DEFAULT_BINARY, GraphExporter.GetOwnerById(graphDb, Long.parseLong(parms.getProperty("ownerId")), GraphExporter.ExportType.GEXF));
 					}
 					

@@ -57,6 +57,8 @@ class Neo4jDelegateProviderImpl extends AttributeValueDelegateProvider<Long> {
     @Override
     public Object getNodeAttributeValue(Long delegateId, AttributeColumn attributeColumn) {
         GraphDatabaseService graphDB = GraphModelImportConverter.getGraphDBForCurrentWorkspace();
+        
+        Long property = (Long) graphDB.getNodeById(delegateId).getProperty(attributeColumn.getId());
 
         return graphDB.getNodeById(delegateId).getProperty(attributeColumn.getId());
     }
