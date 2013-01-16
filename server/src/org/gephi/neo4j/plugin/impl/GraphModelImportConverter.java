@@ -147,10 +147,16 @@ public class GraphModelImportConverter {
      *
      * @param neoNode Neo4j node
      * @return Gephi node
+     * @throws MaxNodesExceededException 
      */
-    public void createGephiNodeFromNeoNode(org.neo4j.graphdb.Node neoNode) {
+    public void createGephiNodeFromNeoNode(org.neo4j.graphdb.Node neoNode, int maxNodes) throws MaxNodesExceededException {
         org.gephi.graph.api.Node gephiNode = graphModel.factory().newNode();
         graph.addNode(gephiNode);
+        
+        if (graph.getNodeCount() > maxNodes)
+        {
+        	throw new MaxNodesExceededException();
+        }
 
         fillGephiNodeDataWithNeoNodeData(gephiNode, neoNode);
         currentNeo4jModel.neo4jToGephiNodeMap.put(neoNode.getId(), gephiNode.getId());

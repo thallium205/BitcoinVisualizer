@@ -68,42 +68,42 @@ public final class Neo4jImporterImpl implements Neo4jImporter, LongTask {
     }
 
     @Override
-    public void importDatabase(GraphDatabaseService graphDB) {
-        importDatabase(graphDB, NO_START_NODE, TraversalOrder.DEPTH_FIRST, Integer.MAX_VALUE);
+    public void importDatabase(GraphDatabaseService graphDB, int maxNodes) throws MaxNodesExceededException {
+        importDatabase(graphDB, NO_START_NODE, TraversalOrder.DEPTH_FIRST, Integer.MAX_VALUE, maxNodes);
     }
 
     @Override
-    public void importDatabase(GraphDatabaseService graphDB, Collection<FilterDescription> filterDescriptions, boolean restrictMode, boolean matchCase) {
+    public void importDatabase(GraphDatabaseService graphDB, Collection<FilterDescription> filterDescriptions, boolean restrictMode, boolean matchCase, int maxNodes) throws MaxNodesExceededException {
         importDatabase(graphDB, NO_START_NODE, TraversalOrder.DEPTH_FIRST, Integer.MAX_VALUE, Collections.<RelationshipDescription>emptyList(),
-                filterDescriptions, restrictMode, matchCase);
+                filterDescriptions, restrictMode, matchCase, maxNodes);
     }
 
     @Override
-    public void importDatabase(GraphDatabaseService graphDB, long startNodeId, TraversalOrder order, int maxDepth) {
-        importDatabase(graphDB, startNodeId, order, maxDepth, Collections.<RelationshipDescription>emptyList());
+    public void importDatabase(GraphDatabaseService graphDB, long startNodeId, TraversalOrder order, int maxDepth, int maxNodes) throws MaxNodesExceededException {
+        importDatabase(graphDB, startNodeId, order, maxDepth, Collections.<RelationshipDescription>emptyList(), maxNodes);
     }
 
     @Override
     public void importDatabase(GraphDatabaseService graphDB, long startNodeId, TraversalOrder order, int maxDepth,
-            Collection<RelationshipDescription> relationshipDescriptions) {
+            Collection<RelationshipDescription> relationshipDescriptions, int maxNodes) throws MaxNodesExceededException {
         // last 2 boolean parameters are not important, because if we pass empty collection of filter descriptions, they
         // are not needed
         importDatabase(graphDB, startNodeId, order, maxDepth, relationshipDescriptions, Collections.<FilterDescription>emptyList(),
-                false, false);
+                false, false, maxNodes);
     }
 
     @Override
     public void importDatabase(GraphDatabaseService graphDB, long startNodeId, TraversalOrder order, int maxDepth,
             Collection<RelationshipDescription> relationshipDescriptions, Collection<FilterDescription> nodeFilterDescriptions,
-            boolean restrictMode, boolean matchCase) {    	
-    	importDatabase(graphDB, startNodeId, order, maxDepth, relationshipDescriptions, nodeFilterDescriptions, Collections.<FilterDescription>emptyList(),  false, false);
+            boolean restrictMode, boolean matchCase, int maxNodes) throws MaxNodesExceededException {    	
+    	importDatabase(graphDB, startNodeId, order, maxDepth, relationshipDescriptions, nodeFilterDescriptions, Collections.<FilterDescription>emptyList(),  false, false, maxNodes);
     	
     }
     
     @Override
     public void importDatabase(GraphDatabaseService graphDB, long startNodeId, TraversalOrder order, int maxDepth,
             Collection<RelationshipDescription> relationshipDescriptions, Collection<FilterDescription> nodeFilterDescriptions,
-            Collection<FilterDescription> edgeFilterDescriptions, boolean restrictMode, boolean matchCase) {
+            Collection<FilterDescription> edgeFilterDescriptions, boolean restrictMode, boolean matchCase, int maxNodes) throws MaxNodesExceededException {
     	
     	String longTaskMessage = NbBundle.getMessage(Neo4jImporterImpl.class, "CTL_Neo4j_LocalImportMessage");
 
@@ -157,14 +157,14 @@ public final class Neo4jImporterImpl implements Neo4jImporter, LongTask {
             traverser = null;
         }
 
-        doImport(graphDB, traverser, nodeReturnFilter, edgeReturnFilter);
+        doImport(graphDB, traverser, nodeReturnFilter, edgeReturnFilter, maxNodes);
     	
     }
 
-    private void doImport(GraphDatabaseService graphDB, Traverser traverser, NodeReturnFilter nodeReturnFilter, EdgeReturnFilter edgeReturnFilter) {
+    private void doImport(GraphDatabaseService graphDB, Traverser traverser, NodeReturnFilter nodeReturnFilter, EdgeReturnFilter edgeReturnFilter, int maxNodes) throws MaxNodesExceededException {
         Transaction transaction = graphDB.beginTx();
         try {
-            importGraph(graphDB, traverser, nodeReturnFilter, edgeReturnFilter);
+            importGraph(graphDB, traverser, nodeReturnFilter, edgeReturnFilter, maxNodes);
             transaction.success();
         } finally {
             transaction.finish();
@@ -173,25 +173,25 @@ public final class Neo4jImporterImpl implements Neo4jImporter, LongTask {
         Progress.finish(progressTicket);
     }
 
-    private void importGraph(GraphDatabaseService graphDB, Traverser traverser, NodeReturnFilter nodeReturnFilter, EdgeReturnFilter edgeReturnFilter) {
+    private void importGraph(GraphDatabaseService graphDB, Traverser traverser, NodeReturnFilter nodeReturnFilter, EdgeReturnFilter edgeReturnFilter, int maxNodes) throws MaxNodesExceededException {
         initProject();
 
         GraphModelImportConverter graphModelImportConverter = GraphModelImportConverter.getInstance(graphDB);
         graphModelImportConverter.createNeo4jRelationshipTypeGephiColumn();
 
         if (traverser == null) {
-            importNodes(graphModelImportConverter, graphDB.getAllNodes(), nodeReturnFilter);
+            importNodes(graphModelImportConverter, graphDB.getAllNodes(), nodeReturnFilter, maxNodes);
 
             for (org.neo4j.graphdb.Node node : graphDB.getAllNodes()) {
                 importRelationships(graphModelImportConverter, node.getRelationships(Direction.INCOMING), edgeReturnFilter);
             }
         } else {
-            importNodes(graphModelImportConverter, traverser.nodes(), nodeReturnFilter);
+            importNodes(graphModelImportConverter, traverser.nodes(), nodeReturnFilter, maxNodes);
             importRelationships(graphModelImportConverter, traverser.relationships(), edgeReturnFilter);
         }
     }
 
-    private void importNodes(GraphModelImportConverter graphModelImportConverter, Iterable<org.neo4j.graphdb.Node> nodes, NodeReturnFilter nodeReturnFilter) {
+    private void importNodes(GraphModelImportConverter graphModelImportConverter, Iterable<org.neo4j.graphdb.Node> nodes, NodeReturnFilter nodeReturnFilter, int maxNodes) throws MaxNodesExceededException {
         for (org.neo4j.graphdb.Node node : nodes) {
             if (cancelImport) {
                 return;
@@ -199,16 +199,16 @@ public final class Neo4jImporterImpl implements Neo4jImporter, LongTask {
 
             if (nodeReturnFilter != null) {
                 if (nodeReturnFilter.accept(node)) {
-                    processNode(graphModelImportConverter, node);
+                    processNode(graphModelImportConverter, node, maxNodes);
                 }
             } else {
-                processNode(graphModelImportConverter, node);
+                processNode(graphModelImportConverter, node, maxNodes);
             }
         }
     }
 
-    private void processNode(GraphModelImportConverter graphModelImportConverter, org.neo4j.graphdb.Node node) {
-        graphModelImportConverter.createGephiNodeFromNeoNode(node);
+    private void processNode(GraphModelImportConverter graphModelImportConverter, org.neo4j.graphdb.Node node, int maxNodes) throws MaxNodesExceededException {
+        graphModelImportConverter.createGephiNodeFromNeoNode(node, maxNodes);
     }
 
     private void importRelationships(GraphModelImportConverter graphModelImportConverter, Iterable<Relationship> relationships, EdgeReturnFilter edgeReturnFilter) {

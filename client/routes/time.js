@@ -5,7 +5,7 @@ var connection = mysql.createConnection({
   password : 'webster',
   database : 'blockviewer'
 });
-// connection.connect();	
+connection.connect();	
 
 exports.day = function(req, res){	
 	console.log('Fetch gexf day graph by Unix Time -> ' + req.params.day); 
@@ -13,12 +13,12 @@ exports.day = function(req, res){
 		connection.query('SELECT gexf FROM day WHERE graphTime <= ? ORDER BY graphTime desc LIMIT 1', [req.params.day], function(e, r) {
 			if (e) {
 				console.log(e);
-				es.send({error: 'An error occured with the database'});
+				res.send({error: 'An error occured with the database'});
 				return;
 			}
 			if (r.length !== 1) {
 				console.log('Result returned something other than 1.');
-				es.send({error: 'Date not found.'});
+				res.send({error: 'Date not found.'});
 				return;
 			}
 			res.send(r.pop().gexf);

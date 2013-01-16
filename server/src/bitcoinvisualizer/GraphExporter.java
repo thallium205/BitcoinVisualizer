@@ -15,6 +15,7 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -39,6 +40,7 @@ import org.gephi.neo4j.plugin.api.FilterOperator;
 import org.gephi.neo4j.plugin.api.Neo4jImporter;
 import org.gephi.neo4j.plugin.api.RelationshipDescription;
 import org.gephi.neo4j.plugin.api.TraversalOrder;
+import org.gephi.neo4j.plugin.impl.MaxNodesExceededException;
 import org.gephi.neo4j.plugin.impl.Neo4jImporterImpl;
 import org.gephi.preview.api.PreviewController;
 import org.gephi.preview.api.PreviewModel;
@@ -85,7 +87,6 @@ public class GraphExporter
 	public static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
 	public static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
 	private static Index<Node> owned_addresses;
-	public enum ExportType { GEXF, PDF, PNG }	
 
 	public static void ExportTimeAnalysisGraphsToMySql(final GraphDatabaseAPI graphDb, final int threadCount)
 	{
@@ -125,10 +126,10 @@ public class GraphExporter
 			cal.add(Calendar.DATE, 1);
 			to = cal.getTime();
 
-			final Date lastTime = new Date(((Long) graphDb.getNodeById((((Long) graphDb.getNodeById(0).getProperty("last_linked_owner_build_block_nodeId")))).getProperty("received_time")) * 1000);
+			final Date lastTime = new Date(((Long) graphDb.getNodeById((((Long) graphDb.getNodeById(0).getProperty("last_linked_owner_build_block_nodeId")))).getProperty("time")) * 1000);
 			while (!to.after(lastTime))
 			{
-				Export(sqlDb, graphDb, null, from, to, null, threadCount);
+				Export(sqlDb, graphDb, null, from, to, threadCount);
 				from = to;
 				cal.setTime(to);
 				cal.add(Calendar.DATE, 1);
@@ -148,25 +149,60 @@ public class GraphExporter
 			e.printStackTrace();
 		}		
 	}
-
-	public static String GetOwnerByAddress(final GraphDatabaseAPI graphDb, final String address, final ExportType exportType)
-	{
-		owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH); 		
-		final Node addressNode = owned_addresses.query(OWNED_ADDRESS_HASH_KEY, address).getSingle();
-		if (addressNode == null)
-		{
-			return "";
-		}
-		
-		return Export(null, graphDb, addressNode.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId(), null, null, exportType, 1);
-	}
 	
-	public static String GetOwnerById(final GraphDatabaseAPI graphDb, final Long ownerId, final ExportType exportType)
-	{		
-		return Export(null, graphDb, ownerId, null, null, exportType, cores > 1 ? cores - 1 : cores);
+	public static void ExportOwnerGraphsToMySql(final GraphDatabaseAPI graphDb)
+	{
+		int ownersProcessed = 0;
+		//int counter = 0;
+		// TODO - only update graphs that their last transaction time is greater than the last time block processed
+		try
+		{
+			Class.forName("com.mysql.jdbc.Driver");
+			final Connection sqlDb = DriverManager.getConnection("jdbc:mysql://localhost:3306/blockviewer?user=root&password=webster");
+			SetupMysql(sqlDb);
+			
+			owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH);
+			HashSet<Long> owners = new HashSet<Long>();
+			owners.add(29792952L);
+			owners.add(30601119L);
+			for (Node node : owned_addresses.query("*:*"))
+			{			
+				//if (counter > 2000000 && counter <= 3000000)
+				//{
+					Long ownerId = node.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId();
+					if (owners.add(ownerId))
+					{
+						Export(sqlDb, graphDb, ownerId, null, null, cores > 1 ? cores - 1 : cores);
+						ownersProcessed ++;
+						LOG.info("Owners Processed: " + ownersProcessed);
+				 	}	
+			 //		counter ++;
+			 	//}
+			 	//else
+			 	//{
+			 	//	counter ++;
+			 //	}
+	
+			}		
+
+			sqlDb.close();
+			LOG.info("Total Number of Owners Processed:" + owners.size());			
+		} 
+		
+		catch (ClassNotFoundException e)
+		{
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 
+		
+		catch (SQLException e)
+		{
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}		
 	}
 
-	private static synchronized String Export(final Connection sqlDb, final GraphDatabaseAPI graphDb, Long ownerId, final Date from, final Date to, final ExportType exportType, final int threadCount)
+	private static synchronized void Export(final Connection sqlDb, final GraphDatabaseAPI graphDb, Long ownerId, final Date from, final Date to, final int threadCount)
 	{
 		boolean isDateCompare;
 		LOG.info("Begin Building GEXF from Neo4j");
@@ -194,26 +230,72 @@ public class GraphExporter
 			final Collection<FilterDescription> edgeFilterDescription = new ArrayList<FilterDescription>();
 			edgeFilterDescription.add(new FilterDescription("time", FilterOperator.GREATER_OR_EQUALS, Long.toString(from.getTime() / 1000)));
 			edgeFilterDescription.add(new FilterDescription("time", FilterOperator.LESS, Long.toString(to.getTime() / 1000)));
-			importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, Integer.MAX_VALUE, relationshipDescription, Collections.<FilterDescription> emptyList(), edgeFilterDescription,
-					true, true);
+			
+			try
+			{
+				importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, Integer.MAX_VALUE, relationshipDescription, Collections.<FilterDescription> emptyList(), edgeFilterDescription,
+						true, true, Integer.MAX_VALUE);
+			} 
+			
+			catch (MaxNodesExceededException e)
+			{
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 
 		// We export a one-hop graph from the address
 		else
 		{
 			assert (from == null && to == null);
+			
+			// Before importing, we have to check to see if lastSeen is less than the "last_time_sent" value on the owner node.  
+			// If it is, then we continue.  If not, then we return because the owner has already been processed.			
+			try
+			{
+				final PreparedStatement statement = sqlDb.prepareStatement("SELECT ownerId, lastSeen FROM owner WHERE ownerId = (?) LIMIT 1");
+				statement.setLong(1, ownerId);
+				final ResultSet result = statement.executeQuery();
+				if (result.first())
+				{
+					final Long lastSeen = (long) result.getDouble("lastSeen");
+					if (lastSeen >= Long.parseLong(graphDb.getNodeById(ownerId).getProperty("last_time_sent").toString()))
+					{
+						LOG.info("This owner is already at its latest state.  Skipping...");
+						return;
+					}					
+				}
+						
+			} 
+			
+			catch (SQLException e)
+			{
+				LOG.log(Level.SEVERE, "A SQL error has occured.", e);
+			}
+			
+			
 			// Import by traversing one hop along the ownership network's "transfers" edges
 			LOG.info("Importing Ownership Network from Neo4j Database Starting With Node: " + ownerId + " ...");
 			
 			// This is the mt gox node that crashes the box, even just counting. TODO
 			if (ownerId == 29792952L)
 			{
-				return "";
+				return;
 			}
 			
 			final Collection<RelationshipDescription> relationshipDescription = new ArrayList<RelationshipDescription>();
 			relationshipDescription.add(new RelationshipDescription(GraphBuilder.OwnerRelTypes.transfers, Direction.BOTH));
-			importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, 1, relationshipDescription);
+			try
+			{
+				importer.importDatabase(graphDb, ownerId, TraversalOrder.BREADTH_FIRST, 1, relationshipDescription, 2500);
+			} 
+			
+			catch (MaxNodesExceededException e)
+			{
+				LOG.warning("The graph is being skipped because it contains over 2,500 nodes.");
+				return;
+			}
+			
 		}
 
 		// Grab the graph that was loaded from the importer
@@ -222,16 +304,9 @@ public class GraphExporter
 		final AttributeModel attributeModel = Lookup.getDefault().lookup(AttributeController.class).getModel();
 		LOG.info("Graph Imported.  Nodes: " + graph.getNodeCount() + " Edges: " + graph.getEdgeCount());
 
-		if (!isDateCompare && graph.getNodeCount() > 2500)
-		{
-			LOG.warning("The graph is being skipped because it contains over 2,500 nodes.");
-			return "";
-		}
-
 		LOG.info("Setting graph labels and features...");
 		if (isDateCompare)
 		{
-			// TODO
 			// This is a bit of a hack. The start point node is always added to the graph. Before we actually add it, we need to ensure that it satisfies the filter description, if it doesnt, we
 			// remove it.
 			boolean startNodeIsValid = false;
@@ -247,7 +322,6 @@ public class GraphExporter
 
 			if (!startNodeIsValid)
 			{
-				org.gephi.graph.api.Node nodeToDelete = null;
 				LOG.info("Remove start node from graph as it does not satisfy filterable description.");
 				// Find the start node and remove it from the graph
 				for (org.gephi.graph.api.Node node : graphModel.getGraph().getNodes().toArray())
@@ -369,7 +443,15 @@ public class GraphExporter
 				ArrayList<AliasType> aliases = new ArrayList<AliasType>();
 				for (Relationship rel : neoNode.getRelationships(ScraperRelationships.identifies, Direction.INCOMING))
 				{
-					aliases.add(new AliasType((String) rel.getProperty("name"), (String) rel.getProperty("source"), (String) rel.getProperty("contributor"), (Long) rel.getProperty("time")));
+					if (rel.getProperty("time") instanceof String)
+					{
+						aliases.add(new AliasType((String) rel.getProperty("name"), (String) rel.getProperty("source"), (String) rel.getProperty("contributor"), (String) rel.getProperty("time")));
+					}
+					
+					else
+					{
+						aliases.add(new AliasType((String) rel.getProperty("name"), (String) rel.getProperty("source"), (String) rel.getProperty("contributor"), ((Long) rel.getProperty("time")).toString()));
+					}					
 				}				
 				StringBuilder builder = new StringBuilder();
 				for (AliasType alias : aliases)
@@ -584,81 +666,66 @@ public class GraphExporter
 		final ExportController ec = Lookup.getDefault().lookup(ExportController.class);
 		final StringWriter gexfWriter = new StringWriter();
 		final ByteArrayOutputStream pdfOutputStream = new ByteArrayOutputStream();
-		final ByteArrayOutputStream pngOutputStream = new ByteArrayOutputStream();
+		final ByteArrayOutputStream pngOutputStream = new ByteArrayOutputStream();		
+
+		LOG.info("Begin GEXF...");
+		final org.gephi.io.exporter.spi.CharacterExporter gexfExporter = (CharacterExporter) ec.getExporter("gexf");
+		gexfExporter.setWorkspace(graphModel.getWorkspace());
+		ec.exportWriter(gexfWriter, gexfExporter);
+		LOG.info("GEXF Complete.");
+	
+		LOG.info("Begin PDF...");
+		final PDFExporter pdfExporter = (PDFExporter) ec.getExporter("pdf");
+		ec.exportStream(pdfOutputStream, pdfExporter);
+	
+		LOG.info("Begin PNG...");
+		final PNGExporter pngExporter = (PNGExporter) ec.getExporter("png");
+		pngExporter.setTransparentBackground(true);
+		ec.exportStream(pngOutputStream, pngExporter);
+		LOG.info("PNG Complete.");
 		
-		if (isDateCompare || exportType == ExportType.GEXF)
-		{
-			LOG.info("Begin GEXF...");
-			final org.gephi.io.exporter.spi.CharacterExporter gexfExporter = (CharacterExporter) ec.getExporter("gexf");
-			gexfExporter.setWorkspace(graphModel.getWorkspace());
-			ec.exportWriter(gexfWriter, gexfExporter);
-			LOG.info("GEXF Complete.");
-		}
-
-		if (isDateCompare || exportType == ExportType.PDF)
-		{
-			LOG.info("Begin PDF...");
-			final PDFExporter pdfExporter = (PDFExporter) ec.getExporter("pdf");
-			ec.exportStream(pdfOutputStream, pdfExporter);
-			LOG.info("PDF Complete.");
-		}
-
-
-		if (isDateCompare || exportType == ExportType.PNG)
-		{
-			LOG.info("Begin PNG...");
-			final PNGExporter pngExporter = (PNGExporter) ec.getExporter("png");
-			pngExporter.setTransparentBackground(true);
-			ec.exportStream(pngOutputStream, pngExporter);
-			LOG.info("PNG Complete.");
-		}		
-
 		if (isDateCompare)
 		{
 			try
 			{
-				LOG.info("Begin storing graph to MySql...");
+				LOG.info("Begin storing time graph to MySql...");
 				final PreparedStatement ps = sqlDb.prepareStatement("INSERT INTO `day` (graphTime, gexf, pdf, png) VALUES (?, ?, ?, ?)");
 				ps.setLong(1, from.getTime() / 1000);
 				ps.setString(2, gexfWriter.toString());
 				ps.setBytes(3, pdfOutputStream.toByteArray());
 				ps.setBytes(4, pngOutputStream.toByteArray());
 				ps.execute();
-				LOG.info("Storing graph to MySql complete.");
+				LOG.info("Storing time graph to MySql complete.");
 			}
 
 			catch (SQLException e)
 			{
 				LOG.log(Level.SEVERE, "Unable to access MySQL database.", e);
-				return "";
-			}
+				return;
+			}	
 		}
-
-		else			
+		
+		else 
 		{
-			LOG.info("Exporting to memory.");						
-			if (exportType == ExportType.GEXF)
+			try
 			{
-				response = gexfWriter.toString();
+				LOG.info("Begin storing owner graph to MySql...");
+				final PreparedStatement ps = sqlDb.prepareStatement("INSERT INTO `owner` (ownerId, lastSeen, gexf, pdf, png) VALUES (?, ?, ?, ?, ?)");
+				ps.setLong(1, ownerId);
+				ps.setLong(2, Long.parseLong(graphDb.getNodeById(ownerId).getProperty("last_time_sent", 0).toString()));				 
+				ps.setString(3, gexfWriter.toString());
+				ps.setBytes(4, pdfOutputStream.toByteArray());
+				ps.setBytes(5, pngOutputStream.toByteArray());
+				ps.execute();
+				LOG.info("Storing owner graph to MySql complete.");
 			}
-			
-			else if (exportType == ExportType.PDF)
+
+			catch (SQLException e)
 			{
-				response = Base64.encodeBase64String(pdfOutputStream.toByteArray());
-			}
-			
-			else if (exportType == ExportType.PNG)
-			{
-				response = Base64.encodeBase64String(pngOutputStream.toByteArray());
-			}
-			
-			else
-			{
-				LOG.severe("No export type defined for export.");
-				response = null;
-			}
-			
-		}
+				LOG.log(Level.SEVERE, "Unable to access MySQL database.", e);
+				return;
+			}	
+		}		
 
 		try
 		{
@@ -675,10 +742,7 @@ public class GraphExporter
 
 
 		LOG.info("Exporting Graph To Disk Completed.");
-		return response;
 	}
-		
-
 
 	/**
 	 * Sets up a mysql database and builds the tables.
@@ -689,6 +753,7 @@ public class GraphExporter
 		{
 			final Statement statement = sqlDb.createStatement();
 			statement.execute("CREATE TABLE IF NOT EXISTS `day` ( `graphTime` double NOT NULL, `gexf` longblob, `pdf` longblob, `png` longblob,  `time` timestamp NULL DEFAULT CURRENT_TIMESTAMP,  PRIMARY KEY (`graphTime`), UNIQUE KEY `graphtime_UNIQUE` (`graphTime`)) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+			statement.execute("CREATE TABLE IF NOT EXISTS `owner` ( `ownerId` int(11) NOT NULL, `lastSeen` double, `gexf` longblob, `pdf` longblob, `png` longblob, `time` timestamp NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`ownerId`), UNIQUE KEY `ownerId_UNIQUE` (`ownerId`)) ENGINE=InnoDB DEFAULT CHARSET=utf8");
 		}
 
 		catch (SQLException e)
@@ -702,9 +767,9 @@ public class GraphExporter
 		private String name;
 		private String source;
 		private String contributor;
-		private Long time;
+		private String time;
 
-		AliasType(String name, String source, String contributor, Long time)
+		AliasType(String name, String source, String contributor, String time)
 		{
 			this.name = name;
 			this.source = source;
@@ -742,12 +807,12 @@ public class GraphExporter
 			this.contributor = contributor;
 		}
 
-		public Long getTime()
+		public String getTime()
 		{
 			return time;
 		}
 
-		public void setTime(Long time)
+		public void setTime(String time)
 		{
 			this.time = time;
 		}		

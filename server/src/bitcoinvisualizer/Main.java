@@ -20,7 +20,7 @@ import org.neo4j.kernel.GraphDatabaseAPI;
 import org.neo4j.kernel.HighlyAvailableGraphDatabase;
 import org.neo4j.server.WrappingNeoServerBootstrapper;
 
-import bitcoinvisualizer.api.GraphExporterNodejsApi;
+// import bitcoinvisualizer.api.GraphExporterNodejsApi;
 
 public class Main
 {
@@ -28,7 +28,7 @@ public class Main
 	private static GraphDatabaseAPI graphDb;
 	private static WrappingNeoServerBootstrapper srv;
 	private static Thread shutdownThread;
-	private static GraphExporterNodejsApi api = null;
+	// private static GraphExporterNodejsApi api = null;
 	private static final int cores = Runtime.getRuntime().availableProcessors();	
 	
 
@@ -90,14 +90,6 @@ public class Main
 				{
 					GraphBuilder.StartDatabase(graphDb);
 				}
-				
-				if (line.hasOption("api"))
-				{
-					if (api == null)
-					{
-						api = new GraphExporterNodejsApi(graphDb);
-					}
-				}
 
 				if (!line.hasOption("client"))
 				{
@@ -119,9 +111,9 @@ public class Main
 							GraphBuilder.Scrape();
 						}
 						
-						if (line.hasOption("timeanalysis"))
+						if (line.hasOption("exporter"))
 						{
-									
+							GraphExporter.ExportOwnerGraphsToMySql(graphDb);									
 							GraphExporter.ExportTimeAnalysisGraphsToMySql(graphDb, cores > 1 ? cores - 1 : cores);
 						}
 						
@@ -194,8 +186,7 @@ public class Main
 		Option low = OptionBuilder.withArgName("low").withDescription("Builds the low level block chain structure.").create("low");
 		Option high = OptionBuilder.withArgName("high").withDescription("Builds the high level data structure.").create("high");
 		Option client = OptionBuilder.withArgName("client").withDescription("Will only run the database service and not attempt to build the blockchain.").create("client");
-		Option api = OptionBuilder.withArgName("api").withDescription("Creates the exporter server to communicate with an external web server.").create("api");
-		Option timeAnalysis = OptionBuilder.withArgName("timeanalysis").withDescription("Exports a time based analysis of the entire block chain to mysql").create("timeanalysis");
+		Option exporter = OptionBuilder.withArgName("exporter").withDescription("Exports a time based analysis and owner network of the entire block chain to mysql").create("exporter");
 		Option time = OptionBuilder.hasArg().withArgName("time").withDescription("The amount of time the program will wait before rebuilding an updated version of the graph again.").create("time");
 		Option statistics = OptionBuilder.withArgName("statistics").withDescription("Prints a CSV file in the current directory with some statistics on the block chain.").create("statistics");
 		
@@ -207,8 +198,7 @@ public class Main
 		options.addOption(low);
 		options.addOption(high);
 		options.addOption(client);
-		options.addOption(api);
-		options.addOption(timeAnalysis);
+		options.addOption(exporter);
 		options.addOption(time);
 		options.addOption(statistics);
 		return options;

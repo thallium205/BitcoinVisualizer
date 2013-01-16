@@ -21,6 +21,8 @@ along with Gephi.  If not, see <http://www.gnu.org/licenses/>.
 package org.gephi.neo4j.plugin.api;
 
 import java.util.Collection;
+
+import org.gephi.neo4j.plugin.impl.MaxNodesExceededException;
 import org.neo4j.graphdb.GraphDatabaseService;
 
 /**
@@ -30,20 +32,19 @@ import org.neo4j.graphdb.GraphDatabaseService;
  */
 public interface Neo4jImporter {
 
-    void importDatabase(GraphDatabaseService graphDB);
+    void importDatabase(GraphDatabaseService graphDB, int maxNodes) throws MaxNodesExceededException;
 
     void importDatabase(GraphDatabaseService graphDB, Collection<FilterDescription> filterDescriptions,
-            boolean restrictMode, boolean matchCase);
+            boolean restrictMode, boolean matchCase, int maxNodes) throws MaxNodesExceededException;
 
-    void importDatabase(GraphDatabaseService graphDB, long startNodeId, TraversalOrder order, int maxDepth);
+    void importDatabase(GraphDatabaseService graphDB, long startNodeId, TraversalOrder order, int maxDepth, int maxNodes) throws MaxNodesExceededException;
 
-    void importDatabase(GraphDatabaseService graphDB, long startNodeId, TraversalOrder order, int maxDepth,
-            Collection<RelationshipDescription> relationshipDescriptions);
+    void importDatabase(GraphDatabaseService graphDB, long startNodeId, TraversalOrder order, int maxDepth, Collection<RelationshipDescription> relationshipDescriptions, int maxNodes) throws MaxNodesExceededException;
 
     void importDatabase(GraphDatabaseService graphDB, long startNodeId, TraversalOrder order, int maxDepth,
             Collection<RelationshipDescription> relationshipDescriptions, Collection<FilterDescription> nodeFilterDescriptions,
-            boolean restrictMode, boolean matchCase);
+            boolean restrictMode, boolean matchCase, int maxNodes) throws MaxNodesExceededException;
 
 	void importDatabase(GraphDatabaseService graphDB, long startNodeId, TraversalOrder order, int maxDepth, Collection<RelationshipDescription> relationshipDescriptions,
-			Collection<FilterDescription> nodeFilterDescriptions, Collection<FilterDescription> edgeFilterDescriptions, boolean restrictMode, boolean matchCase);
+			Collection<FilterDescription> nodeFilterDescriptions, Collection<FilterDescription> edgeFilterDescriptions, boolean restrictMode, boolean matchCase, int maxNodes) throws MaxNodesExceededException;
 }
