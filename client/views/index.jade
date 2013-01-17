@@ -23,6 +23,9 @@ html.
 						<li><a href="#" onclick="showHelp(); return false;">Help</a></li>
 					</ul>
 					<ul class="nav">
+						<li><a href="#" onclick="showIdentity(); return false;">Identify</a></li>
+					</ul>
+					<ul class="nav">
 						<li><a href="https://bitcointalk.org/index.php?action=profile;u=23919">Contact</a></li>
 					</ul>
 					<div class="pull-left">
@@ -101,10 +104,18 @@ html.
 				
 				<h4>Edge Direction</h4>
 				<p>Following an edge in a clockwise direction will separate inbound vs outbound transactions.</p>
-				
-				<h4>Future Work</h4>
-				<p> - All address query graphs are currently capped to 2,500 nodes. The backend processes each user request one at a time at the moment.</p>	
-				<p> - Associating more owners to real life entities (like BitcoinTalk forum members)</p>
+			</div>
+		</div>
+		
+		<script>
+			function showIdentity() {
+				$('#identityModal').modal('show')							
+			}
+		</script>
+		
+		<div id="identityModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="Help" aria-hidden="true">
+			<div class="modal-body">
+				<iframe src="https://docs.google.com/spreadsheet/embeddedform?formkey=dE1HTlNYNGVWZVJzUFNYOHRmOVlpOWc6MQ" width="500" height="625" frameborder="0" marginheight="0" marginwidth="0">Loading...</iframe>
 			</div>
 		</div>
 		

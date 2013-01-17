@@ -511,10 +511,14 @@ function loadGraph(ownerOrAddrOrTime, ownerIdToFocus) {
     $.ajax({
         url: (url),
         dataType: "xml",
-		error: function() {
+		error: function(xhr, text, err) {
 			processingRequest = false;
-			$('#loadModal').modal('hide');				
-			alert('The database appears to be down at the moment.  Sorry for the inconvenience.');
+			$('#loadModal').modal('hide');
+			if (xhr && xhr.responseText) {
+				alert(JSON.parse(xhr.responseText).error);
+			} else {
+				alert('There was an error but the server didn\'t say why.  Try again?');
+			}			
 		},
         success: function(data) {
 			processingRequest = false;
@@ -971,9 +975,13 @@ function loadTableModal(title, url) {
 	$.ajax({
         url: (url),
         dataType: "json",
-		error: function() {
-			$('#loadModal').modal('hide');   
-			alert('Unable to retrieve data.  Try again maybe?');
+		error: function(data) {
+			$('#loadModal').modal('hide');  
+			if (xhr && xhr.responseText) {
+				alert(JSON.parse(xhr.responseText).error);
+			} else {
+				alert('There was an error but the server didn\'t say why.  Try again?');
+			}			
 		},
         success: function(data) {			
 			var table = '<table class="table table-striped table-condensed">';

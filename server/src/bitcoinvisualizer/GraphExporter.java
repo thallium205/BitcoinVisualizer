@@ -153,7 +153,6 @@ public class GraphExporter
 	public static void ExportOwnerGraphsToMySql(final GraphDatabaseAPI graphDb)
 	{
 		int ownersProcessed = 0;
-		//int counter = 0;
 		// TODO - only update graphs that their last transaction time is greater than the last time block processed
 		try
 		{
@@ -166,25 +165,16 @@ public class GraphExporter
 			owners.add(29792952L);
 			owners.add(30601119L);
 			for (Node node : owned_addresses.query("*:*"))
-			{			
-				//if (counter > 2000000 && counter <= 3000000)
-				//{
-					Long ownerId = node.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId();
-					if (owners.add(ownerId))
-					{
-						Export(sqlDb, graphDb, ownerId, null, null, cores > 1 ? cores - 1 : cores);
-						ownersProcessed ++;
-						LOG.info("Owners Processed: " + ownersProcessed);
-				 	}	
-			 //		counter ++;
-			 	//}
-			 	//else
-			 	//{
-			 	//	counter ++;
-			 //	}
-	
-			}		
-
+			{
+				Long ownerId = node.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId();
+				if (owners.add(ownerId))
+				{
+					Export(sqlDb, graphDb, ownerId, null, null, cores > 1 ? cores - 1 : cores);
+					ownersProcessed ++;
+					LOG.info("Owners Processed: " + ownersProcessed);
+				}	
+			}
+			
 			sqlDb.close();
 			LOG.info("Total Number of Owners Processed:" + owners.size());			
 		} 
@@ -589,7 +579,7 @@ public class GraphExporter
 		previewModel.getProperties().putValue(PreviewProperty.NODE_LABEL_PROPORTIONAL_SIZE, Boolean.FALSE);
 
 		// Edge Color
-		final AttributeColumn edgeTimeSentColumn = attributeModel.getEdgeTable().getColumn("value");
+		final AttributeColumn edgeTimeSentColumn = attributeModel.getEdgeTable().getColumn("time");
 		if (edgeTimeSentColumn != null)
 		{
 			final Ranking edgeTimeSentRanking = rankingController.getModel().getRanking(Ranking.EDGE_ELEMENT, edgeTimeSentColumn.getId());
@@ -674,15 +664,19 @@ public class GraphExporter
 		ec.exportWriter(gexfWriter, gexfExporter);
 		LOG.info("GEXF Complete.");
 	
-		LOG.info("Begin PDF...");
-		final PDFExporter pdfExporter = (PDFExporter) ec.getExporter("pdf");
-		ec.exportStream(pdfOutputStream, pdfExporter);
-	
-		LOG.info("Begin PNG...");
-		final PNGExporter pngExporter = (PNGExporter) ec.getExporter("png");
-		pngExporter.setTransparentBackground(true);
-		ec.exportStream(pngOutputStream, pngExporter);
-		LOG.info("PNG Complete.");
+		if (isDateCompare)
+		{
+			LOG.info("Begin PDF...");
+			final PDFExporter pdfExporter = (PDFExporter) ec.getExporter("pdf");
+			ec.exportStream(pdfOutputStream, pdfExporter);
+		
+			LOG.info("Begin PNG...");
+			final PNGExporter pngExporter = (PNGExporter) ec.getExporter("png");
+			pngExporter.setTransparentBackground(true);
+			ec.exportStream(pngOutputStream, pngExporter);
+			LOG.info("PNG Complete.");
+		}
+
 		
 		if (isDateCompare)
 		{
@@ -710,12 +704,10 @@ public class GraphExporter
 			try
 			{
 				LOG.info("Begin storing owner graph to MySql...");
-				final PreparedStatement ps = sqlDb.prepareStatement("INSERT INTO `owner` (ownerId, lastSeen, gexf, pdf, png) VALUES (?, ?, ?, ?, ?)");
+				final PreparedStatement ps = sqlDb.prepareStatement("INSERT INTO `owner` (ownerId, lastSeen, gexf) VALUES (?, ?, ?)");
 				ps.setLong(1, ownerId);
 				ps.setLong(2, Long.parseLong(graphDb.getNodeById(ownerId).getProperty("last_time_sent", 0).toString()));				 
 				ps.setString(3, gexfWriter.toString());
-				ps.setBytes(4, pdfOutputStream.toByteArray());
-				ps.setBytes(5, pngOutputStream.toByteArray());
 				ps.execute();
 				LOG.info("Storing owner graph to MySql complete.");
 			}
@@ -753,7 +745,7 @@ public class GraphExporter
 		{
 			final Statement statement = sqlDb.createStatement();
 			statement.execute("CREATE TABLE IF NOT EXISTS `day` ( `graphTime` double NOT NULL, `gexf` longblob, `pdf` longblob, `png` longblob,  `time` timestamp NULL DEFAULT CURRENT_TIMESTAMP,  PRIMARY KEY (`graphTime`), UNIQUE KEY `graphtime_UNIQUE` (`graphTime`)) ENGINE=InnoDB DEFAULT CHARSET=utf8");
-			statement.execute("CREATE TABLE IF NOT EXISTS `owner` ( `ownerId` int(11) NOT NULL, `lastSeen` double, `gexf` longblob, `pdf` longblob, `png` longblob, `time` timestamp NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`ownerId`), UNIQUE KEY `ownerId_UNIQUE` (`ownerId`)) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+			statement.execute("CREATE TABLE IF NOT EXISTS `owner` ( `ownerId` int(11) NOT NULL, `lastSeen` double, `gexf` longblob, `time` timestamp NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`ownerId`), UNIQUE KEY `ownerId_UNIQUE` (`ownerId`)) ENGINE=InnoDB DEFAULT CHARSET=utf8");
 		}
 
 		catch (SQLException e)

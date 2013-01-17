@@ -26,6 +26,7 @@ app.configure('development', function(){
 });
 
 app.get('/', routes.index);
+
 app.get('/owner/id/:id.:format', owner.id);
 app.get('/owner/addr/:addr.:format', owner.addr);
 

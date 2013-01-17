@@ -1,7 +1,7 @@
 var request = require('request');
 var mysql = require('mysql');
 var connection = mysql.createConnection({
-  host     : '10.0.0.1',
+  host     : 'localhost',
   user     : 'root',
   password : 'webster',
   database : 'blockviewer'
@@ -14,18 +14,18 @@ exports.id = function(req, res){
 		connection.query('SELECT gexf FROM owner WHERE ownerId = ? LIMIT 1', [req.params.id], function(e, r) {
 			if (e) {
 				console.log(e);
-				es.send({error: 'An error occured with the database'});
+				res.send({error: 'An error occured with the database'}, 500);
 				return;
 			}
 			if (r.length !== 1) {
 				console.log('Result returned something other than 1.');
-				es.send({error: 'Date not found.'});
+				res.send({error: 'Date not found.'}, 500);
 				return;
 			}
 			res.send(r.pop().gexf);
 		});
 	} else {
-		res.send({error: 'Unsupported filetype specified'});
+		res.send({error: 'Unsupported filetype specified'}, 500);
 	}
 };
 
@@ -41,7 +41,7 @@ exports.addr = function(req, res){
 						function (e, r, b) {
 							if (e) {
 								console.log(e);
-								es.send({error: 'An error occured with the database'});
+								res.send({error: 'An error occured with the database'}, 500);
 								return;
 							}
 							var idArray = b.data.pop();
@@ -50,22 +50,22 @@ exports.addr = function(req, res){
 								connection.query('SELECT gexf FROM owner WHERE ownerId = ? LIMIT 1', [ownerId], function(e, r) {
 								if (e) {
 									console.log(e);
-									res.send({error: 'An error occured with the database'});
+									res.send({error: 'An error occured with the database'}, 500);
 									return;
 								}
 								if (r.length !== 1) {
 									console.log('Result returned something other than 1.');
-									res.send({error: 'An owner has been identified, but a graph has not been calculated.  This is typically a result of owners who are too large to be graphed.'});
+									res.send({error: 'An owner has been identified, but a graph has not been calculated.  This is typically a result of owners who are too large to be graphed.'}, 500);
 									return;
 								}
 								res.send(r.pop().gexf);	
 								});								
 							}
 							else {
-								res.send({error: 'No owner has been identified by this address... yet.'});
+								res.send({error: 'No owner has been identified by this address... yet.'}, 500);
 							}
 						});			
 	} else {
-		res.send({error: 'Unsupported filetype specified'});
+		res.send({error: 'Unsupported filetype specified'}, 500);
 	}	
 };
