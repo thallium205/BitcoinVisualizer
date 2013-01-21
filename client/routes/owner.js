@@ -45,7 +45,7 @@ exports.addr = function(req, res){
 								return;
 							}
 							var idArray = b.data.pop();
-							if (idArray.length > 0) {
+							if (idArray && idArray.length > 0) {
 								var ownerId = idArray.pop();								
 								connection.query('SELECT gexf FROM owner WHERE ownerId = ? LIMIT 1', [ownerId], function(e, r) {
 								if (e) {

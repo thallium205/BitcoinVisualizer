@@ -249,7 +249,7 @@ public class GraphExporter
 				if (result.first())
 				{
 					final Long lastSeen = (long) result.getDouble("lastSeen");
-					if (lastSeen >= Long.parseLong(graphDb.getNodeById(ownerId).getProperty("last_time_sent").toString()))
+					if (lastSeen >= Long.parseLong(graphDb.getNodeById(ownerId).getProperty("last_time_sent", 0).toString()))
 					{
 						LOG.info("This owner is already at its latest state.  Skipping...");
 						return;
@@ -624,14 +624,14 @@ public class GraphExporter
 		layout.setLinLogMode(true);
 		layout.setThreadsCount(threadCount);
 		layout.initAlgo();
-		for (int i = 0; i < 1000 && layout.canAlgo(); i++)
+		for (int i = 0; i < 100 && layout.canAlgo(); i++)
 		{
 			layout.goAlgo();
 		}
 
 		// We need to prevent graphs from overlapping, but we only do so once the graph is spatialized
 		layout.setAdjustSizes(true);
-		for (int i = 0; i < 100 && layout.canAlgo(); i++)
+		for (int i = 0; i < 10 && layout.canAlgo(); i++)
 		{
 			layout.goAlgo();
 		}
@@ -641,7 +641,7 @@ public class GraphExporter
 		// We perform a label adjust to prevent overlapping labels
 		final LabelAdjust labelAdjustLayout = new LabelAdjust(new LabelAdjustBuilder());
 		labelAdjustLayout.setGraphModel(graphModel);
-		for (int i = 0; i < 100 && labelAdjustLayout.canAlgo(); i++)
+		for (int i = 0; i < 10 && labelAdjustLayout.canAlgo(); i++)
 		{
 			labelAdjustLayout.goAlgo();
 		}

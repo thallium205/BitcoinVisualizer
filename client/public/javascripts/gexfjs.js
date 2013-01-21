@@ -302,7 +302,9 @@ function displayNode(_nodeIndex, _recentre) {
 				_str += '</blockquote>';
             }
         }
-        _str += '</ul><p></p>';
+        _str += '</ul><p></p>';		
+		_str += '<div id="disqus_thread"></div>';
+		
         $("#leftcontent").html(_str);
         if (_recentre) {
             GexfJS.params.centreX = _b.x;
@@ -310,7 +312,15 @@ function displayNode(_nodeIndex, _recentre) {
         }
         $("#graphsearch")
             .val(_d.label)
-            .removeClass('grey');
+            .removeClass('grey');	
+
+		// Disqus
+		var disqus_shortname = 'blockviewer';
+		(function() {
+			var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+			dsq.src = 'http://' + disqus_shortname + '.disqus.com/embed.js';
+			(document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+		})();		
     }
 }
 

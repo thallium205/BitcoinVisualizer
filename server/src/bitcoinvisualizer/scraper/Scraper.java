@@ -11,6 +11,9 @@ import java.util.Date;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import net.sf.json.JSONObject;
+import net.sf.json.JSONSerializer;
+
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -162,6 +165,40 @@ public class Scraper
 				}									
 			}
 		}					
+	}
+	
+	public static void RedditCommentByPageId(final GraphDatabaseAPI graphDb, final Index<Node> owned_addresses, final ArrayList<String> pageIds) throws Exception
+	{				
+		for (String pageId : pageIds)
+		{
+			URLConnection connection = new URL("http://www.reddit.com/comments/" + pageId + ".json").openConnection();
+			BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));	
+			StringBuilder builder = new StringBuilder();
+			String aux = "";
+			while ((aux = reader.readLine()) != null)
+			{
+				builder.append(aux);
+			}		
+			
+			
+			net.sf.json.JSONArray comments = (net.sf.json.JSONArray) JSONSerializer.toJSON(builder.toString());	
+			for (Object commentObj : comments)
+			{
+				net.sf.json.JSONObject comment = (net.sf.json.JSONObject) commentObj;
+				if (comment.has("kind") && comment.has("data") && comment.getString("kind").contains("t1"))
+				{
+					JSONObject commentData = (JSONObject) comment.get("data");
+					if (commentData.has("children"))
+					{
+						net.sf.json.JSONArray commentChildren = commentData.getJSONArray("children");
+						
+					}
+				}
+			}
+			
+			
+			
+		}				
 	}
 	
 	private static void identifyAddress(final Index<Node> owned_addresses, Address address, String name, String source, String contributor)
