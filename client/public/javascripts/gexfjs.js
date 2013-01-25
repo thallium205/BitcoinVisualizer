@@ -302,8 +302,7 @@ function displayNode(_nodeIndex, _recentre) {
 				_str += '</blockquote>';
             }
         }
-        _str += '</ul><p></p>';		
-		_str += '<div id="disqus_thread"></div>';
+        _str += '</ul><p></p>';			
 		
         $("#leftcontent").html(_str);
         if (_recentre) {
@@ -314,6 +313,8 @@ function displayNode(_nodeIndex, _recentre) {
             .val(_d.label)
             .removeClass('grey');	
 
+		/*
+		// _str += '<div id="disqus_thread"></div>';
 		// Disqus
 		var disqus_shortname = 'blockviewer';
 		var disqus_title = 'Owner ' + _d.id;
@@ -323,7 +324,8 @@ function displayNode(_nodeIndex, _recentre) {
 			var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
 			dsq.src = 'http://' + disqus_shortname + '.disqus.com/embed.js';
 			(document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-		})();		
+		})();	
+		*/
     }
 }
 
@@ -1180,4 +1182,7 @@ $(document).ready(function() {
         }
         return false;
     });
+	
+	// Show off the blockviwer onload
+	loadGraph(30117199, 30117199); // satoshi's owner id ;D
 });

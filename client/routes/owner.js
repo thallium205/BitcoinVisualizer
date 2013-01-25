@@ -2,9 +2,6 @@ var request = require('request');
 var mysql = require('mysql');
 var loggly = require('loggly')
 var config = { subdomain: process.env.logsubdomain,  auth: { username: process.env.loguser, password: process.env.logpass }};
-
-console.log(JSON.stringify(config));
-
 var client = loggly.createClient(config);
 var logToken = process.env.logtoken;
 
@@ -27,8 +24,8 @@ exports.id = function(req, res){
 			}
 			
 			if (r.length === 0) {
-				client.log(logToken, 'Result for owner return 0.');
-				res.send({error: 'The owner ID could not be found.'}, 500);
+				client.log(logToken, 'Result for owner returns 0.');
+				res.send({error: 'An owner has been identified, but a graph has not been calculated yet.  This is typically a result of owners who are too large to be graphed, or this owner has not been graphed yet.'}, 500);
 				return;
 			}
 			

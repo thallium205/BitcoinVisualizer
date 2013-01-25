@@ -25,7 +25,7 @@ import org.neo4j.server.WrappingNeoServerBootstrapper;
 public class Main
 {
 	private static final java.util.logging.Logger LOG = Logger.getLogger(Main.class.getName());
-	private static GraphDatabaseAPI graphDb;
+	private static GraphDatabaseAPI graphDb = null;
 	private static WrappingNeoServerBootstrapper srv;
 	private static Thread shutdownThread;
 	// private static GraphExporterNodejsApi api = null;
@@ -54,119 +54,126 @@ public class Main
 				LOG.log(Level.SEVERE, "Unable to parse options.", e);
 			}
 			
-			// Start Neo4j
-			try
+			if (graphDb == null)
 			{
-				graphDb = new HighlyAvailableGraphDatabase((line.getOptionValue("dbPath")), MapUtil.load(FileUtils.getFile(line.getOptionValue("configPath"))));			
-				srv = new WrappingNeoServerBootstrapper(graphDb);
-				srv.start();
-				shutdownThread = new Thread()
+				// Start Neo4j
+				try
 				{
-					@Override
-					public void run()
+					graphDb = new HighlyAvailableGraphDatabase((line.getOptionValue("dbPath")), MapUtil.load(FileUtils.getFile(line.getOptionValue("configPath"))));			
+					srv = new WrappingNeoServerBootstrapper(graphDb);
+					srv.start();
+					shutdownThread = new Thread()
 					{
-						LOG.info("Stopping database...");
-						srv.stop();
-						graphDb.shutdown();
-						LOG.info("Database stopped.");
-					}
-				};
-			} 
-			catch (Exception e)
-			{
-				hasError = true;
-				LOG.log(Level.SEVERE, "Unable to start Neo4j.", e);
-			}
-			
-			try
-			{				
-				// Get values
-				line = parser.parse(getOptions(), args);
-				boolean validate = true;
-				if (line.hasOption("validate"))
-					validate = Boolean.parseBoolean(line.getOptionValue("validate"));
+						@Override
+						public void run()
+						{
+							LOG.info("Stopping database...");
+							srv.stop();
+							graphDb.shutdown();
+							LOG.info("Database stopped.");
+						}
+					};
+				} 
+				catch (Exception e)
+				{
+					hasError = true;
+					LOG.log(Level.SEVERE, "Unable to start Neo4j.", e);
+				}
 				
-				if (!GraphBuilder.IsStarted())
-				{
-					GraphBuilder.StartDatabase(graphDb);
-				}
-
-				if (!line.hasOption("client"))
-				{
-					try
-					{						
-						if (line.hasOption("low"))
-						{
-							GraphBuilder.DownloadAndSaveBlockChain(validate);
-						}
-						
-						if (line.hasOption("high"))
-						{
-							GraphBuilder.BuildHighLevelGraph();
-						}
-
-						// If the user activated the scraper
-						if (line.hasOption("scraper"))
-						{
-							GraphBuilder.Scrape();
-						}
-						
-						if (line.hasOption("exporter"))
-						{
-							GraphExporter.ExportOwnerGraphsToMySql(graphDb);									
-							GraphExporter.ExportTimeAnalysisGraphsToMySql(graphDb, cores > 1 ? cores - 1 : cores);
-						}
-						
-					} 
+				try
+				{				
+					// Get values
+					line = parser.parse(getOptions(), args);
+					boolean validate = true;
+					if (line.hasOption("validate"))
+						validate = Boolean.parseBoolean(line.getOptionValue("validate"));
 					
-					catch (Exception e)
+					if (!GraphBuilder.IsStarted())
 					{
-						LOG.log(Level.WARNING, "Graph Build Failed.  Skipping, but not shutting down database.", e);
+						GraphBuilder.StartDatabase(graphDb);
 					}
-				}				
-			}
 
-			catch (ParseException e)
-			{
-				LOG.log(Level.SEVERE, "Parsing failed.  Reason: " + e.getMessage(), e);
-				hasError = true;
-				// GraphBuilder.StopDatabase();
-			} 
-			
-			catch (IOException e)
-			{
-				LOG.log(Level.SEVERE, "Input/Output Failed.  Reason: " + e.getMessage(), e);
-				hasError = true;
-			}
+					if (!line.hasOption("client"))
+					{
+						try
+						{						
+							if (line.hasOption("low"))
+							{
+								GraphBuilder.DownloadAndSaveBlockChain(validate);
+							}
+							
+							if (line.hasOption("high"))
+							{
+								GraphBuilder.BuildHighLevelGraph();
+							}
 
-			
-			try
-			{
-				if (line.hasOption("time"))
-				{
-					LOG.info("Sleeping for: " + line.getOptionValue("time") + " ms");					
-					Thread.sleep(Long.parseLong(line.getOptionValue("time")));					
+							// If the user activated the scraper
+							if (line.hasOption("scraper"))
+							{
+								GraphBuilder.Scrape();
+							}
+							
+							if (line.hasOption("exporter"))
+							{
+								GraphExporter.ExportOwnerGraphsToMySql(graphDb);									
+								GraphExporter.ExportTimeAnalysisGraphsToMySql(graphDb, cores > 1 ? cores - 1 : cores);
+							}
+							
+						} 
+						
+						catch (Exception e)
+						{
+							LOG.log(Level.WARNING, "Graph Build Failed.  Skipping, but not shutting down database.", e);
+						}
+					}				
 				}
-				else
-				{
-					LOG.info("Sleeping for default time of 6 hours since no time was specified.");
-					Thread.sleep(21600000);
-				}				
-			}
 
-			catch (InterruptedException e)
-			{
-				LOG.log(Level.SEVERE, "Thread sleep failed.  Reason: " + e.getMessage(), e);
-				// GraphBuilder.StopDatabase();
+				catch (ParseException e)
+				{
+					LOG.log(Level.SEVERE, "Parsing failed.  Reason: " + e.getMessage(), e);
+					hasError = true;
+					// GraphBuilder.StopDatabase();
+				} 
+				
+				catch (IOException e)
+				{
+					LOG.log(Level.SEVERE, "Input/Output Failed.  Reason: " + e.getMessage(), e);
+					hasError = true;
+				}
+
+				
+				try
+				{
+					if (line.hasOption("time"))
+					{
+						LOG.info("Sleeping for: " + line.getOptionValue("time") + " ms");					
+						Thread.sleep(Long.parseLong(line.getOptionValue("time")));					
+					}
+					else
+					{
+						LOG.info("Sleeping for default time of 6 hours since no time was specified.");
+						Thread.sleep(21600000);
+					}				
+				}
+
+				catch (InterruptedException e)
+				{
+					LOG.log(Level.SEVERE, "Thread sleep failed.  Reason: " + e.getMessage(), e);
+					hasError = true;
+					// GraphBuilder.StopDatabase();
+				}
+				
 			}
-			
 		}
+			
 		
+		/*
 		LOG.info("Stopping database...");
 		srv.stop();
 		graphDb.shutdown();
 		Runtime.getRuntime().removeShutdownHook(shutdownThread);
-		LOG.info("Database stopped.");		
+		LOG.info("Database stopped.");
+		*/		
 	}
 
 	/**
