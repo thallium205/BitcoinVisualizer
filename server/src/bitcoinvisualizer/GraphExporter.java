@@ -153,7 +153,7 @@ public class GraphExporter
 	public static void ExportOwnerGraphsToMySql(final GraphDatabaseAPI graphDb)
 	{
 		int ownersProcessed = 0;
-		// TODO - only update graphs that their last transaction time is greater than the last time block processed
+
 		try
 		{
 			Class.forName("com.mysql.jdbc.Driver");
@@ -166,13 +166,14 @@ public class GraphExporter
 			owners.add(30601119L);
 			for (Node node : owned_addresses.query("*:*"))
 			{
-				Long ownerId = node.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId();
+				Long ownerId = node.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId();				
 				if (owners.add(ownerId))
 				{
 					Export(sqlDb, graphDb, ownerId, null, null, cores > 1 ? cores - 1 : cores);
 					ownersProcessed ++;
 					LOG.info("Owners Processed: " + ownersProcessed);
-				}	
+				}						
+
 			}
 			
 			sqlDb.close();

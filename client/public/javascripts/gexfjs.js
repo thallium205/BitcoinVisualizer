@@ -213,7 +213,7 @@ function displayNode(_nodeIndex, _recentre) {
         for (var i in _d.attributes) {		
 			var attributeTitle = strLang(i);
 			switch(attributeTitle) {
-				case 'id':
+				case 'id':					
 					_str += '<li><b>' + strLang(i) + '</b>: ' + '<a href="http://blockviewer.com/#' + _d.attributes[i] + '" target="_blank"></a></li>';
 					break;
 				case 'name':
@@ -316,6 +316,9 @@ function displayNode(_nodeIndex, _recentre) {
 
 		// Disqus
 		var disqus_shortname = 'blockviewer';
+		var disqus_title = 'Owner ' + _d.id;
+		var disqus_identifier = _d.id;
+		var disqus_url = 'http://blockviewer.com/#' + _d.id;
 		(function() {
 			var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
 			dsq.src = 'http://' + disqus_shortname + '.disqus.com/embed.js';
@@ -679,6 +682,9 @@ function loadGraph(ownerOrAddrOrTime, ownerIdToFocus) {
 					GexfJS.params.zoomLevel = GexfJS.maxZoom;
 					$("#zoomSlider").slider("value", GexfJS.maxZoom);
 				}
+			} else {
+				GexfJS.params.zoomLevel = GexfJS.minZoom;
+				$("#zoomSlider").slider("value", GexfJS.minZoom);                         
 			}
 			
 			$('#loadModal').modal('hide');			

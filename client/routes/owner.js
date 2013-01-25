@@ -1,7 +1,7 @@
 var request = require('request');
 var mysql = require('mysql');
 var connection = mysql.createConnection({
-  host     : 'localhost',
+  host     : '10.0.0.1',
   user     : 'root',
   password : 'webster',
   database : 'blockviewer'
@@ -55,7 +55,7 @@ exports.addr = function(req, res){
 								}
 								if (r.length !== 1) {
 									console.log('Result returned something other than 1.');
-									res.send({error: 'An owner has been identified, but a graph has not been calculated.  This is typically a result of owners who are too large to be graphed.'}, 500);
+									res.send({error: 'An owner has been identified, but a graph has not been calculated yet.  This is typically a result of owners who are too large to be graphed, or this owner has not been graphed yet.'}, 500);
 									return;
 								}
 								res.send(r.pop().gexf);	
