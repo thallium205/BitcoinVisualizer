@@ -1,7 +1,11 @@
 var request = require('request');
+var loggly = require('loggly')
+var config = { subdomain: process.env.logsubdomain,  auth: { username: process.env.loguser, password: process.env.logpass }};
+var client = loggly.createClient(config);
+var logToken = process.env.logtoken;
 
 exports.id = function(req, res){
-	console.log('Fetch addresses by Owner Id -> ' + req.params.id);
+	client.log(logToken, 'Fetch addresses by Owner Id -> ' + req.params.id);
 	var r = request({	url: 'http://localhost:7474/db/data/cypher',
 						method: 'post',
 						headers: {'X-Stream': true},
@@ -13,7 +17,7 @@ exports.id = function(req, res){
 };
 
 exports.addr = function(req, res){
-	console.log('Fetch addresses by Address -> ' + req.params.addr);
+	client.log(logToken, 'Fetch addresses by Address -> ' + req.params.addr);
 	var r = request({	url: 'http://localhost:7474/db/data/cypher',
 						method: 'post',
 						headers: {'X-Stream': true},
