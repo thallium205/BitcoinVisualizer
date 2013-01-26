@@ -64,11 +64,16 @@ import org.gephi.statistics.plugin.PageRank;
 import org.gephi.statistics.plugin.WeightedDegree;
 import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Path;
 import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.index.Index;
+import org.neo4j.graphdb.traversal.TraversalDescription;
 import org.neo4j.kernel.GraphDatabaseAPI;
+import org.neo4j.kernel.Traversal;
+import org.neo4j.kernel.impl.traversal.TraversalDescriptionImpl;
 import org.openide.util.Lookup;
 
+import bitcoinvisualizer.GraphBuilder.BlockchainRelationships;
 import bitcoinvisualizer.GraphBuilder.OwnerRelTypes;
 import bitcoinvisualizer.scraper.Scraper.ScraperRelationships;
 
@@ -86,7 +91,7 @@ public class GraphExporter
 	private static final int cores = Runtime.getRuntime().availableProcessors();	
 	public static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
 	public static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
-	private static Index<Node> owned_addresses;
+	private static final Long START_NODE = 29784508L;
 
 	public static void ExportTimeAnalysisGraphsToMySql(final GraphDatabaseAPI graphDb, final int threadCount)
 	{
@@ -160,24 +165,17 @@ public class GraphExporter
 			final Connection sqlDb = DriverManager.getConnection("jdbc:mysql://localhost:3306/blockviewer?user=root&password=webster");
 			SetupMysql(sqlDb);
 			
-			owned_addresses = graphDb.index().forNodes(OWNED_ADDRESS_HASH);
-			HashSet<Long> owners = new HashSet<Long>();
-			owners.add(29792952L);
-			owners.add(30601119L);
-			for (Node node : owned_addresses.query("*:*"))
+			final TraversalDescription td = Traversal.description().breadthFirst().relationships(OwnerRelTypes.transfers, Direction.BOTH);
+			
+			// Start at an  owner
+			for (final Node owner : td.traverse(graphDb.getNodeById(START_NODE)).nodes())
 			{
-				Long ownerId = node.getSingleRelationship(OwnerRelTypes.owns, Direction.INCOMING).getStartNode().getId();				
-				if (owners.add(ownerId))
-				{
-					Export(sqlDb, graphDb, ownerId, null, null, cores > 1 ? cores - 1 : cores);
-					ownersProcessed ++;
-					LOG.info("Owners Processed: " + ownersProcessed);
-				}						
-
+				Export(sqlDb, graphDb, owner.getId(), null, null, cores > 1 ? cores - 1 : cores);
+				ownersProcessed ++;
+				LOG.info("Owners Processed: " + ownersProcessed);
 			}
 			
-			sqlDb.close();
-			LOG.info("Total Number of Owners Processed:" + owners.size());			
+			sqlDb.close();			
 		} 
 		
 		catch (ClassNotFoundException e)
@@ -201,7 +199,7 @@ public class GraphExporter
 		if (ownerId == null)
 		{
 			isDateCompare = true;
-			ownerId = 29784508L; // Arbitrary start node
+			ownerId = START_NODE; // Arbitrary start node
 		}
 
 		else

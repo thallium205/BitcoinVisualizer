@@ -1356,7 +1356,7 @@ public class GraphBuilder
 				count = 0;
 			}
 			
-			final List<Node> nodes = ImmutableList.copyOf(btcTransfer.nodes());
+			final List<Node> nodes = ImmutableList.copyOf(btcTransfer.nodes());			
 			final long value = ((Number) nodes.get(4).getProperty("value", 0)).longValue();
 			final long time = (Long) nodes.get(3).getSingleRelationship(BlockchainRelationships.from, Direction.OUTGOING).getEndNode().getProperty("time");
 				

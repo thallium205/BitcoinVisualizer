@@ -26,6 +26,9 @@ html.
 						<li><a href="#" onclick="showIdentity(); return false;">Identify</a></li>
 					</ul>
 					<ul class="nav">
+						<li><a href="https://github.com/thallium205/BitcoinVisualizer">Github</a></li>
+					</ul>
+					<ul class="nav">
 						<li><a href="http://toolongdidntread.com/">Contact</a></li>
 					</ul>
 					<div class="pull-left">
@@ -109,7 +112,7 @@ html.
 		
 		<script>
 			function showIdentity() {
-				$('#identityModal').modal('show')							
+				$('#identityModal').modal('show');						
 			}
 		</script>
 		
@@ -122,6 +125,17 @@ html.
 		<div id="loadModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="Loading" aria-hidden="true">
 			<div class="modal-header">
 				<h3> Preparing ...</h3>
+			</div>
+		</div>
+		
+		<div id="announcementModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="Notice!" aria-hidden="true">
+			<div class="modal-header">
+				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+				<h3>Bug Found</h3>
+			</div>
+			<div class="modal-body">		
+				<h4>Any owner that has had more than 1 transaction with another owner will only display the first transaction between the two.  This is resulting in missing transactions and incorrect totals.</h4>
+				<h5>I am working hard to correct this, but it will take some time to rebuild this portion of the database.  Sorry for any inconvenience! ~thallium205</h5>
 			</div>
 		</div>
 	</body>

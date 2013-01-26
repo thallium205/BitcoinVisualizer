@@ -1183,6 +1183,8 @@ $(document).ready(function() {
         return false;
     });
 	
+	$('#announcementModal').modal('show');
+	
 	// Show off the blockviwer onload
 	if (window.location.href.indexOf('#') == -1) {
              loadGraph(30203900, 30203900); // wikileaks owner id ;D
