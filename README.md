@@ -37,7 +37,7 @@ Each component of the graph represents the following:
 * **Node Color** - Hotter colors will represent recent activity sent from the owner while a cooler color will represent older activity.
 * **Edge Color** - Hotter colors will represent recent transactions while cooler colors will represent older ones.
 * **Edge Direction** - Following an edge in a clockwise direction will separate inbound vs outbound transactions.
-* 
+
 ## Usage
 Several command line arguments are passed into blockviewer.  To let it build a full, application ready use as seen at blockviewer.com, the backend server would use:
 ```java 
