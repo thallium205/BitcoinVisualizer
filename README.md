@@ -29,7 +29,7 @@ In order to create what is seen at http://blockviewer.com, Block Viewer performs
 5. Using each owner's identified addresses, it scrapes several websites (including BitcoinTalk and Bitcoin-OTC) and sees if an owner has been explicitly identified.  If so, it creates an "identifies" edge between the address and owner, as seen in the screenshot in step 3.
 6. Once the ownership network is constructed, the application exports each owner to a graph.
 7. It also exports time-division subsections of the network by day, giving users the ability to look at the behavior of the ownership network by time-span instead of by owner.
-8. The front end consumes the generated graphs, displaying it to the user.  The front-end server uses Neo4j replication to keep the cypher queries fast, and uses the backend's mysql database to fetch the owner graphs
+8. The front end consumes the generated graphs, displaying it to the user.  The front-end server uses Neo4j replication to keep the cypher queries fast while the backend is busy, and uses the backend's mysql database to fetch the owner graphs.
 
 Each component of the graph represents the following:
 * **Node Label** - If an owner has been identified to a real world entity such as a bitcointalk.org username, nodes will be tagged with this information under Alias. Otherwise, they will be tagged with a unique owner identifier.
@@ -70,7 +70,7 @@ I'm here to answer any and all questions and ideas.  If you would like to contri
 ## License
 MIT License
 
-Author <2012> <John Russell>
+Author 2012 - John Russell
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
