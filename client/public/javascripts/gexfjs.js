@@ -1184,5 +1184,8 @@ $(document).ready(function() {
     });
 	
 	// Show off the blockviwer onload
-	loadGraph(30117199, 30117199); // satoshi's owner id ;D
+	if (window.location.href.indexOf('#') == -1) {
+             loadGraph(30203900, 30203900); // wikileaks owner id ;D
+        } 
+	
 });
