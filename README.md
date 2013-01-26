@@ -1,7 +1,7 @@
 # BlockViewer.com
 
 ## Description
-Block Viewer visualizes the Bitcoin block chain by building an ownership network on top of the underlying network of transactions and presenting a web-enabled user interface to display the visualization results. 
+Block Viewer visualizes the Bitcoin block chain by building an ownership network on top of the underlying transaction network and presents a web-enabled user interface to display the visualization results. 
 
 ![BlockViewer](http://toolongdidntread.com/wp-content/uploads/2013/01/Screen-Shot-2013-01-25-at-9.32.00-AM-1024x572.png)
 
