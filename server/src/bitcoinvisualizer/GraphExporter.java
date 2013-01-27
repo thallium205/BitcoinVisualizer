@@ -66,7 +66,9 @@ import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Path;
 import org.neo4j.graphdb.Relationship;
+import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.index.Index;
+import org.neo4j.graphdb.traversal.Evaluators;
 import org.neo4j.graphdb.traversal.TraversalDescription;
 import org.neo4j.kernel.GraphDatabaseAPI;
 import org.neo4j.kernel.Traversal;
@@ -91,7 +93,7 @@ public class GraphExporter
 	private static final int cores = Runtime.getRuntime().availableProcessors();	
 	public static final String OWNED_ADDRESS_HASH = "owned_addr_hashes";
 	public static final String OWNED_ADDRESS_HASH_KEY = "owned_addr_hash";
-	private static final Long START_NODE = 29784508L;
+	private static final Long START_NODE = 37305951L;
 
 	public static void ExportTimeAnalysisGraphsToMySql(final GraphDatabaseAPI graphDb, final int threadCount)
 	{
@@ -239,7 +241,9 @@ public class GraphExporter
 			assert (from == null && to == null);
 			
 			// Before importing, we have to check to see if lastSeen is less than the "last_time_sent" value on the owner node.  
-			// If it is, then we continue.  If not, then we return because the owner has already been processed.			
+			// If it is, then we continue.  If not, then we return because the owner has already been processed.		
+			// We also check if the update flag is set to true.  If it is, we recalculate the owner.  This is necessary for submitted
+			// aliases.
 			try
 			{
 				final PreparedStatement statement = sqlDb.prepareStatement("SELECT ownerId, lastSeen FROM owner WHERE ownerId = (?) LIMIT 1");
@@ -248,13 +252,26 @@ public class GraphExporter
 				if (result.first())
 				{
 					final Long lastSeen = (long) result.getDouble("lastSeen");
-					if (lastSeen >= Long.parseLong(graphDb.getNodeById(ownerId).getProperty("last_time_sent", 0).toString()))
+					final Node owner = graphDb.getNodeById(ownerId);
+					
+					if ((Boolean) owner.getProperty("update", false))
+					{
+						LOG.info("This owner has been scheduled to be updated via the update flag.");
+					}
+					
+					else if (lastSeen >= Long.parseLong(owner.getProperty("last_time_sent", 0).toString()))
 					{
 						LOG.info("This owner is already at its latest state.  Skipping...");
 						return;
-					}					
-				}
-						
+					} 
+					
+					// We reset the owner's update flag to false, and continue.
+					final Transaction transaction = graphDb.beginTx();
+					owner.setProperty("update", false);
+					transaction.success();
+					transaction.finish();
+					
+				}						
 			} 
 			
 			catch (SQLException e)
@@ -437,10 +454,15 @@ public class GraphExporter
 						aliases.add(new AliasType((String) rel.getProperty("name"), (String) rel.getProperty("source"), (String) rel.getProperty("contributor"), (String) rel.getProperty("time")));
 					}
 					
-					else
+					else if (rel.getProperty("time") instanceof Long)
 					{
 						aliases.add(new AliasType((String) rel.getProperty("name"), (String) rel.getProperty("source"), (String) rel.getProperty("contributor"), ((Long) rel.getProperty("time")).toString()));
-					}					
+					}	
+					
+					else
+					{
+						aliases.add(new AliasType((String) rel.getProperty("name"), (String) rel.getProperty("source"), (String) rel.getProperty("contributor"), ((Integer) rel.getProperty("time")).toString()));
+					}
 				}				
 				StringBuilder builder = new StringBuilder();
 				for (AliasType alias : aliases)
@@ -703,10 +725,11 @@ public class GraphExporter
 			try
 			{
 				LOG.info("Begin storing owner graph to MySql...");
-				final PreparedStatement ps = sqlDb.prepareStatement("INSERT INTO `owner` (ownerId, lastSeen, gexf) VALUES (?, ?, ?)");
+				final PreparedStatement ps = sqlDb.prepareStatement("UPDATE `owner` SET ownerId = (?), lastSeen = (?), gexf = (?) WHERE ownerId = (?)");
 				ps.setLong(1, ownerId);
 				ps.setLong(2, Long.parseLong(graphDb.getNodeById(ownerId).getProperty("last_time_sent", 0).toString()));				 
 				ps.setString(3, gexfWriter.toString());
+				ps.setLong(4, ownerId);
 				ps.execute();
 				LOG.info("Storing owner graph to MySql complete.");
 			}

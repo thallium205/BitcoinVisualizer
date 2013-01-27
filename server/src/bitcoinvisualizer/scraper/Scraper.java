@@ -224,7 +224,10 @@ public class Scraper
 			else
 			{
 				owner.setProperty("name", name);
-			}							
+			}			
+			
+			// Marks the node to be updated on graph export
+			owner.setProperty("update", true);
 			
 			Relationship relationship = ownedAddr.createRelationshipTo(owner, ScraperRelationships.identifies);				
 			relationship.setProperty("name", name);
