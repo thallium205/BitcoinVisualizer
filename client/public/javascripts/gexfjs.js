@@ -225,6 +225,8 @@ function displayNode(_nodeIndex, _recentre) {
 					break;
 				case 'owner id':
 					break;
+				case 'update':
+					break;
 				case 'Aliases':
 					_str += '<li><b>' + strLang(i) + '</b>: ' +  _d.attributes[i].toString() + '</li>';
 					break;
@@ -1183,7 +1185,7 @@ $(document).ready(function() {
         return false;
     });
 	
-	$('#announcementModal').modal('show');
+	// $('#announcementModal').modal('show');
 	
 	// Show off the blockviwer onload
 	if (window.location.href.indexOf('#') == -1) {

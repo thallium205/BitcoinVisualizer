@@ -93,6 +93,11 @@ public class GraphBuilder
 	private static final String LAST_LINKED_OWNER_BUILD_BLOCK_NODEID = "last_linked_owner_build_block_nodeId";
 	private static final String LAST_LINKED_OWNER_LINK_BLOCK_NODEID = "last_linked_owner_link_block_nodeId";
 	private static final String LAST_TIME_SENT = "last_time_sent";
+	
+	// TODO clean this up!
+	public static Hashtable<String, Integer> blocks = new Hashtable<String, Integer>();
+	public static Hashtable<Integer, Integer> blockHeights = new Hashtable<Integer, Integer>(); 
+	
 	/**
 	 * Represents the basic relationships of the low-level model.
 	 * 
@@ -225,25 +230,18 @@ public class GraphBuilder
 		LOG.info("Latest database block index is: " + lastDatabaseBlockIndex);
 
 		// We persist the difference
-		if (doValidate)
-		{
-			LOG.info("Starting blockchain validation...");
-			if (isBlockchainComplete())
-			{
-				LOG.info("Integrity test succeeded.");
-			}
 
-			else
-			{
-				LOG.severe("Integrity test failed. Aborting... Try again.");
-				return;
-			}
+		LOG.info("Starting blockchain validation...");
+		if (indexAndValidateBlockchain(doValidate))
+		{
+			LOG.info("Blockchain validation completed.");
 		}
 
 		else
 		{
-			LOG.info("Skipping blockchain validation...");
-		}
+			LOG.severe("Blockchain validation failed. Aborting... Try again.");
+			return;
+		}		
 
 		LOG.info("Begin persistance...");
 		// Begin persistence
@@ -486,7 +484,7 @@ public class GraphBuilder
 					graphDb.getNodeById(0).setProperty(LAST_LINKED_OWNER_BUILD_BLOCK_NODEID, block.getId());
 					graphDb.getNodeById(0).setProperty(LAST_LINKED_OWNER_LINK_BLOCK_NODEID, block.getId());
 					
-					if (isBlockchainComplete())
+					if (indexAndValidateBlockchain(true))
 					{
 						LOG.info("Orphan block successfully removed.");
 					}
@@ -593,7 +591,7 @@ public class GraphBuilder
 				fileNames.add(Integer.parseInt(file.getName().split(".json")[0]));
 		}
 		Collections.sort(fileNames);
-		LOG.info("Latest block on disk: " + (fileNames.size() - 1) + ".json");
+		LOG.info("Latest block on disk: " + (fileNames.size() - 1) + ".json");		
 		return fileNames.get(fileNames.size() - 1);
 	}
 
@@ -629,7 +627,7 @@ public class GraphBuilder
 			{
 				FileUtils.writeStringToFile(new File(lastBlock.getBlockType().getBlock_index() + ".json"), lastBlock.getBlockJson().render(true));
 				lastBlock = Fetcher.GetBlock(lastBlock.getBlockType().getPrev_block());
-				LOG.info((Math.abs(latestLocalBlockIndex - lastBlock.getBlockType().getBlock_index())) + " blocks left.");
+				LOG.info("Processed block index: " + lastBlock.getBlockType().getBlock_index());
 			}
 
 			catch (IOException e)
@@ -712,18 +710,20 @@ public class GraphBuilder
 	 * @return If the blockchain is complete.
 	 * @author John
 	 */
-	private static boolean isBlockchainComplete()
+	private static boolean indexAndValidateBlockchain(Boolean doValidate)
 	{
 		boolean isComplete = true;
+		blocks.clear();
+		blockHeights.clear();
 
-		LOG.info("Verifying local blockchain integrity.");
-
-		// We are going to populate a hashtable binding addresses (key) to index numbers (value). This will allow in-memory verification while keeping memory consumption at a minimum
-		Hashtable<String, Integer> blocks = new Hashtable<String, Integer>();
+		LOG.info("Indexing all the blocks on disk...");
+		// We are going to populate a hashtable binding addresses (key) to index numbers (value). This will allow in-memory verification while keeping memory consumption at a minimum		
 		File fileBlock;
 		BlockType block;
 
-		LOG.info("Collecting blocks...");
+		// The blockchain API used to sequentially index the blocks based upon their height but they no longer do that so the heights of each block need to be bound
+		// to their API indexes for fast lookup when building the low level chain
+		LOG.info("The blocks need to be collected because the blockchain.info API changed the way they do indexes.");
 		Collection<File> files = Fetcher.getFolderContents(".");
 		for (Iterator<File> iter = files.iterator(); iter.hasNext();)
 		{
@@ -734,6 +734,8 @@ public class GraphBuilder
 				{
 					block = Fetcher.GetBlock(fileBlock).getBlockType();
 					blocks.put(block.getHash(), block.getBlock_index());
+					blockHeights.put(block.getHeight(), block.getBlock_index());
+					System.out.println(block.getHeight() + ":" + block.getBlock_index());					
 				}
 
 				catch (FetcherException e)
@@ -743,62 +745,66 @@ public class GraphBuilder
 				}
 			}
 		}
-
-		// For every file, we check to see if it's prev_block value exists in
-		// the hash table. If it does, we go to the next file
-		LOG.info("Verifying integrity...");
-		files = Fetcher.getFolderContents(".");
-		for (Iterator<File> iter = files.iterator(); iter.hasNext();)
+		
+		if (doValidate)
 		{
-			fileBlock = iter.next();
-			if (fileBlock.getName().endsWith("json"))
+			// For every file, we check to see if it's prev_block value exists in
+			// the hash table. If it does, we go to the next file
+			LOG.info("Validating the integrity of the blockchain...");
+			files = Fetcher.getFolderContents(".");
+			for (Iterator<File> iter = files.iterator(); iter.hasNext();)
 			{
-				try
+				fileBlock = iter.next();
+				if (fileBlock.getName().endsWith("json"))
 				{
-					block = Fetcher.GetBlock(fileBlock).getBlockType();
-					if (block.getPrev_block().length() != 0)
+					try
 					{
-						Integer prevBlock = blocks.get(block.getPrev_block());
-						if (prevBlock != null)
+						block = Fetcher.GetBlock(fileBlock).getBlockType();
+						if (block.getPrev_block().length() != 0)
 						{
-							// blocks.remove(block.getPrev_block()); - We don't
-							// remove the block because there is no guarentee of
-							// order in FileUtils.listFiles in Fetcher
+							Integer prevBlock = blocks.get(block.getPrev_block());
+							if (prevBlock != null)
+							{
+								// blocks.remove(block.getPrev_block()); - We don't
+								// remove the block because there is no guarentee of
+								// order in FileUtils.listFiles in Fetcher
+							}
+
+							else
+							{
+								LOG.severe("Error.  Could not find the prev_block (" + block.getPrev_block() + ") on block index: " + block.getBlock_index() + " Downloading missing block...");
+
+								BlockJsonType blockToWrite = Fetcher.GetBlock(block.getPrev_block());
+								FileUtils.writeStringToFile(new File(blockToWrite.getBlockType().getBlock_index() + ".json"), blockToWrite.getBlockJson().render(true));
+								isComplete = false;
+							}
 						}
 
 						else
 						{
-							LOG.severe("Error.  Could not find the prev_block (" + block.getPrev_block() + ") on block index: " + block.getBlock_index() + " Downloading missing block...");
-
-							BlockJsonType blockToWrite = Fetcher.GetBlock(block.getPrev_block());
-							FileUtils.writeStringToFile(new File(blockToWrite.getBlockType().getBlock_index() + ".json"), blockToWrite.getBlockJson().render(true));
-							isComplete = false;
+							// The genesis block does not contain a prev_block.
 						}
+
 					}
 
-					else
+					catch (FetcherException e)
 					{
-						// The genesis block does not contain a prev_block.
+						LOG.severe(e.getMessage());
+						return false;
 					}
 
+					catch (IOException e)
+					{
+						LOG.severe(e.getMessage());
+						return false;
+					}
 				}
+			}		
 
-				catch (FetcherException e)
-				{
-					LOG.severe(e.getMessage());
-					return false;
-				}
-
-				catch (IOException e)
-				{
-					LOG.severe(e.getMessage());
-					return false;
-				}
-			}
+			LOG.info("Integrity test complete.");				
 		}
-
-		LOG.info("Integrity test complete.");
-		return isComplete;
+		
+		return isComplete;		
 	}
 
 	/**
@@ -814,6 +820,30 @@ public class GraphBuilder
 	 */
 	private static BlockType getNextBlockFromDisk(int lastDatabaseBlockIndex, final int lastBlockDownloaded) throws FetcherException
 	{
+		
+		BlockJsonType block = Fetcher.GetBlock(FileUtils.getFile(lastDatabaseBlockIndex + ".json"));
+		Integer nextBlockIndex = blockHeights.get(block.getBlockType().getHeight() + 1);
+		BlockJsonType nextBlock = null;
+		if (nextBlockIndex != null)
+		{
+			nextBlock = Fetcher.GetBlock(FileUtils.getFile(nextBlockIndex + ".json"));		
+		}
+		
+		if (nextBlock != null)
+		{
+			return nextBlock.getBlockType();	
+		}
+		
+		else
+		{
+			return null;
+		}
+		
+		
+		
+		
+		
+		/*
 		// Load the next block from disk. Because indexes don't go in
 		// order, we need to find it from disk.
 		for (int i = lastDatabaseBlockIndex; i < lastBlockDownloaded; i++)
@@ -824,6 +854,7 @@ public class GraphBuilder
 			}
 		}
 		return null;
+		*/
 	}
 
 	/**

@@ -81,7 +81,8 @@ public class Main
 				}
 				
 				try
-				{				
+				{			
+									
 					// Get values
 					line = parser.parse(getOptions(), args);
 					boolean validate = true;
@@ -115,8 +116,18 @@ public class Main
 							
 							if (line.hasOption("exporter"))
 							{
-								GraphExporter.ExportOwnerGraphsToMySql(graphDb);									
-								GraphExporter.ExportTimeAnalysisGraphsToMySql(graphDb, cores > 1 ? cores - 1 : cores);
+								try
+								{
+									GraphExporter.ExportOwnerGraphsToMySql(graphDb);									
+									GraphExporter.ExportTimeAnalysisGraphsToMySql(graphDb, cores > 1 ? cores - 1 : cores);
+								}
+								
+								// Dirty hacks ahead
+								catch (Exception e)
+								{
+									
+								}
+
 							}
 							
 						} 
@@ -125,15 +136,17 @@ public class Main
 						{
 							LOG.log(Level.WARNING, "Graph Build Failed.  Skipping, but not shutting down database.", e);
 						}
-					}				
+					}							
 				}
 
+				
 				catch (ParseException e)
 				{
 					LOG.log(Level.SEVERE, "Parsing failed.  Reason: " + e.getMessage(), e);
 					hasError = true;
 					// GraphBuilder.StopDatabase();
 				} 
+				
 				
 				catch (IOException e)
 				{

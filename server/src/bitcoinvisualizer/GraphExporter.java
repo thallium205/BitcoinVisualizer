@@ -80,6 +80,7 @@ import bitcoinvisualizer.GraphBuilder.OwnerRelTypes;
 import bitcoinvisualizer.scraper.Scraper.ScraperRelationships;
 
 import com.google.common.collect.Iterables;
+import com.teradata.jdbc.jdbc_4.logging.Log;
 
 /**
  * Creates an information rich graph in .gexf format of the Bitcoin ownership network given the path to a Neo4j graph.db database.
@@ -97,6 +98,7 @@ public class GraphExporter
 
 	public static void ExportTimeAnalysisGraphsToMySql(final GraphDatabaseAPI graphDb, final int threadCount)
 	{
+		LOG.info("Begin exporting time analysis graphs.");
 		try
 		{
 			Class.forName("com.mysql.jdbc.Driver");
@@ -154,7 +156,8 @@ public class GraphExporter
 		{
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}		
+		}	
+		LOG.info("Exporting time analysis graphs completed.");
 	}
 	
 	public static void ExportOwnerGraphsToMySql(final GraphDatabaseAPI graphDb)
@@ -673,7 +676,6 @@ public class GraphExporter
 
 		// Export
 		LOG.info("Begin Exporting Graph To Disk...");
-		String response = null; // TODO uglyyyyyyyyy.  Create a wrapped output manager object
 		final ExportController ec = Lookup.getDefault().lookup(ExportController.class);
 		final StringWriter gexfWriter = new StringWriter();
 		final ByteArrayOutputStream pdfOutputStream = new ByteArrayOutputStream();
@@ -725,11 +727,10 @@ public class GraphExporter
 			try
 			{
 				LOG.info("Begin storing owner graph to MySql...");
-				final PreparedStatement ps = sqlDb.prepareStatement("UPDATE `owner` SET ownerId = (?), lastSeen = (?), gexf = (?) WHERE ownerId = (?)");
+				final PreparedStatement ps = sqlDb.prepareStatement("REPLACE INTO `owner` SET ownerId = (?), lastSeen = (?), gexf = (?)");
 				ps.setLong(1, ownerId);
 				ps.setLong(2, Long.parseLong(graphDb.getNodeById(ownerId).getProperty("last_time_sent", 0).toString()));				 
 				ps.setString(3, gexfWriter.toString());
-				ps.setLong(4, ownerId);
 				ps.execute();
 				LOG.info("Storing owner graph to MySql complete.");
 			}
