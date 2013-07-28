@@ -60,6 +60,36 @@ where
 * **client** = Just enables the Neo4j embedded database, and given the config settings, receives data from the server.
 BlockViewer's backend is fully recoverable (except during a download from the API TODO), which means it can be stopped at resumed where it left at any time during this process without any issue.
 
+## Detailed Usage
+In order to run the BlockViewer application that builds the graph, the following must happen:
+
+Backend:
+0) Java needs to be installed
+1) You need to run the Neo4j coordinator application separately because this program is using the high availability database.  If you are running windows, you need to download and execute this program before starting the jar: /neo4j-enterprise-1.8-windows/neo4j-enterprise-1.8/bin/Neo4jCoordinator.bat This can be downloaded from the Neo4j website!
+2) Once that is running, you need to seed the genesis block.  Put this file in the directory where the BlockViewer.jar resides: http://blockchain.info/rawblock/000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f  Save it as: "1.json".  You have to do this because of a known bug that I wish I had more time to fix, but if you are so inclined, please check out latestDiskBlockIndex() function in GraphBuilder.java
+3) Finally, run the application itself: java -jar -Xmx6g BlockViewer.jar -dbPath ../graph.db/ -configPath ../neo4j.properties -validate false -low -high  (There are several more flags that can be set... an easy way to test that things are working is to use the -client flag so no building happens but just starts the database).
+4) If you are going to be exporting the visualizations, you need to have a mysql database setup.  Also, look at the export code to determine what stuff you actually want exported (pdf, gexf, png, etc).  It loads it as a LONGBLOB into a mysql table.
+
+Frontend:
+If you are interested in running the frontend application that allows visualization in the browser, it requires a few environment variables to be set:
+0) Nodejs needs to be installed and its dependencies (npm install)
+// Since you are hosting a website, this makes it so you can run a website on port 80 without having to do it as root by running it on 8080
+sudo iptables -A PREROUTING -t nat -i eth0 -p tcp --dport 80 -j REDIRECT --to-port 8080
+// It has a logger from http://loggly.com/ if you are interested in loging frontend activity
+export logsubdomain=???
+export loguser=???
+export logpass=???
+export logtoken=???
+// It requires a mysql server
+export sqlhost=10.0.0.1
+export sqluser=root
+export sqlpass=???
+export sqldatabase=blockviewer
+
+Known Issue:
+Gephi toolkit has a known problem when casting the ID's to Long datatypes.  I reported and have been working with them for some time in getting it resolved: https://github.com/gephi/gephi/issues/707 They just now got around to fixing it, but my dirty hack is being used in the meantime.
+There is a memory leak when exporting graph visualizations.  It is occuring in the Neo4jImporter importDatabase function.  I modified the source code of the importer so it doesn't have to close the database connection and repoen it upon each import.  By keeping it open, when i clear the graph workspace, some kind of memory is not being released.  Over time, the memory fills up and eventually results in an OutOfMemoryError exception.  The unmodified, original importer (which also doesn't allow users to traverse through time which I added), can be found here -> https://github.com/gephi/gephi-plugins/blob/neo4j-plugin/Neo4jPlugin/src/org/gephi/neo4j/plugin/impl/Neo4jImporterImpl.java#L96
+Relationships between the owner nodes are only being expressed with one transaction - even if there are more interactions between owners.  This process takes place in the relinkOwners function under GraphBuilder.java
 
 ## Issues
 Issues are being tracked in Github.
